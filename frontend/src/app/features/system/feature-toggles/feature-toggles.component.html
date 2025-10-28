@@ -1,0 +1,33 @@
+<div class="feature-toggles">
+  <h2>Feature Toggles</h2>
+
+  <div *ngIf="loading">Loading...</div>
+  <div *ngIf="error" class="error">{{ error }}</div>
+
+  <table *ngIf="!loading && toggles.length > 0" class="table">
+    <thead>
+      <tr>
+        <th>Key</th>
+        <th>Name</th>
+        <th>Description</th>
+        <th>Enabled</th>
+        <th>Action</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let t of toggles">
+        <td>{{ t.featureKey }}</td>
+        <td>{{ t.featureName }}</td>
+        <td>{{ t.description }}</td>
+        <td>{{ t.isEnabled ? 'Yes' : 'No' }}</td>
+        <td>
+          <button class="btn btn-sm" [class.btn-success]="!t.isEnabled" [class.btn-secondary]="t.isEnabled" (click)="toggleFeature(t)">
+            {{ t.isEnabled ? 'Disable' : 'Enable' }}
+          </button>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div *ngIf="!loading && toggles.length === 0">No feature toggles found.</div>
+</div>

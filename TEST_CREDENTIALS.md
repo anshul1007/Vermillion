@@ -6,14 +6,14 @@ The login functionality is now working. The backend API has been updated to retu
 
 ## Login Information
 
-The database has been seeded with three test users with different roles:
+The database has been seeded with four test users with different roles:
 
 ### 1. Administrator
 - **Email:** `admin@attendance.com`
 - **Password:** `Admin@123`
 - **Employee ID:** EMP001
 - **Role:** Administrator
-- **Access:** Full system access including user management, reports, and all features
+- **Access:** Full system access including user management, reports, and all features (except feature toggles)
 
 ### 2. Manager
 - **Email:** `manager@attendance.com`
@@ -29,6 +29,13 @@ The database has been seeded with three test users with different roles:
 - **Role:** Employee
 - **Manager:** Assigned to Manager (EMP002)
 - **Access:** Can mark attendance, request leave, cancel pending leave requests, and view own records
+
+### 4. System User
+- **Email:** `system@attendance.com`
+- **Password:** `System@123`
+- **Employee ID:** SYS001
+- **Role:** SystemUser
+- **Access:** Exclusive control over feature toggles (cannot perform administrative tasks)
 
 ## API Endpoints
 

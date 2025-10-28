@@ -4,6 +4,8 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using Microsoft.FeatureManagement;
+using Microsoft.FeatureManagement.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -58,6 +60,14 @@ builder.Services.AddScoped<IAttendanceService, AttendanceService>();
 builder.Services.AddScoped<ILeaveService, LeaveService>();
 builder.Services.AddScoped<IApprovalService, ApprovalService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
+builder.Services.AddScoped<IFeatureToggleService, FeatureToggleService>();
+
+// Add Microsoft Feature Management
+builder.Services.AddFeatureManagement()
+    .AddFeatureFilter<Microsoft.FeatureManagement.FeatureFilters.TimeWindowFilter>();
+
+// Add custom database feature definition provider
+builder.Services.AddSingleton<Microsoft.FeatureManagement.IFeatureDefinitionProvider, DatabaseFeatureDefinitionProvider>();
 
 // Add services to the container.
 builder.Services.AddControllers();

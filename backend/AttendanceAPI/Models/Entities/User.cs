@@ -52,6 +52,7 @@ namespace AttendanceAPI.Models.Entities
     {
         Employee = 1,
         Manager = 2,
-        Administrator = 3
+        Administrator = 3,
+        SystemUser = 4
     }
 }

@@ -17,6 +17,7 @@ namespace AttendanceAPI.Data
         public DbSet<PublicHoliday> PublicHolidays { get; set; }
         public DbSet<AuditLog> AuditLogs { get; set; }
         public DbSet<Department> Departments { get; set; }
+        public DbSet<FeatureToggle> FeatureToggles { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -101,6 +102,13 @@ namespace AttendanceAPI.Data
                     .WithMany()
                     .HasForeignKey(e => e.UserId)
                     .OnDelete(DeleteBehavior.SetNull);
+            });
+
+            // FeatureToggle configuration
+            modelBuilder.Entity<FeatureToggle>(entity =>
+            {
+                entity.HasIndex(e => e.FeatureKey).IsUnique();
+                entity.HasIndex(e => e.IsEnabled);
             });
         }
     }

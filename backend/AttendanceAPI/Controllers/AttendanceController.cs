@@ -2,6 +2,7 @@ using AttendanceAPI.Models.DTOs;
 using AttendanceAPI.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using AttendanceAPI.Filters;
 using System.Security.Claims;
 
 namespace AttendanceAPI.Controllers
@@ -44,6 +45,7 @@ namespace AttendanceAPI.Controllers
         }
 
         [HttpPost("logout")]
+        [FeatureGate("ClockOut")]
         public async Task<IActionResult> Logout()
         {
             try

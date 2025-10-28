@@ -69,7 +69,22 @@ namespace AttendanceAPI.Services
                     UpdatedAt = DateTime.UtcNow
                 };
 
-                context.Users.AddRange(admin, manager, employee);
+                // Create System user
+                var systemUser = new User
+                {
+                    Id = Guid.NewGuid(),
+                    Email = "system@attendance.com",
+                    PasswordHash = BCrypt.Net.BCrypt.HashPassword("System@123"),
+                    FirstName = "System",
+                    LastName = "User",
+                    EmployeeId = "SYS001",
+                    Role = UserRole.SystemUser,
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+
+                context.Users.AddRange(admin, manager, employee, systemUser);
                 await context.SaveChangesAsync();
 
                 // Create leave entitlements for current year
@@ -111,11 +126,82 @@ namespace AttendanceAPI.Services
                 context.LeaveEntitlements.AddRange(entitlements);
                 await context.SaveChangesAsync();
 
+                // Seed default feature toggles
+                var featureToggles = new List<FeatureToggle>
+                {
+                    new FeatureToggle
+                    {
+                        FeatureKey = "AttendanceGeolocation",
+                        FeatureName = "Attendance Geolocation",
+                        Description = "Enable geolocation validation for attendance check-in/check-out",
+                        IsEnabled = true,
+                        LastModifiedBy = systemUser.Id,
+                        CreatedAt = DateTime.UtcNow,
+                        UpdatedAt = DateTime.UtcNow
+                    },
+                    new FeatureToggle
+                    {
+                        FeatureKey = "LeaveAutoApproval",
+                        FeatureName = "Leave Auto-Approval",
+                        Description = "Automatically approve leave requests below certain threshold",
+                        IsEnabled = false,
+                        LastModifiedBy = systemUser.Id,
+                        CreatedAt = DateTime.UtcNow,
+                        UpdatedAt = DateTime.UtcNow
+                    },
+                    new FeatureToggle
+                    {
+                        FeatureKey = "AdvancedAnalytics",
+                        FeatureName = "Advanced Analytics",
+                        Description = "Enable advanced analytics and reporting features",
+                        IsEnabled = true,
+                        LastModifiedBy = systemUser.Id,
+                        CreatedAt = DateTime.UtcNow,
+                        UpdatedAt = DateTime.UtcNow
+                    },
+                    new FeatureToggle
+                    {
+                        FeatureKey = "EmailNotifications",
+                        FeatureName = "Email Notifications",
+                        Description = "Send email notifications for important events",
+                        IsEnabled = false,
+                        LastModifiedBy = systemUser.Id,
+                        CreatedAt = DateTime.UtcNow,
+                        UpdatedAt = DateTime.UtcNow
+                    },
+                    new FeatureToggle
+                    {
+                        FeatureKey = "FacialRecognition",
+                        FeatureName = "Facial Recognition",
+                        Description = "Enable facial recognition for attendance verification",
+                        IsEnabled = false,
+                        LastModifiedBy = systemUser.Id,
+                        CreatedAt = DateTime.UtcNow,
+                        UpdatedAt = DateTime.UtcNow
+                    }
+                    ,
+                    new FeatureToggle
+                    {
+                        FeatureKey = "ClockOut",
+                        FeatureName = "Clock Out",
+                        Description = "Enable clock out / checkout functionality for attendance",
+                        IsEnabled = true,
+                        LastModifiedBy = systemUser.Id,
+                        CreatedAt = DateTime.UtcNow,
+                        UpdatedAt = DateTime.UtcNow
+                    }
+                };
+
+                context.FeatureToggles.AddRange(featureToggles);
+                await context.SaveChangesAsync();
+
                 logger.LogInformation("Database seeding completed successfully!");
                 logger.LogInformation("Admin credentials: admin@attendance.com / Admin@123");
                 logger.LogInformation("Manager credentials: manager@attendance.com / Manager@123");
                 logger.LogInformation("Employee credentials: employee@attendance.com / Employee@123");
+                logger.LogInformation("System User credentials: system@attendance.com / System@123");
                 logger.LogInformation("Leave entitlements allocated: 12 Casual, 15 Earned for each user");
+                logger.LogInformation("{Count} feature toggles created", featureToggles.Count);
             }
             catch (Exception ex)
             {
