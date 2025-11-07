@@ -95,27 +95,33 @@ jobs:
           exit 1
         fi
 
-    - name: 🚀 Deploy Static Web Apps (web + mobile)
+    - name: Check mobile build output
+      id: check_mobile
       run: |
-        # Deploy main frontend (project name 'frontend')
-        if [ -d "frontend/dist/frontend/browser" ]; then
-          echo "Uploading frontend to Static Web App: vermillion-web-${{ steps.env.outputs.environment }}"
-          npx @azure/static-web-apps-cli deploy --app-name "vermillion-web-${{ steps.env.outputs.environment }}" --env production --output-location "frontend/dist/frontend/browser" --no-api
+        if [ -d "frontend-mobile/dist/frontend-mobile/browser" ]; then
+          echo "mobile_present=true" >> $GITHUB_ENV
         else
-          echo "❌ frontend build output not found: frontend/dist/frontend/browser"
-          exit 1
+          echo "mobile_present=false" >> $GITHUB_ENV
         fi
 
-        # Deploy mobile frontend if present
-        if [ -d "frontend-mobile/dist/frontend-mobile/browser" ]; then
-          echo "Uploading frontend-mobile to Static Web App: vermillion-mobile-${{ steps.env.outputs.environment }}"
-          npx @azure/static-web-apps-cli deploy --app-name "vermillion-mobile-${{ steps.env.outputs.environment }}" --env production --output-location "frontend-mobile/dist/frontend-mobile/browser" --no-api
-        else
-          echo "No mobile build output found or mobile app not present; skipping mobile deploy"
-        fi
-      env:
-        AZURE_STATIC_WEB_APPS_API_TOKEN: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_PROD }}
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - name: 🚀 Deploy main Static Web App (web)
+      uses: Azure/static-web-apps-deploy@v1
+      with:
+        azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_PROD }}
+        repo_token: ${{ secrets.GITHUB_TOKEN }}
+        action: "upload"
+        app_location: "frontend/dist/frontend/browser"
+        skip_app_build: true
+
+    - name: 🚀 Deploy mobile Static Web App (mobile)
+      if: env.mobile_present == 'true'
+      uses: Azure/static-web-apps-deploy@v1
+      with:
+        azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_PROD }}
+        repo_token: ${{ secrets.GITHUB_TOKEN }}
+        action: "upload"
+        app_location: "frontend-mobile/dist/frontend-mobile/browser"
+        skip_app_build: true
 
     - name: ✅ Deployment Complete
       run: |

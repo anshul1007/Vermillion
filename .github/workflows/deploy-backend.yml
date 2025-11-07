@@ -58,7 +58,7 @@ jobs:
       run: |
         set -e
         ENV="${{ steps.env.outputs.environment }}"
-        RG="vermillion-attendance-${ENV}-rg"
+        RG="vermillion-${ENV}-rg"
 
         # Define backend projects and corresponding app ids (used in webapp naming)
         PROJECTS=("AttendanceAPI" "AuthAPI" "EntryExitAPI")
@@ -91,6 +91,35 @@ jobs:
 
           # Deploy
           echo "Deploying $ZIP_PATH to $WEBAPP_NAME in resource group $RG"
+
+          # Verify web app exists before deploying
+          set +e
+          az webapp show --name "$WEBAPP_NAME" --resource-group "$RG" >/dev/null 2>&1
+          APP_EXISTS=$?
+          set -e
+
+          if [ $APP_EXISTS -ne 0 ]; then
+            echo "\n❗ Target web app '$WEBAPP_NAME' not found in resource group $RG. Trying fallback names...\n"
+
+            # Try fallback: legacy single webapp name (vermillion-api-<env>)
+            FALLBACK_NAME="vermillion-api-${ENV}"
+            set +e
+            az webapp show --name "$FALLBACK_NAME" --resource-group "$RG" >/dev/null 2>&1
+            FALLBACK_EXISTS=$?
+            set -e
+
+            if [ $FALLBACK_EXISTS -eq 0 ]; then
+              echo "✅ Fallback web app found: $FALLBACK_NAME — deploying there instead."
+              WEBAPP_NAME="$FALLBACK_NAME"
+            else
+              echo "Listing web apps in resource group $RG for debugging:"
+              az webapp list --resource-group "$RG" --query "[].{name:name,kind:kind,location:location}" -o table || true
+              echo "\nHint: Run the 'Setup Azure Infrastructure' workflow to provision the web apps, or create the web app(s) manually in the portal." 
+              echo "Failing the deployment to avoid creating resources unexpectedly."
+              exit 2
+            fi
+          fi
+
           az webapp deploy --resource-group "$RG" --name "$WEBAPP_NAME" --src-path "$ZIP_PATH"
         done
 

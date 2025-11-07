@@ -58,13 +58,13 @@ jobs:
     - name:  Create Resource Group
       run: |
         ENV="${{ github.event.inputs.environment }}"
-        RESOURCE_GROUP="vermillion-attendance-${ENV}-rg"
-        
+        RESOURCE_GROUP="vermillion-${ENV}-rg"
+
         echo "Creating Resource Group: $RESOURCE_GROUP"
         az group create \
           --name $RESOURCE_GROUP \
           --location ${{ github.event.inputs.location }}
-        
+
         echo "RESOURCE_GROUP=$RESOURCE_GROUP" >> $GITHUB_ENV
         echo "✅ Resource Group created: $RESOURCE_GROUP"
 
@@ -75,151 +75,59 @@ jobs:
         SQL_ADMIN_USER="sqladmin"
         SQL_ADMIN_PASSWORD="${{ secrets.SQL_ADMIN_PASSWORD_PROD }}"
         LOCATION="${{ github.event.inputs.location }}"
-        
+
         echo "======================================"
         echo "SQL Server Setup: $SQL_SERVER_NAME"
         echo "======================================"
-        
-        # Check if SQL server already exists in current resource group
-        echo "Checking if SQL Server exists in resource group: ${{ env.RESOURCE_GROUP }}..."
-        
-        set +e
-        SERVER_CHECK=$(az sql server show --name $SQL_SERVER_NAME --resource-group ${{ env.RESOURCE_GROUP }} --query "name" -o tsv 2>/dev/null)
-        CHECK_RESULT=$?
-        set -e
-        
-        if [ $CHECK_RESULT -eq 0 ] && [ "$SERVER_CHECK" = "$SQL_SERVER_NAME" ]; then
-          echo "✅ SQL Server already exists in this resource group: $SQL_SERVER_NAME"
-          EXISTING_LOCATION=$(az sql server show --name $SQL_SERVER_NAME --resource-group ${{ env.RESOURCE_GROUP }} --query "location" -o tsv)
-          echo "   Location: $EXISTING_LOCATION"
-          echo "   ⏭️  Skipping SQL Server creation"
-          LOCATION=$EXISTING_LOCATION
-          
-          # Set environment variables and skip to end
-          echo "SQL_SERVER_NAME=$SQL_SERVER_NAME" >> $GITHUB_ENV
-          echo "SQL_LOCATION=$LOCATION" >> $GITHUB_ENV
-          echo "SQL_ADMIN_USER=$SQL_ADMIN_USER" >> $GITHUB_ENV
-          echo "ENVIRONMENT=$ENV" >> $GITHUB_ENV
-          
-          echo ""
-          echo "======================================"
-          echo "✅ SQL Server Ready (Existing)"
-          echo "======================================"
-          echo "Name: $SQL_SERVER_NAME"
-          echo "Location: $LOCATION"
-          echo "Resource Group: ${{ env.RESOURCE_GROUP }}"
-          echo ""
+
+        # If server already exists in the target resource group, use it. Otherwise create a new server.
+        if az sql server show --name $SQL_SERVER_NAME --resource-group ${{ env.RESOURCE_GROUP }} >/dev/null 2>&1; then
+          echo "SQL Server already exists in target resource group: $SQL_SERVER_NAME"
+          SQL_LOCATION=$(az sql server show --name $SQL_SERVER_NAME --resource-group ${{ env.RESOURCE_GROUP }} --query location -o tsv)
         else
-          echo "SQL Server not found in current resource group. Creating new server..."
-          echo ""
-          
-          # Validate password exists
           if [ -z "$SQL_ADMIN_PASSWORD" ]; then
-            echo "❌ ERROR: SQL_ADMIN_PASSWORD_PROD secret is not set!"
-            echo ""
-            echo "Please add this secret in GitHub:"
-            echo "  Settings → Secrets and variables → Actions → New repository secret"
-            echo "  Name: SQL_ADMIN_PASSWORD_PROD"
-            echo "  Value: Your strong password (8+ chars, uppercase, lowercase, number, special char)"
+            echo "❌ ERROR: SQL_ADMIN_PASSWORD_PROD secret is not set!"; exit 1
+          fi
+
+          echo "Creating new SQL Server $SQL_SERVER_NAME in $LOCATION"
+          set +e
+          CREATE_OUTPUT=$(az sql server create --name $SQL_SERVER_NAME --resource-group ${{ env.RESOURCE_GROUP }} --location $LOCATION --admin-user $SQL_ADMIN_USER --admin-password "$SQL_ADMIN_PASSWORD" 2>&1)
+          CREATE_RESULT=$?
+          set -e
+
+          if [ $CREATE_RESULT -ne 0 ]; then
+            echo "Failed to create SQL Server:"
+            echo "$CREATE_OUTPUT"
             exit 1
           fi
-          
-          # Try to create SQL Server
-          echo "Attempting to create SQL Server in: $LOCATION"
-          echo "Server name: $SQL_SERVER_NAME"
-          echo "Admin user: $SQL_ADMIN_USER"
-          echo ""
-          
-          set +e  # Temporarily disable exit on error
-          CREATE_OUTPUT=$(az sql server create \
-            --name $SQL_SERVER_NAME \
-            --resource-group ${{ env.RESOURCE_GROUP }} \
-            --location $LOCATION \
-            --admin-user $SQL_ADMIN_USER \
-            --admin-password "$SQL_ADMIN_PASSWORD" 2>&1)
-          
-          CREATE_RESULT=$?
-          set -e  # Re-enable exit on error
-          
-          if [ $CREATE_RESULT -eq 0 ]; then
-            echo "✅ SQL Server created successfully in $LOCATION"
-          else
-            echo "⚠️  Failed to create in $LOCATION"
-            echo "Error details:"
-            echo "$CREATE_OUTPUT"
-            echo ""
-            echo "Trying alternative European regions (skipping westeurope due to capacity issues)..."
-            
-            SUCCESS=false
-            # Skip westeurope, start with northeurope and other European regions
-            for ALT_LOCATION in northeurope uksouth ukwest francecentral francesouth germanywestcentral germanynorth swedencentral norwayeast switzerlandnorth switzerlandwest polandcentral italynorth spaincentral; do
-              echo ""
-              echo "Trying region: $ALT_LOCATION"
-              
-              set +e  # Disable exit on error for this command
-              ALT_OUTPUT=$(az sql server create \
-                --name $SQL_SERVER_NAME \
-                --resource-group ${{ env.RESOURCE_GROUP }} \
-                --location $ALT_LOCATION \
-                --admin-user $SQL_ADMIN_USER \
-                --admin-password "$SQL_ADMIN_PASSWORD" 2>&1)
-              
-              ALT_RESULT=$?
-              set -e  # Re-enable exit on error
-              
-              if [ $ALT_RESULT -eq 0 ]; then
-                echo "✅ SQL Server created successfully in $ALT_LOCATION"
-                LOCATION=$ALT_LOCATION
-                SUCCESS=true
-                break
-              else
-                echo "   ❌ Failed in $ALT_LOCATION"
-                echo "   Error: $(echo $ALT_OUTPUT | head -n 2)"
-              fi
-            done
-            
-            if [ "$SUCCESS" = false ]; then
-              echo ""
-              echo "======================================"
-              echo "❌ FAILED: Could not create SQL Server"
-              echo "======================================"
-              echo ""
-              echo "Attempted regions: $LOCATION, northeurope, francecentral, uksouth, germanywestcentral, swedencentral, eastus, westus2"
-              echo ""
-              echo "Last error output:"
-              echo "$CREATE_OUTPUT"
-              echo ""
-              echo "Common causes:"
-              echo "1. SQL password doesn't meet complexity requirements"
-              echo "   - Minimum 8 characters"
-              echo "   - Must contain uppercase, lowercase, number, and special character"
-              echo ""
-              echo "2. Azure subscription quotas reached"
-              echo "3. Regional capacity issues in all regions"
-              echo ""
-              echo "Troubleshooting:"
-              echo "1. Verify SQL_ADMIN_PASSWORD_PROD secret meets requirements"
-              echo "2. Check Azure quotas: https://portal.azure.com → Subscriptions → Usage + quotas"
-              echo "3. Try a different region or wait and retry later"
-              exit 1
-            fi
-          fi
-          
-          # Set environment variables after successful creation
-          echo ""
-          echo "======================================"
-          echo "✅ SQL Server Ready (Newly Created)"
-          echo "======================================"
-          echo "Name: $SQL_SERVER_NAME"
-          echo "Location: $LOCATION"
-          echo "Resource Group: ${{ env.RESOURCE_GROUP }}"
-          echo ""
-          
-          echo "SQL_SERVER_NAME=$SQL_SERVER_NAME" >> $GITHUB_ENV
-          echo "SQL_LOCATION=$LOCATION" >> $GITHUB_ENV
-          echo "SQL_ADMIN_USER=$SQL_ADMIN_USER" >> $GITHUB_ENV
-          echo "ENVIRONMENT=$ENV" >> $GITHUB_ENV
+
+          SQL_LOCATION=$LOCATION
+          echo "✅ SQL Server created: $SQL_SERVER_NAME in $SQL_LOCATION"
         fi
+
+        # export envs for later steps
+        echo "SQL_SERVER_NAME=$SQL_SERVER_NAME" >> $GITHUB_ENV
+        echo "SQL_LOCATION=$SQL_LOCATION" >> $GITHUB_ENV
+        echo "SQL_ADMIN_USER=$SQL_ADMIN_USER" >> $GITHUB_ENV
+        echo "ENVIRONMENT=$ENV" >> $GITHUB_ENV
+
+        # Create three databases for the services (idempotent)
+        if [ "$ENV" = "prod" ]; then
+          DB1="AttendanceDB_Prod"
+          DB2="AuthDB_Prod"
+          DB3="EntryExitDB_Prod"
+        else
+          DB1="AttendanceDB_${ENV}"
+          DB2="AuthDB_${ENV}"
+          DB3="EntryExitDB_${ENV}"
+        fi
+
+        echo "Creating databases: $DB1, $DB2, $DB3"
+        az sql db create --resource-group ${{ env.RESOURCE_GROUP }} --server $SQL_SERVER_NAME --name "$DB1" --service-objective Basic || true
+        az sql db create --resource-group ${{ env.RESOURCE_GROUP }} --server $SQL_SERVER_NAME --name "$DB2" --service-objective Basic || true
+        az sql db create --resource-group ${{ env.RESOURCE_GROUP }} --server $SQL_SERVER_NAME --name "$DB3" --service-objective Basic || true
+
+        echo "✅ Databases ensured"
 
     - name: 🔥 Configure SQL Server Firewall
       run: |
@@ -239,23 +147,6 @@ jobs:
         
         echo "✅ Firewall rule configured"
 
-    - name: 💿 Create SQL Database
-      run: |
-        # Check if database already exists
-        if az sql db show --name AttendanceDB --server ${{ env.SQL_SERVER_NAME }} --resource-group ${{ env.RESOURCE_GROUP }} 2>/dev/null; then
-          echo "✅ Database already exists: AttendanceDB"
-        else
-          echo "Creating database: AttendanceDB"
-          az sql db create \
-            --resource-group ${{ env.RESOURCE_GROUP }} \
-            --server ${{ env.SQL_SERVER_NAME }} \
-            --name AttendanceDB \
-            --service-objective Basic \
-            --backup-storage-redundancy Local \
-            --no-wait
-          echo "✅ Database creation started"
-        fi
-
     - name: 🌐 Create App Service Plan
       run: |
         ENV="${{ github.event.inputs.environment }}"
@@ -265,14 +156,14 @@ jobs:
         if az appservice plan show --name $APP_PLAN_NAME --resource-group ${{ env.RESOURCE_GROUP }} 2>/dev/null; then
           echo "✅ App Service Plan already exists: $APP_PLAN_NAME"
         else
-          echo "Creating App Service Plan: $APP_PLAN_NAME"
+          echo "Creating App Service Plan: $APP_PLAN_NAME (B1 Linux plan - small, low-cost)")
           az appservice plan create \
             --name $APP_PLAN_NAME \
             --resource-group ${{ env.RESOURCE_GROUP }} \
             --location ${{ env.SQL_LOCATION }} \
             --sku B1 \
             --is-linux
-          echo "✅ App Service Plan created: $APP_PLAN_NAME"
+          echo "✅ App Service Plan created: $APP_PLAN_NAME (B1 Linux)"
         fi
         
         echo "APP_PLAN_NAME=$APP_PLAN_NAME" >> $GITHUB_ENV
