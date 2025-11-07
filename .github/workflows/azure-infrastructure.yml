@@ -85,7 +85,7 @@ jobs:
     - name: 💾 Create Azure SQL Server
       run: |
         ENV="${{ github.event.inputs.environment }}"
-        SQL_SERVER_NAME="vermillion-sql-${ENV}-v3"
+        SQL_SERVER_NAME="vermillion-sql-${ENV}"
         SQL_ADMIN_USER="sqladmin"
         SQL_ADMIN_PASSWORD="${{ secrets.SQL_ADMIN_PASSWORD_PROD }}"
         # Use RG_LOCATION (from existing RG) if set, otherwise use workflow input location
@@ -238,7 +238,7 @@ jobs:
         if az appservice plan show --name $APP_PLAN_NAME --resource-group ${{ env.RESOURCE_GROUP }} 2>/dev/null; then
           echo "✅ App Service Plan already exists: $APP_PLAN_NAME"
         else
-          echo "Creating App Service Plan: $APP_PLAN_NAME (B1 Linux plan - small, low-cost)")
+          echo "Creating App Service Plan: $APP_PLAN_NAME (B1 Linux plan - small, low-cost)"
           az appservice plan create \
             --name $APP_PLAN_NAME \
             --resource-group ${{ env.RESOURCE_GROUP }} \
