@@ -85,7 +85,7 @@ jobs:
     - name: 💾 Create Azure SQL Server
       run: |
         ENV="${{ github.event.inputs.environment }}"
-        SQL_SERVER_NAME="vermillion-sql-${ENV}-v2"
+        SQL_SERVER_NAME="vermillion-sql-${ENV}-v3"
         SQL_ADMIN_USER="sqladmin"
         SQL_ADMIN_PASSWORD="${{ secrets.SQL_ADMIN_PASSWORD_PROD }}"
         # Use RG_LOCATION (from existing RG) if set, otherwise use workflow input location
