@@ -13,16 +13,18 @@ on:
           - dev
           - staging
       location:
-        description: 'Primary Azure Region (SQL Server will auto-failover if needed, Static Web App always uses westeurope)'
+        description: 'Primary Azure Region for SQL Server and App Services'
         required: true
-        default: 'westeurope'
+        default: 'northeurope'
         type: choice
         options:
-          - westeurope
           - northeurope
-          - germanywestcentral
-          - francecentral
+          - westeurope
           - uksouth
+          - francecentral
+          - germanywestcentral
+          - swedencentral
+          - norwayeast
 
 jobs:
   create-infrastructure:
@@ -96,13 +98,53 @@ jobs:
           set -e
 
           if [ $CREATE_RESULT -ne 0 ]; then
-            echo "Failed to create SQL Server:"
+            echo "⚠️ Failed to create SQL Server in $LOCATION:"
             echo "$CREATE_OUTPUT"
-            exit 1
+            
+            # Check if it's a region capacity issue
+            if echo "$CREATE_OUTPUT" | grep -q "RegionDoesNotAllowProvisioning\|not accepting creation"; then
+              echo ""
+              echo "🔄 Trying fallback regions..."
+              
+              # Define fallback regions (prefer regions close to primary)
+              FALLBACK_REGIONS=("northeurope" "uksouth" "swedencentral" "francecentral" "germanywestcentral")
+              
+              SUCCESS=false
+              for FALLBACK_LOC in "${FALLBACK_REGIONS[@]}"; do
+                if [ "$FALLBACK_LOC" = "$LOCATION" ]; then
+                  continue  # Skip the original failed location
+                fi
+                
+                echo "Attempting to create SQL Server in fallback region: $FALLBACK_LOC"
+                set +e
+                CREATE_OUTPUT=$(az sql server create --name $SQL_SERVER_NAME --resource-group ${{ env.RESOURCE_GROUP }} --location $FALLBACK_LOC --admin-user $SQL_ADMIN_USER --admin-password "$SQL_ADMIN_PASSWORD" 2>&1)
+                CREATE_RESULT=$?
+                set -e
+                
+                if [ $CREATE_RESULT -eq 0 ]; then
+                  SQL_LOCATION=$FALLBACK_LOC
+                  echo "✅ SQL Server created successfully in fallback region: $SQL_LOCATION"
+                  SUCCESS=true
+                  break
+                else
+                  echo "❌ Failed in $FALLBACK_LOC, trying next region..."
+                fi
+              done
+              
+              if [ "$SUCCESS" = false ]; then
+                echo ""
+                echo "❌ Failed to create SQL Server in all attempted regions"
+                echo "Last error: $CREATE_OUTPUT"
+                exit 1
+              fi
+            else
+              echo "Non-capacity error occurred. Exiting."
+              exit 1
+            fi
+          else
+            SQL_LOCATION=$LOCATION
+            echo "✅ SQL Server created: $SQL_SERVER_NAME in $SQL_LOCATION"
           fi
-
-          SQL_LOCATION=$LOCATION
-          echo "✅ SQL Server created: $SQL_SERVER_NAME in $SQL_LOCATION"
         fi
 
         # export envs for later steps
