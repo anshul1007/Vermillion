@@ -88,16 +88,22 @@ jobs:
         SQL_SERVER_NAME="vermillion-sql-${ENV}"
         SQL_ADMIN_USER="sqladmin"
         SQL_ADMIN_PASSWORD="${{ secrets.SQL_ADMIN_PASSWORD_PROD }}"
-        LOCATION="${{ github.event.inputs.location }}"
+        # Use RG_LOCATION (from existing RG) if set, otherwise use workflow input location
+        LOCATION="${{ env.RG_LOCATION }}"
+        if [ -z "$LOCATION" ]; then
+          LOCATION="${{ github.event.inputs.location }}"
+        fi
 
         echo "======================================"
         echo "SQL Server Setup: $SQL_SERVER_NAME"
+        echo "Target location: $LOCATION"
         echo "======================================"
 
-        # If server already exists in the target resource group, use it. Otherwise create a new server.
+        # Check if server already exists in the target resource group
         if az sql server show --name $SQL_SERVER_NAME --resource-group ${{ env.RESOURCE_GROUP }} >/dev/null 2>&1; then
-          echo "SQL Server already exists in target resource group: $SQL_SERVER_NAME"
           SQL_LOCATION=$(az sql server show --name $SQL_SERVER_NAME --resource-group ${{ env.RESOURCE_GROUP }} --query location -o tsv)
+          echo "✅ SQL Server already exists in resource group: $SQL_SERVER_NAME"
+          echo "   Location: $SQL_LOCATION"
         else
           if [ -z "$SQL_ADMIN_PASSWORD" ]; then
             echo "❌ ERROR: SQL_ADMIN_PASSWORD_PROD secret is not set!"; exit 1
