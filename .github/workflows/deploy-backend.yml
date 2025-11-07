@@ -20,7 +20,6 @@ on:
           - staging
 
 env:
-  AZURE_WEBAPP_PACKAGE_PATH: 'backend/AttendanceAPI'
   DOTNET_VERSION: '8.0.x'
 
 jobs:
@@ -40,77 +39,63 @@ jobs:
           ENV="prod"
         fi
         echo "environment=$ENV" >> $GITHUB_OUTPUT
-        echo "webapp_name=vermillion-api-$ENV" >> $GITHUB_OUTPUT
         echo "📌 Deploying to: $ENV"
-        echo "🚀 App name: vermillion-api-$ENV"
 
     - name: 🔧 Setup .NET
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: ${{ env.DOTNET_VERSION }}
 
-    - name: 📦 Restore dependencies
-      run: dotnet restore
-      working-directory: ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}
-
-    - name: 🏗️ Build
-      run: dotnet build --configuration Release --no-restore
-      working-directory: ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}
-
-    - name: 🧪 Run tests (if any)
-      run: dotnet test --no-build --verbosity normal
-      working-directory: ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}
-      continue-on-error: true
-
-    - name: 📤 Publish
-      run: dotnet publish -c Release -o ${{env.DOTNET_ROOT}}/myapp
-      working-directory: ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}
-
     - name: � Azure Login
       uses: azure/login@v1
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-    - name: 🗜️ Create deployment zip
-      run: |
-        set -e
-        ENV="${{ steps.env.outputs.environment }}"
-        APP_PATH="${{ env.DOTNET_ROOT }}/myapp"
-        ZIP_PATH="$PWD/myapp.zip"
+    - name: 📦 Setup build output dir
+      run: mkdir -p ${{ env.DOTNET_ROOT }}
 
-        echo "Preparing zip from: $APP_PATH"
-        if [ ! -d "$APP_PATH" ]; then
-          echo "❌ Publish output not found at $APP_PATH"
-          ls -la $APP_PATH || true
-          exit 1
-        fi
-
-        # Ensure zip is available
-        if ! command -v zip >/dev/null 2>&1; then
-          echo "zip not found, installing..."
-          sudo apt-get update -y
-          sudo apt-get install -y zip
-        fi
-
-        # Create zip
-        (cd "$APP_PATH" && zip -r "$ZIP_PATH" .)
-        echo "ZIP created: $ZIP_PATH"
-        echo "ZIP_PATH=$ZIP_PATH" >> $GITHUB_ENV
-
-    - name: 🚀 Deploy (az webapp deploy)
+    - name: 🔁 Build & Publish Backends
       run: |
         set -e
         ENV="${{ steps.env.outputs.environment }}"
         RG="vermillion-attendance-${ENV}-rg"
-        WEBAPP="${{ steps.env.outputs.webapp_name }}"
-        ZIP_PATH="$PWD/myapp.zip"
 
-        echo "Deploying $ZIP_PATH to $WEBAPP in resource group $RG"
-        az webapp deploy --resource-group "$RG" --name "$WEBAPP" --src-path "$ZIP_PATH"
+        # Define backend projects and corresponding app ids (used in webapp naming)
+        PROJECTS=("AttendanceAPI" "AuthAPI" "EntryExitAPI")
+        APP_IDS=("attendance-api" "auth-api" "entryexit-api")
 
+        for i in "${!PROJECTS[@]}"; do
+          PROJ=${PROJECTS[$i]}
+          APP_ID=${APP_IDS[$i]}
+          PROJECT_PATH="backend/$PROJ"
+          OUT_DIR="${{ env.DOTNET_ROOT }}/myapp-$APP_ID"
+
+          echo "\n=== Building $PROJ (path=$PROJECT_PATH) ==="
+          dotnet restore "$PROJECT_PATH"
+          dotnet build "$PROJECT_PATH" --configuration Release --no-restore
+          dotnet publish "$PROJECT_PATH" -c Release -o "$OUT_DIR"
+
+          # Create zip artifact
+          ZIP_PATH="$PWD/${APP_ID}.zip"
+          if ! command -v zip >/dev/null 2>&1; then
+            echo "zip not found, installing..."
+            sudo apt-get update -y
+            sudo apt-get install -y zip
+          fi
+          (cd "$OUT_DIR" && zip -r "$ZIP_PATH" .)
+
+          # Determine webapp name
+          WEBAPP_NAME="vermillion-${APP_ID}-${ENV}"
+
+          echo "Prepared artifact for $PROJ -> $ZIP_PATH; target webapp: $WEBAPP_NAME"
+
+          # Deploy
+          echo "Deploying $ZIP_PATH to $WEBAPP_NAME in resource group $RG"
+          az webapp deploy --resource-group "$RG" --name "$WEBAPP_NAME" --src-path "$ZIP_PATH"
+        done
 
     - name: ✅ Deployment Complete
       run: |
         echo "✅ Backend deployed successfully!"
-        echo "🌐 URL: https://${{ steps.env.outputs.webapp_name }}.azurewebsites.net"
         echo "🎯 Environment: ${{ steps.env.outputs.environment }}"
+        echo "Deployed web apps: attendance-api, auth-api, entryexit-api (names suffixed with environment)"

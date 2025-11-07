@@ -277,92 +277,144 @@ jobs:
         
         echo "APP_PLAN_NAME=$APP_PLAN_NAME" >> $GITHUB_ENV
 
-    - name: 🚀 Create Web App (Backend)
+    - name: 🚀 Create Web Apps (Backends)
       run: |
         ENV="${{ github.event.inputs.environment }}"
-        WEBAPP_NAME="vermillion-api-${ENV}"
-        
-        # Check if Web App already exists
-        if az webapp show --name $WEBAPP_NAME --resource-group ${{ env.RESOURCE_GROUP }} 2>/dev/null; then
-          echo "✅ Web App already exists: $WEBAPP_NAME"
-        else
-          echo "Creating Web App: $WEBAPP_NAME"
-          az webapp create \
-            --name $WEBAPP_NAME \
-            --resource-group ${{ env.RESOURCE_GROUP }} \
-            --plan ${{ env.APP_PLAN_NAME }} \
-            --runtime "DOTNETCORE:8.0"
-          echo "✅ Web App created: $WEBAPP_NAME"
-        fi
-        
-        echo "WEBAPP_NAME=$WEBAPP_NAME" >> $GITHUB_ENV
+        # Define three backend web apps
+        BACKENDS=("attendance-api" "auth-api" "entryexit-api")
 
-    - name: 🔗 Configure Connection String
+        for APP in "${BACKENDS[@]}"; do
+          WEBAPP_NAME="vermillion-${APP}-${ENV}"
+
+          if az webapp show --name $WEBAPP_NAME --resource-group ${{ env.RESOURCE_GROUP }} 2>/dev/null; then
+            echo "✅ Web App already exists: $WEBAPP_NAME"
+          else
+            echo "Creating Web App: $WEBAPP_NAME"
+            az webapp create \
+              --name $WEBAPP_NAME \
+              --resource-group ${{ env.RESOURCE_GROUP }} \
+              --plan ${{ env.APP_PLAN_NAME }} \
+              --runtime "DOTNETCORE:8.0"
+            echo "✅ Web App created: $WEBAPP_NAME"
+          fi
+
+          # export each webapp name to env and list
+          key_name=$(echo "${APP^^}_WEBAPP_NAME" | tr '-' '_')
+          echo "$key_name=$WEBAPP_NAME" >> $GITHUB_ENV
+        done
+
+    - name: 🔗 Configure Connection Strings for Backends
       run: |
+        # Connection string used by all backend web apps
         CONNECTION_STRING="Server=tcp:${{ env.SQL_SERVER_NAME }}.database.windows.net,1433;Initial Catalog=AttendanceDB;User ID=sqladmin;Password=${{ secrets.SQL_ADMIN_PASSWORD_PROD }};Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;"
-        
-        az webapp config connection-string set \
-          --name ${{ env.WEBAPP_NAME }} \
-          --resource-group ${{ env.RESOURCE_GROUP }} \
-          --connection-string-type SQLAzure \
-          --settings DefaultConnection="$CONNECTION_STRING"
-        
-        echo "✅ Connection string configured"
 
-    - name: ⚙️ Configure App Settings
+        # Iterate known backend env vars set earlier
+        for k in ATTENDANCE_API_WEBAPP_NAME AUTH_API_WEBAPP_NAME ENTRYEXIT_API_WEBAPP_NAME; do
+          # Indirect expansion to read variable by name
+          WEBAPP_NAME=${!k}
+          # fallback: get from constructed name if not present
+          if [ -z "$WEBAPP_NAME" ]; then
+            case $k in
+              ATTENDANCE_API_WEBAPP_NAME) WEBAPP_NAME="vermillion-attendance-api-${{ github.event.inputs.environment }}" ;;
+              AUTH_API_WEBAPP_NAME) WEBAPP_NAME="vermillion-auth-api-${{ github.event.inputs.environment }}" ;;
+              ENTRYEXIT_API_WEBAPP_NAME) WEBAPP_NAME="vermillion-entryexit-api-${{ github.event.inputs.environment }}" ;;
+            esac
+          fi
+
+          echo "Configuring connection string for $WEBAPP_NAME"
+          az webapp config connection-string set \
+            --name "$WEBAPP_NAME" \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --connection-string-type SQLAzure \
+            --settings DefaultConnection="$CONNECTION_STRING"
+        done
+
+        echo "✅ Connection strings configured for backends"
+
+    - name: ⚙️ Configure App Settings for Backends
       run: |
-        az webapp config appsettings set \
-          --name ${{ env.WEBAPP_NAME }} \
-          --resource-group ${{ env.RESOURCE_GROUP }} \
-          --settings \
-            ASPNETCORE_ENVIRONMENT="Production" \
-            WEBSITE_RUN_FROM_PACKAGE="1"
-        
-        echo "✅ App settings configured"
+        # common app settings for each backend
+        for name in ATTENDANCE_API_WEBAPP_NAME AUTH_API_WEBAPP_NAME ENTRYEXIT_API_WEBAPP_NAME; do
+          WEBAPP_NAME=${!name}
+          if [ -z "$WEBAPP_NAME" ]; then
+            case $name in
+              ATTENDANCE_API_WEBAPP_NAME) WEBAPP_NAME="vermillion-attendance-api-${{ github.event.inputs.environment }}" ;;
+              AUTH_API_WEBAPP_NAME) WEBAPP_NAME="vermillion-auth-api-${{ github.event.inputs.environment }}" ;;
+              ENTRYEXIT_API_WEBAPP_NAME) WEBAPP_NAME="vermillion-entryexit-api-${{ github.event.inputs.environment }}" ;;
+            esac
+          fi
 
-    - name: 📱 Create Static Web App (Frontend)
+          az webapp config appsettings set \
+            --name "$WEBAPP_NAME" \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --settings \
+              ASPNETCORE_ENVIRONMENT="Production" \
+              WEBSITE_RUN_FROM_PACKAGE="1"
+
+          echo "Configured app settings for $WEBAPP_NAME"
+        done
+
+        echo "✅ App settings configured for all backends"
+
+    - name: 📱 Create Static Web Apps (Frontends)
       run: |
         ENV="${{ github.event.inputs.environment }}"
-        STATIC_APP_NAME="vermillion-web-${ENV}"
-        
-        # Static Web Apps only support specific regions: westus2, centralus, eastus2, westeurope, eastasia
-        # Use westeurope as default for European deployments
+        # two frontends: web and mobile
+        FRONTS=("web" "mobile")
+
         STATIC_WEB_APP_LOCATION="westeurope"
-        
-        echo "Note: Static Web App will be created in $STATIC_WEB_APP_LOCATION (limited region support)"
-        echo ""
-        
-        # Check if Static Web App already exists
-        if az staticwebapp show --name $STATIC_APP_NAME --resource-group ${{ env.RESOURCE_GROUP }} 2>/dev/null; then
-          echo "✅ Static Web App already exists: $STATIC_APP_NAME"
-        else
-          echo "Creating Static Web App: $STATIC_APP_NAME"
-          az staticwebapp create \
-            --name $STATIC_APP_NAME \
-            --resource-group ${{ env.RESOURCE_GROUP }} \
-            --location $STATIC_WEB_APP_LOCATION \
-            --sku Free
-          echo "✅ Static Web App created: $STATIC_APP_NAME in $STATIC_WEB_APP_LOCATION"
-        fi
-        
-        echo "STATIC_APP_NAME=$STATIC_APP_NAME" >> $GITHUB_ENV
+
+        for F in "${FRONTS[@]}"; do
+          STATIC_APP_NAME="vermillion-${F}-${ENV}"
+
+          if az staticwebapp show --name $STATIC_APP_NAME --resource-group ${{ env.RESOURCE_GROUP }} 2>/dev/null; then
+            echo "✅ Static Web App already exists: $STATIC_APP_NAME"
+          else
+            echo "Creating Static Web App: $STATIC_APP_NAME"
+            az staticwebapp create \
+              --name $STATIC_APP_NAME \
+              --resource-group ${{ env.RESOURCE_GROUP }} \
+              --location $STATIC_WEB_APP_LOCATION \
+              --sku Free
+            echo "✅ Static Web App created: $STATIC_APP_NAME in $STATIC_WEB_APP_LOCATION"
+          fi
+
+          key_name=$(echo "${F^^}_STATIC_APP_NAME" | tr '-' '_')
+          echo "$key_name=$STATIC_APP_NAME" >> $GITHUB_ENV
+        done
 
     - name: 📝 Get Deployment URLs
       run: |
-        BACKEND_URL="https://${{ env.WEBAPP_NAME }}.azurewebsites.net"
-        STATIC_APP_URL=$(az staticwebapp show \
-          --name ${{ env.STATIC_APP_NAME }} \
-          --resource-group ${{ env.RESOURCE_GROUP }} \
-          --query "defaultHostname" -o tsv)
-        
         echo "=========================================="
         echo "✅ INFRASTRUCTURE CREATED SUCCESSFULLY!"
         echo "=========================================="
         echo ""
         echo "🌍 Environment: ${{ github.event.inputs.environment }}"
         echo "� Resource Group: ${{ env.RESOURCE_GROUP }}"
-        echo "�📱 Frontend URL: https://$STATIC_APP_URL"
-        echo "🔧 Backend URL: $BACKEND_URL"
+
+        # Print backend URLs
+        for name in ATTENDANCE_API_WEBAPP_NAME AUTH_API_WEBAPP_NAME ENTRYEXIT_API_WEBAPP_NAME; do
+          WEBAPP=${!name}
+          if [ -z "$WEBAPP" ]; then
+            # fallback deterministic name
+            case $name in
+              ATTENDANCE_API_WEBAPP_NAME) WEBAPP="vermillion-attendance-api-${{ github.event.inputs.environment }}" ;;
+              AUTH_API_WEBAPP_NAME) WEBAPP="vermillion-auth-api-${{ github.event.inputs.environment }}" ;;
+              ENTRYEXIT_API_WEBAPP_NAME) WEBAPP="vermillion-entryexit-api-${{ github.event.inputs.environment }}" ;;
+            esac
+          fi
+          echo "🔧 Backend ($name): https://$WEBAPP.azurewebsites.net"
+        done
+
+        # Print static web app URLs
+        for name in WEB_STATIC_APP_NAME MOBILE_STATIC_APP_NAME; do
+          SNAME=${!name}
+          if [ -n "$SNAME" ]; then
+            HOST=$(az staticwebapp show --name "$SNAME" --resource-group ${{ env.RESOURCE_GROUP }} --query defaultHostname -o tsv)
+            echo "�📱 Frontend ($name): https://$HOST"
+          fi
+        done
+
         echo "💾 SQL Server: ${{ env.SQL_SERVER_NAME }}.database.windows.net"
         echo "🌍 SQL Location: ${{ env.SQL_LOCATION }}"
         echo "🌍 Primary Location: ${{ github.event.inputs.location }}"
@@ -371,22 +423,22 @@ jobs:
         echo "📋 NEXT STEPS:"
         echo "=========================================="
         echo ""
-        echo "1. Add these secrets to your GitHub repository:"
+        echo "1. Add these secrets to your GitHub repository:" 
         echo "   - Go to: Settings → Secrets and variables → Actions"
         echo ""
-        echo "2. Add AZURE_WEBAPP_PUBLISH_PROFILE_PROD:"
-        echo "   Run: az webapp deployment list-publishing-profiles --name ${{ env.WEBAPP_NAME }} --resource-group ${{ env.RESOURCE_GROUP }} --xml"
+        echo "2. Add AZURE_WEBAPP_PUBLISH_PROFILE_PROD for each backend (example):"
+        echo "   Run: az webapp deployment list-publishing-profiles --name <WEBAPP_NAME> --resource-group ${{ env.RESOURCE_GROUP }} --xml"
         echo ""
-        echo "3. Add AZURE_STATIC_WEB_APPS_API_TOKEN_PROD:"
-        echo "   Run: az staticwebapp secrets list --name ${{ env.STATIC_APP_NAME }} --resource-group ${{ env.RESOURCE_GROUP }} --query 'properties.apiKey' -o tsv"
+        echo "3. Add AZURE_STATIC_WEB_APPS_API_TOKEN_PROD for each static app (example):"
+        echo "   Run: az staticwebapp secrets list --name <STATIC_APP_NAME> --resource-group ${{ env.RESOURCE_GROUP }} --query 'properties.apiKey' -o tsv"
         echo ""
         echo "4. Update frontend/src/environments/environment.prod.ts:"
-        echo "   apiUrl: '$BACKEND_URL/api'"
+        echo "   apiUrl: 'https://<BACKEND_WEBAPP>.azurewebsites.net/api'"
         echo ""
         echo "5. Run 'Deploy Backend to Azure' workflow"
         echo "6. Run 'Deploy Frontend to Azure' workflow"
         echo "=========================================="
         echo ""
-        echo "💰 Monthly Cost: ~$18 USD"
+        echo "💰 Monthly Cost: ~$18 USD (est)"
         echo "🌍 Location: ${{ github.event.inputs.location }}"
         echo "=========================================="
