@@ -100,10 +100,12 @@ jobs:
         echo "======================================"
 
         # Check if server already exists in the target resource group
+        echo "Checking if SQL Server exists in resource group ${{ env.RESOURCE_GROUP }}..."
         if az sql server show --name $SQL_SERVER_NAME --resource-group ${{ env.RESOURCE_GROUP }} >/dev/null 2>&1; then
           SQL_LOCATION=$(az sql server show --name $SQL_SERVER_NAME --resource-group ${{ env.RESOURCE_GROUP }} --query location -o tsv)
           echo "✅ SQL Server already exists in resource group: $SQL_SERVER_NAME"
           echo "   Location: $SQL_LOCATION"
+          echo "   Skipping SQL Server creation."
         else
           if [ -z "$SQL_ADMIN_PASSWORD" ]; then
             echo "❌ ERROR: SQL_ADMIN_PASSWORD_PROD secret is not set!"; exit 1
@@ -122,10 +124,11 @@ jobs:
             # Check if it's a region capacity issue
             if echo "$CREATE_OUTPUT" | grep -q "RegionDoesNotAllowProvisioning\|not accepting creation"; then
               echo ""
-              echo "🔄 Trying fallback regions..."
+              echo "🔄 Trying fallback regions (only policy-allowed locations)..."
               
-              # Define fallback regions (prefer regions close to primary)
-              FALLBACK_REGIONS=("northeurope" "uksouth" "swedencentral" "francecentral" "germanywestcentral")
+              # Define fallback regions - ONLY locations allowed by subscription policy
+              # Policy allows: northeurope, westeurope, norway*, swedencentral, india*
+              FALLBACK_REGIONS=("northeurope" "swedencentral" "norwayeast")
               
               SUCCESS=false
               for FALLBACK_LOC in "${FALLBACK_REGIONS[@]}"; do
