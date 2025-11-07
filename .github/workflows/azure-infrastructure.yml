@@ -99,11 +99,30 @@ jobs:
         echo "Target location: $LOCATION"
         echo "======================================"
 
-        # Check if server already exists in the target resource group
+        # Check if server already exists - try both RG-specific and subscription-wide search
         echo "Checking if SQL Server exists in resource group ${{ env.RESOURCE_GROUP }}..."
+        SERVER_EXISTS=false
+        
         if az sql server show --name $SQL_SERVER_NAME --resource-group ${{ env.RESOURCE_GROUP }} >/dev/null 2>&1; then
+          SERVER_EXISTS=true
           SQL_LOCATION=$(az sql server show --name $SQL_SERVER_NAME --resource-group ${{ env.RESOURCE_GROUP }} --query location -o tsv)
-          echo "✅ SQL Server already exists in resource group: $SQL_SERVER_NAME"
+        else
+          # Try subscription-wide search in case server is orphaned or in wrong RG
+          echo "Not found in RG, checking subscription-wide..."
+          EXISTING_SERVER=$(az sql server list --query "[?name=='$SQL_SERVER_NAME'].{rg:resourceGroup,location:location}" -o tsv 2>/dev/null || true)
+          if [ -n "$EXISTING_SERVER" ]; then
+            SERVER_EXISTS=true
+            EXISTING_RG=$(echo "$EXISTING_SERVER" | awk '{print $1}')
+            SQL_LOCATION=$(echo "$EXISTING_SERVER" | awk '{print $2}')
+            echo "⚠️ Found SQL Server '$SQL_SERVER_NAME' in different resource group: $EXISTING_RG (location: $SQL_LOCATION)"
+            echo "This server needs to be deleted or moved before creating a new one."
+            echo "Run: az sql server delete --name $SQL_SERVER_NAME --resource-group $EXISTING_RG --yes"
+            exit 1
+          fi
+        fi
+        
+        if [ "$SERVER_EXISTS" = true ]; then
+          echo "✅ SQL Server already exists: $SQL_SERVER_NAME"
           echo "   Location: $SQL_LOCATION"
           echo "   Skipping SQL Server creation."
         else
