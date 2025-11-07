@@ -1,7 +1,9 @@
-﻿import { Component, OnInit, inject, signal } from '@angular/core';
+﻿import { Component, OnInit, inject, signal, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { AttendanceService } from '../../../core/services/attendance.service';
+import { Subject } from 'rxjs';
+import { takeUntil } from 'rxjs/operators';
 import { LeaveService } from '../../../core/services/leave.service';
 import { AuthService } from '../../../core/auth/auth.service';
 import { CommonService, PublicHoliday } from '../../../core/services/common.service';
@@ -10,10 +12,9 @@ import { CommonService, PublicHoliday } from '../../../core/services/common.serv
   selector: 'app-employee-dashboard',
   standalone: true,
   imports: [CommonModule, FormsModule, ReactiveFormsModule],
-  templateUrl: './employee-dashboard.component.html',
-  styleUrl: './employee-dashboard.component.scss'
+  templateUrl: './employee-dashboard.component.html'
 })
-export class EmployeeDashboardComponent implements OnInit {
+export class EmployeeDashboardComponent implements OnInit, OnDestroy {
   private attendanceService = inject(AttendanceService);
   private leaveService = inject(LeaveService);
   private authService = inject(AuthService);
@@ -48,6 +49,8 @@ export class EmployeeDashboardComponent implements OnInit {
     });
   }
 
+  private destroy$ = new Subject<void>();
+
   ngOnInit() {
     this.loadTodayAttendance();
     this.loadLeaveBalance();
@@ -57,7 +60,7 @@ export class EmployeeDashboardComponent implements OnInit {
   }
 
   loadTodayAttendance() {
-    this.attendanceService.getTodayAttendance().subscribe({
+    this.attendanceService.getTodayAttendance().pipe(takeUntil(this.destroy$)).subscribe({
       next: (attendance) => this.todayAttendance.set(attendance),
       error: (err) => console.error(err)
     });
@@ -65,7 +68,7 @@ export class EmployeeDashboardComponent implements OnInit {
 
   clockIn() {
     this.loading.set(true);
-    this.attendanceService.login().subscribe({
+    this.attendanceService.login().pipe(takeUntil(this.destroy$)).subscribe({
       next: (response) => {
         this.todayAttendance.set(response);
         this.attendanceMessage.set('Clocked in successfully!');
@@ -82,7 +85,7 @@ export class EmployeeDashboardComponent implements OnInit {
 
   clockOut() {
     this.loading.set(true);
-    this.attendanceService.logout().subscribe({
+    this.attendanceService.logout().pipe(takeUntil(this.destroy$)).subscribe({
       next: (response) => {
         this.todayAttendance.set(response);
         this.attendanceMessage.set('Clocked out successfully!');
@@ -99,7 +102,7 @@ export class EmployeeDashboardComponent implements OnInit {
   }
 
   loadLeaveBalance() {
-    this.leaveService.getLeaveBalance().subscribe({
+    this.leaveService.getLeaveBalance().pipe(takeUntil(this.destroy$)).subscribe({
       next: (balance) => this.leaveBalance.set(balance),
       error: (err) => console.error(err)
     });
@@ -108,14 +111,14 @@ export class EmployeeDashboardComponent implements OnInit {
   loadAttendanceHistory() {
     const end = new Date().toISOString().split('T')[0];
     const start = new Date(Date.now() - 30*24*60*60*1000).toISOString().split('T')[0];
-    this.attendanceService.getAttendanceHistory(start, end).subscribe({
+    this.attendanceService.getAttendanceHistory(start, end).pipe(takeUntil(this.destroy$)).subscribe({
       next: (history) => this.attendanceHistory.set(history),
       error: (err) => console.error(err)
     });
   }
 
   loadMyLeaveRequests() {
-    this.leaveService.getMyLeaveRequests().subscribe({
+    this.leaveService.getMyLeaveRequests().pipe(takeUntil(this.destroy$)).subscribe({
       next: (requests) => this.myLeaveRequests.set(requests),
       error: (err) => console.error(err)
     });
@@ -166,7 +169,7 @@ export class EmployeeDashboardComponent implements OnInit {
     }
 
     this.loading.set(true);
-    this.leaveService.cancelLeaveRequest(leaveRequestId).subscribe({
+    this.leaveService.cancelLeaveRequest(leaveRequestId).pipe(takeUntil(this.destroy$)).subscribe({
       next: () => {
         this.leaveMessage.set('Leave request cancelled successfully!');
         this.leaveError.set(false);
@@ -202,7 +205,7 @@ export class EmployeeDashboardComponent implements OnInit {
   }
 
   loadPublicHolidays() {
-    this.commonService.getPublicHolidays(new Date().getFullYear()).subscribe({
+    this.commonService.getPublicHolidays(new Date().getFullYear()).pipe(takeUntil(this.destroy$)).subscribe({
       next: (holidays) => {
         this.publicHolidays.set(holidays);
       },
@@ -210,5 +213,10 @@ export class EmployeeDashboardComponent implements OnInit {
         console.error('Failed to load public holidays:', err);
       }
     });
+  }
+
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
   }
 }

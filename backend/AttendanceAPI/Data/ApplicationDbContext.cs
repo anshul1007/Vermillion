@@ -10,32 +10,16 @@ namespace AttendanceAPI.Data
         {
         }
 
-        public DbSet<User> Users { get; set; }
         public DbSet<Attendance> Attendance { get; set; }
         public DbSet<LeaveRequest> LeaveRequests { get; set; }
         public DbSet<LeaveEntitlement> LeaveEntitlements { get; set; }
         public DbSet<PublicHoliday> PublicHolidays { get; set; }
         public DbSet<AuditLog> AuditLogs { get; set; }
-        public DbSet<Department> Departments { get; set; }
         public DbSet<FeatureToggle> FeatureToggles { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
-
-            // User configuration
-            modelBuilder.Entity<User>(entity =>
-            {
-                entity.HasIndex(e => e.Email).IsUnique();
-                entity.HasIndex(e => e.EmployeeId).IsUnique();
-                entity.HasIndex(e => e.ManagerId);
-                entity.HasIndex(e => e.DepartmentId);
-
-                entity.HasOne(e => e.Manager)
-                    .WithMany(e => e.Subordinates)
-                    .HasForeignKey(e => e.ManagerId)
-                    .OnDelete(DeleteBehavior.Restrict);
-            });
 
             // Attendance configuration
             modelBuilder.Entity<Attendance>(entity =>
@@ -43,16 +27,6 @@ namespace AttendanceAPI.Data
                 entity.HasIndex(e => new { e.UserId, e.Date });
                 entity.HasIndex(e => e.Date);
                 entity.HasIndex(e => e.Status);
-
-                entity.HasOne(e => e.User)
-                    .WithMany(e => e.Attendances)
-                    .HasForeignKey(e => e.UserId)
-                    .OnDelete(DeleteBehavior.Cascade);
-
-                entity.HasOne(e => e.Approver)
-                    .WithMany()
-                    .HasForeignKey(e => e.ApprovedBy)
-                    .OnDelete(DeleteBehavior.Restrict);
             });
 
             // LeaveRequest configuration
@@ -61,27 +35,12 @@ namespace AttendanceAPI.Data
                 entity.HasIndex(e => e.UserId);
                 entity.HasIndex(e => e.Status);
                 entity.HasIndex(e => new { e.StartDate, e.EndDate });
-
-                entity.HasOne(e => e.User)
-                    .WithMany(e => e.LeaveRequests)
-                    .HasForeignKey(e => e.UserId)
-                    .OnDelete(DeleteBehavior.Cascade);
-
-                entity.HasOne(e => e.Approver)
-                    .WithMany()
-                    .HasForeignKey(e => e.ApprovedBy)
-                    .OnDelete(DeleteBehavior.Restrict);
             });
 
             // LeaveEntitlement configuration
             modelBuilder.Entity<LeaveEntitlement>(entity =>
             {
-                entity.HasIndex(e => new { e.UserId, e.Year }).IsUnique();
-
-                entity.HasOne(e => e.User)
-                    .WithMany(e => e.LeaveEntitlements)
-                    .HasForeignKey(e => e.UserId)
-                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasIndex(e => e.UserId);
             });
 
             // PublicHoliday configuration
@@ -97,11 +56,6 @@ namespace AttendanceAPI.Data
                 entity.HasIndex(e => e.UserId);
                 entity.HasIndex(e => e.Timestamp);
                 entity.HasIndex(e => new { e.EntityType, e.EntityId });
-
-                entity.HasOne(e => e.User)
-                    .WithMany()
-                    .HasForeignKey(e => e.UserId)
-                    .OnDelete(DeleteBehavior.SetNull);
             });
 
             // FeatureToggle configuration

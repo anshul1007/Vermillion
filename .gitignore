@@ -398,6 +398,27 @@ FodyWeavers.xsd
 # Environment files with sensitive data
 *.env
 *.env.local
+
+# Capacitor / Android native build artifacts (frontend-mobile)
+# Ignore the Android platform folder and build outputs created by Capacitor/Android Studio
+frontend-mobile/android/
+frontend-mobile/android/**/build/
+frontend-mobile/android/**/app/build/
+frontend-mobile/android/**/.gradle/
+frontend-mobile/android/**/local.properties
+frontend-mobile/android/**/gradle-wrapper.jar
+frontend-mobile/android/**/gradle-wrapper.properties
+frontend-mobile/android/**/.idea/
+
+# Generic Android / Gradle ignores (catch-all)
+**/android/
+**/build/
+**/.gradle/
+local.properties
+
+# Keystore files
+*.keystore
+*.jks
 *.env.production
 *.env.development
 appsettings.Production.json

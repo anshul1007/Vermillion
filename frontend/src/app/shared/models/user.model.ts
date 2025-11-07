@@ -1,7 +1,9 @@
 export enum UserRole {
   Employee = 'Employee',
   Manager = 'Manager',
-  Administrator = 'Administrator'
+  Admin = 'Admin',
+  SystemAdmin = 'SystemAdmin',
+  Guard = 'Guard'
 }
 
 export interface User {
@@ -11,6 +13,13 @@ export interface User {
   lastName: string;
   employeeId: string;
   role: UserRole;
+  tenants?: Array<{
+    tenantId?: number;
+    tenantName?: string;
+    domain?: string;
+    roleName?: string;
+    permissions?: string[];
+  }>;
   managerId?: string;
   isActive: boolean;
   createdAt: Date;

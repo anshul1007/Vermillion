@@ -1,9 +1,10 @@
-using AttendanceAPI.Models.DTOs;
-using AttendanceAPI.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using AttendanceAPI.Filters;
-using System.Security.Claims;
+using Microsoft.EntityFrameworkCore;
+using AttendanceAPI.Data;
+using AttendanceAPI.Models.DTOs;
+using AttendanceAPI.Models.Entities;
+using AttendanceAPI.Services;
 
 namespace AttendanceAPI.Controllers
 {
@@ -12,30 +13,78 @@ namespace AttendanceAPI.Controllers
     [Authorize]
     public class AttendanceController : ControllerBase
     {
-        private readonly IAttendanceService _attendanceService;
-        private readonly IAdminService _adminService;
+        private readonly ApplicationDbContext _db;
+        private readonly ICurrentUserService _currentUserService;
         private readonly ILogger<AttendanceController> _logger;
 
-        public AttendanceController(IAttendanceService attendanceService, IAdminService adminService, ILogger<AttendanceController> logger)
+        public AttendanceController(ApplicationDbContext db, ICurrentUserService currentUserService, ILogger<AttendanceController> logger)
         {
-            _attendanceService = attendanceService;
-            _adminService = adminService;
+            _db = db;
+            _currentUserService = currentUserService;
             _logger = logger;
         }
 
         [HttpPost("login")]
-        public async Task<IActionResult> Login()
+        public async Task<IActionResult> Login([FromBody] AttendanceLoginRequest request)
         {
             try
             {
-                var userId = GetCurrentUserId();
-                var attendance = await _attendanceService.LoginAsync(userId);
-                
-                return Ok(ApiResponse<AttendanceDto>.SuccessResponse(attendance, "Login successful"));
-            }
-            catch (InvalidOperationException ex)
-            {
-                return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
+                var userId = _currentUserService.GetCurrentUserId();
+                if (!userId.HasValue)
+                {
+                    return Unauthorized(ApiResponse<object>.ErrorResponse("Invalid or missing user claim"));
+                }
+
+                var today = DateOnly.FromDateTime(DateTime.UtcNow);
+
+                // Check if user has already logged in today
+                var existingAttendance = await _db.Attendance
+                    .Where(a => a.UserId == userId.Value && a.Date == today)
+                    .FirstOrDefaultAsync();
+
+                if (existingAttendance != null)
+                {
+                    return BadRequest(ApiResponse<object>.ErrorResponse("You have already logged in today"));
+                }
+
+                // Check if today is a weekend
+                var isWeekend = DateTime.UtcNow.DayOfWeek == DayOfWeek.Saturday || DateTime.UtcNow.DayOfWeek == DayOfWeek.Sunday;
+
+                // Check if today is a public holiday
+                var isPublicHoliday = await _db.PublicHolidays
+                    .AnyAsync(h => h.Date == today && h.IsActive);
+
+                // Create new attendance record
+                var attendance = new Attendance
+                {
+                    Id = Guid.NewGuid(),
+                    UserId = userId.Value,
+                    LoginTime = DateTime.UtcNow,
+                    Date = today,
+                    IsWeekend = isWeekend,
+                    IsPublicHoliday = isPublicHoliday,
+                    Status = ApprovalStatus.Pending,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+
+                _db.Attendance.Add(attendance);
+                await _db.SaveChangesAsync();
+
+                var response = new AttendanceResponse
+                {
+                    AttendanceId = attendance.Id,
+                    LoginTime = attendance.LoginTime,
+                    LogoutTime = attendance.LogoutTime,
+                    Date = attendance.Date,
+                    IsWeekend = attendance.IsWeekend,
+                    IsPublicHoliday = attendance.IsPublicHoliday,
+                    Duration = null,
+                    CompensatoryOffEarned = false,
+                    Message = isWeekend || isPublicHoliday ? "Logged in on a weekend/holiday. You may earn compensatory off." : "Login successful"
+                };
+
+                return Ok(ApiResponse<AttendanceResponse>.SuccessResponse(response, "Attendance login recorded"));
             }
             catch (Exception ex)
             {
@@ -45,19 +94,59 @@ namespace AttendanceAPI.Controllers
         }
 
         [HttpPost("logout")]
-        [FeatureGate("ClockOut")]
-        public async Task<IActionResult> Logout()
+        public async Task<IActionResult> Logout([FromBody] AttendanceLogoutRequest request)
         {
             try
             {
-                var userId = GetCurrentUserId();
-                var attendance = await _attendanceService.LogoutAsync(userId);
-                
-                return Ok(ApiResponse<AttendanceDto>.SuccessResponse(attendance, "Logout successful"));
-            }
-            catch (InvalidOperationException ex)
-            {
-                return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
+                var userId = _currentUserService.GetCurrentUserId();
+                if (!userId.HasValue)
+                {
+                    return Unauthorized(ApiResponse<object>.ErrorResponse("Invalid or missing user claim"));
+                }
+
+                var today = DateOnly.FromDateTime(DateTime.UtcNow);
+
+                // Find today's attendance record
+                var attendance = await _db.Attendance
+                    .Where(a => a.UserId == userId.Value && a.Date == today)
+                    .FirstOrDefaultAsync();
+
+                if (attendance == null)
+                {
+                    return BadRequest(ApiResponse<object>.ErrorResponse("No login record found for today. Please login first."));
+                }
+
+                if (attendance.LogoutTime.HasValue)
+                {
+                    return BadRequest(ApiResponse<object>.ErrorResponse("You have already logged out today"));
+                }
+
+                // Update logout time
+                attendance.LogoutTime = DateTime.UtcNow;
+                attendance.UpdatedAt = DateTime.UtcNow;
+
+                await _db.SaveChangesAsync();
+
+                var duration = attendance.LogoutTime.Value - attendance.LoginTime;
+                var durationString = $"{(int)duration.TotalHours}h {duration.Minutes}m";
+
+                // Check if compensatory off is earned (working on weekend/holiday for more than 4 hours)
+                var compOffEarned = (attendance.IsWeekend || attendance.IsPublicHoliday) && duration.TotalHours >= 4;
+
+                var response = new AttendanceResponse
+                {
+                    AttendanceId = attendance.Id,
+                    LoginTime = attendance.LoginTime,
+                    LogoutTime = attendance.LogoutTime,
+                    Date = attendance.Date,
+                    IsWeekend = attendance.IsWeekend,
+                    IsPublicHoliday = attendance.IsPublicHoliday,
+                    Duration = durationString,
+                    CompensatoryOffEarned = compOffEarned,
+                    Message = compOffEarned ? "Logout successful. You have earned compensatory off." : "Logout successful"
+                };
+
+                return Ok(ApiResponse<AttendanceResponse>.SuccessResponse(response, "Attendance logout recorded"));
             }
             catch (Exception ex)
             {
@@ -67,87 +156,126 @@ namespace AttendanceAPI.Controllers
         }
 
         [HttpGet("today")]
-        public async Task<IActionResult> GetTodayAttendance()
+        public async Task<IActionResult> GetToday()
         {
-            try
+            var userId = _currentUserService.GetCurrentUserId();
+            if (!userId.HasValue)
             {
-                var userId = GetCurrentUserId();
-                var attendance = await _attendanceService.GetTodayAttendanceAsync(userId);
-                
-                if (attendance == null)
-                {
-                    return Ok(ApiResponse<AttendanceDto?>.SuccessResponse(null, "No attendance record for today"));
-                }
-                
-                return Ok(ApiResponse<AttendanceDto>.SuccessResponse(attendance));
+                return Unauthorized(ApiResponse<object>.ErrorResponse("Invalid or missing user claim"));
             }
-            catch (Exception ex)
+
+            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+
+            var att = await _db.Attendance
+                .AsNoTracking()
+                .Where(a => a.UserId == userId.Value && a.Date == today)
+                .FirstOrDefaultAsync();
+
+            if (att == null)
             {
-                _logger.LogError(ex, "Error getting today's attendance");
-                return StatusCode(500, ApiResponse<object>.ErrorResponse("An error occurred", ex.Message));
+                return Ok(ApiResponse<AttendanceDto?>.SuccessResponse(null, "No attendance record for today"));
             }
+
+            var dto = new AttendanceDto
+            {
+                Id = att.Id,
+                UserId = att.UserId,
+                UserName = string.Empty,
+                EmployeeId = string.Empty,
+                LoginTime = att.LoginTime,
+                LogoutTime = att.LogoutTime,
+                Date = att.Date,
+                IsWeekend = att.IsWeekend,
+                IsPublicHoliday = att.IsPublicHoliday,
+                Status = att.Status.ToString(),
+                ApproverName = null,
+                ApprovedAt = att.ApprovedAt,
+                WorkDuration = att.LogoutTime.HasValue ? att.LogoutTime.Value - att.LoginTime : (TimeSpan?)null
+            };
+
+            return Ok(ApiResponse<AttendanceDto>.SuccessResponse(dto));
         }
 
         [HttpGet("history")]
-        public async Task<IActionResult> GetHistory([FromQuery] DateTime? startDate, [FromQuery] DateTime? endDate)
+        public async Task<IActionResult> GetHistory([FromQuery] DateTime? startDate, [FromQuery] DateTime? endDate, [FromQuery] int? userId)
         {
-            try
-            {
-                var userId = GetCurrentUserId();
-                var history = await _attendanceService.GetAttendanceHistoryAsync(userId, startDate, endDate);
-                
-                return Ok(ApiResponse<List<AttendanceDto>>.SuccessResponse(history));
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error getting attendance history");
-                return StatusCode(500, ApiResponse<object>.ErrorResponse("An error occurred", ex.Message));
-            }
-        }
+            // Determine date range
+            var end = endDate?.Date ?? DateTime.UtcNow.Date;
+            var start = startDate?.Date ?? end.AddDays(-30);
 
-        [HttpGet("team")]
-        [Authorize(Roles = "Manager,Administrator")]
-        public async Task<IActionResult> GetTeamAttendance([FromQuery] DateTime? startDate, [FromQuery] DateTime? endDate)
-        {
-            try
+            // Determine user context
+            var currentUserId = _currentUserService.GetCurrentUserId();
+            if (!currentUserId.HasValue)
             {
-                var managerId = GetCurrentUserId();
-                var teamAttendance = await _attendanceService.GetTeamAttendanceAsync(managerId, startDate, endDate);
-                
-                return Ok(ApiResponse<List<AttendanceDto>>.SuccessResponse(teamAttendance));
+                return Unauthorized(ApiResponse<object>.ErrorResponse("Invalid or missing user claim"));
             }
-            catch (Exception ex)
+
+            var effectiveUserId = currentUserId.Value;
+            // If caller passed userId, allow only managers/admins
+            if (userId.HasValue && userId.Value != currentUserId.Value)
             {
-                _logger.LogError(ex, "Error getting team attendance");
-                return StatusCode(500, ApiResponse<object>.ErrorResponse("An error occurred", ex.Message));
+                if (!User.IsInRole("Manager") && !User.IsInRole("Admin"))
+                {
+                    return Forbid();
+                }
+                effectiveUserId = userId.Value;
             }
+
+            var records = await _db.Attendance
+                .AsNoTracking()
+                .Where(a => a.UserId == effectiveUserId && a.Date >= DateOnly.FromDateTime(start) && a.Date <= DateOnly.FromDateTime(end))
+                .OrderByDescending(a => a.Date)
+                .ToListAsync();
+
+            var dtos = records.Select(att => new AttendanceDto
+            {
+                Id = att.Id,
+                UserId = att.UserId,
+                UserName = string.Empty,
+                EmployeeId = string.Empty,
+                LoginTime = att.LoginTime,
+                LogoutTime = att.LogoutTime,
+                Date = att.Date,
+                IsWeekend = att.IsWeekend,
+                IsPublicHoliday = att.IsPublicHoliday,
+                Status = att.Status.ToString(),
+                ApproverName = null,
+                ApprovedAt = att.ApprovedAt,
+                WorkDuration = att.LogoutTime.HasValue ? att.LogoutTime.Value - att.LoginTime : (TimeSpan?)null
+            }).ToList();
+
+            return Ok(ApiResponse<List<AttendanceDto>>.SuccessResponse(dtos));
         }
 
         [HttpGet("holidays")]
-        public async Task<IActionResult> GetPublicHolidays([FromQuery] int year)
+        public async Task<IActionResult> GetPublicHolidays([FromQuery] int? year)
         {
             try
             {
-                if (year == 0) year = DateTime.UtcNow.Year;
+                var yearParam = year ?? DateTime.UtcNow.Year;
+                var holidays = await _db.PublicHolidays
+                    .AsNoTracking()
+                    .Where(h => h.Year == yearParam && h.IsActive)
+                    .OrderBy(h => h.Date)
+                    .ToListAsync();
 
-                var holidays = await _adminService.GetPublicHolidaysAsync(year);
-                return Ok(ApiResponse<List<PublicHolidayDto>>.SuccessResponse(holidays));
+                var dtos = holidays.Select(h => new PublicHolidayDto
+                {
+                    Id = h.Id,
+                    Date = h.Date,
+                    Name = h.Name,
+                    Description = h.Description,
+                    Year = h.Year,
+                    IsActive = h.IsActive
+                }).ToList();
+
+                return Ok(ApiResponse<List<PublicHolidayDto>>.SuccessResponse(dtos));
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error getting public holidays");
+                _logger.LogError(ex, "Error fetching public holidays");
                 return StatusCode(500, ApiResponse<object>.ErrorResponse("An error occurred", ex.Message));
             }
-        }
-
-        private Guid GetCurrentUserId()
-        {
-            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier) ?? User.FindFirst("sub");
-            if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
-            {
-                throw new UnauthorizedAccessException("User not authenticated");
-            }
-            return userId;
         }
     }
 }

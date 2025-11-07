@@ -10,10 +10,7 @@ namespace AttendanceAPI.Models.Entities
         public Guid Id { get; set; } = Guid.NewGuid();
 
         [Required]
-        public Guid UserId { get; set; }
-
-        [ForeignKey(nameof(UserId))]
-        public User User { get; set; } = null!;
+        public int UserId { get; set; }
 
         [Required]
         public LeaveType LeaveType { get; set; }
@@ -33,10 +30,7 @@ namespace AttendanceAPI.Models.Entities
         [Required]
         public ApprovalStatus Status { get; set; } = ApprovalStatus.Pending;
 
-        public Guid? ApprovedBy { get; set; }
-
-        [ForeignKey(nameof(ApprovedBy))]
-        public User? Approver { get; set; }
+        public int? ApprovedBy { get; set; }
 
         public DateTime? ApprovedAt { get; set; }
 

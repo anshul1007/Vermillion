@@ -1,0 +1,519 @@
+<div class="dashboard-container">
+  <div class="dashboard-header">
+    <h1>Entry/Exit Management</h1>
+    <p>Manage projects, contractors, and security guards</p>
+  </div>
+
+  @if (message()) {
+  <div class="alert" [class.alert-success]="!error()" [class.alert-error]="error()">
+    {{ message() }}
+  </div>
+  }
+
+  <div class="tabs">
+    <button
+      class="tab"
+      [class.active]="activeTab() === 'projects'"
+      (click)="setActiveTab('projects')"
+    >
+      <i class="icon">🏗️</i>
+      Projects
+    </button>
+    <button
+      class="tab"
+      [class.active]="activeTab() === 'contractors'"
+      (click)="setActiveTab('contractors')"
+    >
+      <i class="icon">👷</i>
+      Contractors
+    </button>
+    <button class="tab" [class.active]="activeTab() === 'guards'" (click)="setActiveTab('guards')">
+      <i class="icon">🛡️</i>
+      Security Guards
+    </button>
+  </div>
+
+  <!-- Projects Tab -->
+  @if (activeTab() === 'projects') {
+  <div class="tab-content">
+    <div class="section-header">
+      <h2>Projects / Sites</h2>
+      <button class="btn btn-primary" (click)="toggleProjectForm()">
+        {{ showProjectForm() ? 'Cancel' : '+ Add Project' }}
+      </button>
+    </div>
+
+    @if (showProjectForm()) {
+    <div class="form-card">
+      <h3>{{ editingProjectId() ? 'Edit Project' : 'New Project' }}</h3>
+      <form [formGroup]="projectForm" (ngSubmit)="submitProjectForm()">
+        <div class="form-group">
+          <label for="projectName">Project Name *</label>
+          <input
+            type="text"
+            id="projectName"
+            formControlName="name"
+            placeholder="e.g., Site A - Construction"
+            class="form-control"
+            [class.invalid]="projectForm.get('name')?.invalid && projectForm.get('name')?.touched"
+          />
+          @if (projectForm.get('name')?.invalid && projectForm.get('name')?.touched) {
+          <span class="error-text">Project name is required</span>
+          }
+        </div>
+
+        <div class="form-group">
+          <label for="projectDescription">Description</label>
+          <textarea
+            id="projectDescription"
+            formControlName="description"
+            placeholder="Optional description"
+            rows="3"
+            class="form-control"
+          ></textarea>
+        </div>
+
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" (click)="toggleProjectForm()">
+            Cancel
+          </button>
+          <button
+            type="submit"
+            class="btn btn-primary"
+            [disabled]="projectForm.invalid || loading()"
+          >
+            {{ loading() ? 'Saving...' : editingProjectId() ? 'Update' : 'Create' }}
+          </button>
+        </div>
+      </form>
+    </div>
+    } @if (loading() && !showProjectForm()) {
+    <div class="loading">Loading projects...</div>
+    }
+
+    <div class="data-grid">
+      @for (project of projects(); track project.id) {
+      <div class="data-card">
+        <div class="card-header">
+          <div>
+            <h3>{{ project.name }}</h3>
+            @if (project.description) {
+            <p class="description">{{ project.description }}</p>
+            }
+          </div>
+          <div class="card-actions">
+            <button class="btn-icon" (click)="editProject(project)" title="Edit">✏️</button>
+            <button class="btn-icon danger" (click)="deleteProject(project.id)" title="Delete">
+              🗑️
+            </button>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="info-row">
+            <span class="label">Status:</span>
+            <span
+              class="badge"
+              [class.badge-success]="project.isActive"
+              [class.badge-inactive]="!project.isActive"
+            >
+              {{ project.isActive ? 'Active' : 'Inactive' }}
+            </span>
+          </div>
+        </div>
+      </div>
+      } @empty {
+      <div class="empty-state">
+        <p>No projects yet. Add your first project to get started!</p>
+      </div>
+      }
+    </div>
+  </div>
+  }
+
+  <!-- Contractors Tab -->
+  @if (activeTab() === 'contractors') {
+  <div class="tab-content">
+    <div class="section-header">
+      <h2>Contractors</h2>
+      <button class="btn btn-primary" (click)="toggleContractorForm()">
+        {{ showContractorForm() ? 'Cancel' : '+ Add Contractor' }}
+      </button>
+    </div>
+
+    @if (showContractorForm()) {
+    <div class="form-card">
+      <h3>{{ editingContractorId() ? 'Edit Contractor' : 'New Contractor' }}</h3>
+      <form [formGroup]="contractorForm" (ngSubmit)="submitContractorForm()">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="contractorName">Contractor Name *</label>
+            <input
+              type="text"
+              id="contractorName"
+              formControlName="name"
+              placeholder="Company name"
+              class="form-control"
+              [class.invalid]="
+                contractorForm.get('name')?.invalid && contractorForm.get('name')?.touched
+              "
+            />
+            @if (contractorForm.get('name')?.invalid && contractorForm.get('name')?.touched) {
+            <span class="error-text">Name is required</span>
+            }
+          </div>
+
+          <div class="form-group">
+            <label for="contactPerson">Contact Person *</label>
+            <input
+              type="text"
+              id="contactPerson"
+              formControlName="contactPerson"
+              placeholder="Full name"
+              class="form-control"
+              [class.invalid]="
+                contractorForm.get('contactPerson')?.invalid &&
+                contractorForm.get('contactPerson')?.touched
+              "
+            />
+            @if (contractorForm.get('contactPerson')?.invalid &&
+            contractorForm.get('contactPerson')?.touched) {
+            <span class="error-text">Contact person is required</span>
+            }
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="contractorPhone">Phone Number *</label>
+            <input
+              type="tel"
+              id="contractorPhone"
+              formControlName="phoneNumber"
+              placeholder="10-digit number"
+              class="form-control"
+              [class.invalid]="
+                contractorForm.get('phoneNumber')?.invalid &&
+                contractorForm.get('phoneNumber')?.touched
+              "
+            />
+            @if (contractorForm.get('phoneNumber')?.invalid &&
+            contractorForm.get('phoneNumber')?.touched) {
+            <span class="error-text">Valid 10-digit phone required</span>
+            }
+          </div>
+
+          <div class="form-group">
+            <label for="contractorProject">Assign to Project *</label>
+            <select
+              id="contractorProject"
+              formControlName="projectId"
+              class="form-control"
+              [class.invalid]="
+                contractorForm.get('projectId')?.invalid && contractorForm.get('projectId')?.touched
+              "
+            >
+              <option value="0">Select a project</option>
+              @for (project of projects(); track project.id) {
+              <option [value]="project.id">{{ project.name }}</option>
+              }
+            </select>
+            @if (contractorForm.get('projectId')?.invalid &&
+            contractorForm.get('projectId')?.touched) {
+            <span class="error-text">Please select a project</span>
+            }
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" (click)="toggleContractorForm()">
+            Cancel
+          </button>
+          <button
+            type="submit"
+            class="btn btn-primary"
+            [disabled]="contractorForm.invalid || loading()"
+          >
+            {{ loading() ? 'Saving...' : editingContractorId() ? 'Update' : 'Create' }}
+          </button>
+        </div>
+      </form>
+    </div>
+    } @if (loading() && !showContractorForm()) {
+    <div class="loading">Loading contractors...</div>
+    }
+
+    <div class="data-grid">
+      @for (contractor of contractors(); track contractor.id) {
+      <div class="data-card">
+        <div class="card-header">
+          <div>
+            <h3>{{ contractor.name }}</h3>
+            <p class="description">Contact: {{ contractor.contactPerson }}</p>
+          </div>
+          <div class="card-actions">
+            <button class="btn-icon" (click)="editContractor(contractor)" title="Edit">✏️</button>
+            <button
+              class="btn-icon danger"
+              (click)="deleteContractor(contractor.id)"
+              title="Delete"
+            >
+              🗑️
+            </button>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="info-row">
+            <span class="label">Phone:</span>
+            <span>{{ contractor.phoneNumber }}</span>
+          </div>
+          <div class="info-row">
+            <span class="label">Project:</span>
+            <span class="badge badge-info">{{ getProjectName(contractor.projectId) }}</span>
+          </div>
+          <div class="info-row">
+            <span class="label">Status:</span>
+            <span
+              class="badge"
+              [class.badge-success]="contractor.isActive"
+              [class.badge-inactive]="!contractor.isActive"
+            >
+              {{ contractor.isActive ? 'Active' : 'Inactive' }}
+            </span>
+          </div>
+        </div>
+      </div>
+      } @empty {
+      <div class="empty-state">
+        <p>No contractors yet. Add contractors to assign to your projects!</p>
+      </div>
+      }
+    </div>
+  </div>
+  }
+
+  <!-- Guards Tab -->
+  @if (activeTab() === 'guards') {
+  <div class="tab-content">
+    <div class="section-header">
+      <h2>Security Guards</h2>
+      <div class="button-group">
+        <button class="btn btn-primary" (click)="toggleGuardCreateForm()">
+          {{ showGuardCreateForm() ? 'Cancel' : '+ Create Guard' }}
+        </button>
+        <button class="btn btn-success" (click)="toggleAssignForm()">
+          {{ showAssignForm() ? 'Cancel' : '📍 Assign to Project' }}
+        </button>
+      </div>
+    </div>
+
+    <!-- Create Guard Form -->
+    @if (showGuardCreateForm()) {
+    <div class="form-card">
+      <h3>Create New Security Guard</h3>
+      <form [formGroup]="guardCreateForm" (ngSubmit)="submitGuardCreateForm()">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="guardEmail">Email *</label>
+            <input
+              type="email"
+              id="guardEmail"
+              formControlName="email"
+              placeholder="guard@example.com"
+              class="form-control"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="guardPassword">Password *</label>
+            <input
+              type="password"
+              id="guardPassword"
+              formControlName="password"
+              placeholder="Min 6 characters"
+              class="form-control"
+            />
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="guardFirstName">First Name *</label>
+            <input
+              type="text"
+              id="guardFirstName"
+              formControlName="firstName"
+              placeholder="First name"
+              class="form-control"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="guardLastName">Last Name *</label>
+            <input
+              type="text"
+              id="guardLastName"
+              formControlName="lastName"
+              placeholder="Last name"
+              class="form-control"
+            />
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="guardEmployeeId">Employee ID *</label>
+            <input
+              type="text"
+              id="guardEmployeeId"
+              formControlName="employeeId"
+              placeholder="e.g., GUARD001"
+              class="form-control"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="guardPhoneNumber">Phone Number *</label>
+            <input
+              type="tel"
+              id="guardPhoneNumber"
+              formControlName="phoneNumber"
+              placeholder="+91-9876543210"
+              class="form-control"
+            />
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" (click)="toggleGuardCreateForm()">
+            Cancel
+          </button>
+          <button
+            type="submit"
+            class="btn btn-primary"
+            [disabled]="guardCreateForm.invalid || loading()"
+          >
+            {{
+              loading()
+                ? editingGuardAuthUserId()
+                  ? 'Updating...'
+                  : 'Processing...'
+                : editingGuardAuthUserId()
+                ? 'Update Guard'
+                : 'Create Guard'
+            }}
+          </button>
+        </div>
+      </form>
+    </div>
+    }
+
+    <!-- Assign Guard to Project Form -->
+    @if (showAssignForm()) {
+    <div class="form-card">
+      <h3>Assign Guard to Project</h3>
+      <form [formGroup]="assignForm" (ngSubmit)="submitAssignForm()">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="assignGuardId">Select Guard *</label>
+            <select id="assignGuardId" formControlName="authUserId" class="form-control">
+              <option value="0">Select a guard</option>
+              @for (guard of guards(); track guard.authUserId) {
+              <option [value]="guard.authUserId">
+                {{ guard.firstName }} {{ guard.lastName }} ({{ guard.employeeId }})
+              </option>
+              }
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="assignProject">Assign to Project *</label>
+            <select id="assignProject" formControlName="projectId" class="form-control">
+              <option value="0">Select a project</option>
+              @for (project of projects(); track project.id) {
+              <option [value]="project.id">{{ project.name }}</option>
+              }
+            </select>
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" (click)="toggleAssignForm()">
+            Cancel
+          </button>
+          <button
+            type="submit"
+            class="btn btn-primary"
+            [disabled]="assignForm.invalid || loading()"
+          >
+            {{ loading() ? 'Assigning...' : 'Assign to Project' }}
+          </button>
+        </div>
+      </form>
+    </div>
+    } @if (loading() && !showGuardCreateForm() && !showAssignForm()) {
+    <div class="loading">Loading guards...</div>
+    }
+
+    <div class="data-grid">
+      @for (guard of guards(); track guard.authUserId) {
+      <div class="data-card">
+        <div class="card-header">
+          <div>
+            <h3>{{ guard.firstName }} {{ guard.lastName }}</h3>
+            <p class="description">Employee ID: {{ guard.employeeId }}</p>
+          </div>
+          <div class="card-actions">
+            <button class="btn-icon" (click)="editGuard(guard)" title="Edit">✏️</button>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="info-row">
+            <span class="label">Email:</span>
+            <span>{{ guard.email || 'N/A' }}</span>
+          </div>
+          <div class="info-row">
+            <span class="label">Phone:</span>
+            <span>{{ guard.phoneNumber || 'N/A' }}</span>
+          </div>
+          <div class="info-row">
+            <span class="label">Status:</span>
+            <span
+              class="badge"
+              [class.badge-success]="guard.isActive"
+              [class.badge-inactive]="!guard.isActive"
+            >
+              {{ guard.isActive ? 'Active' : 'Inactive' }}
+            </span>
+          </div>
+          <div class="info-row">
+            <span class="label">Assigned Projects:</span>
+            <div class="projects-list">
+              @if (guard.assignedProjects && guard.assignedProjects.length > 0) { @for (project of
+              guard.assignedProjects; track project.projectId) {
+              <div class="project-assignment">
+                <span class="badge badge-info">{{ project.projectName }}</span>
+
+                <button
+                  class="btn-icon-small danger"
+                  (click)="deleteGuard(guard.authUserId, project.projectId)"
+                  title="Unassign from this project"
+                >
+                  ✖
+                </button>
+              </div>
+              } } @else {
+              <span class="text-muted">Not assigned to any project</span>
+              }
+            </div>
+          </div>
+        </div>
+      </div>
+      } @empty {
+      <div class="empty-state">
+        <p>No security guards yet. Create guards and assign them to projects!</p>
+      </div>
+      }
+    </div>
+  </div>
+  }
+</div>

@@ -17,7 +17,7 @@ import { ApiResponse, PaginatedResponse } from '../../shared/models/api-response
 })
 export class AttendanceService {
   private http = inject(HttpClient);
-  private readonly apiUrl = `${environment.apiUrl}/attendance`;
+  private readonly apiUrl = `${environment.attendanceApiUrl}/attendance`;
 
   login(request: AttendanceLoginRequest = {}): Observable<AttendanceResponse> {
     return this.http.post<ApiResponse<AttendanceResponse>>(`${this.apiUrl}/login`, request)

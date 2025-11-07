@@ -10,20 +10,26 @@ export const routes: Routes = [
   {
     path: 'employee',
     canActivate: [authGuard, roleGuard],
-    data: { roles: ['Employee', 'Manager', 'Administrator'] },
+    data: { roles: ['Employee', 'Manager', 'Admin', 'SystemAdmin'] },
     loadComponent: () => import('./features/employee/dashboard/employee-dashboard.component').then(m => m.EmployeeDashboardComponent)
   },
   {
     path: 'manager',
     canActivate: [authGuard, roleGuard],
-    data: { roles: ['Manager', 'Administrator'] },
+    data: { roles: ['Manager', 'Admin', 'SystemAdmin'] },
     loadChildren: () => import('./features/manager/manager.routes').then(m => m.MANAGER_ROUTES)
   },
   {
     path: 'admin',
     canActivate: [authGuard, roleGuard],
-    data: { roles: ['Administrator'] },
+    data: { roles: ['Admin', 'SystemAdmin'] },
     loadChildren: () => import('./features/admin/admin.routes').then(m => m.ADMIN_ROUTES)
+  },
+  {
+    path: 'system-admin',
+    canActivate: [authGuard, roleGuard],
+    data: { roles: ['SystemAdmin'] },
+    loadChildren: () => import('./features/system-admin/system-admin.routes').then(m => m.SYSTEM_ADMIN_ROUTES)
   },
   {
     path: 'system',

@@ -17,7 +17,7 @@ export interface PublicHoliday {
 })
 export class CommonService {
   private http = inject(HttpClient);
-  private readonly apiUrl = `${environment.apiUrl}/attendance`;
+  private readonly apiUrl = `${environment.attendanceApiUrl}/attendance`;
 
   getPublicHolidays(year?: number): Observable<PublicHoliday[]> {
     let params = new HttpParams();

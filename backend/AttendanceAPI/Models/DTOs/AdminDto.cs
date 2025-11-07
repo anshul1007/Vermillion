@@ -9,8 +9,10 @@ namespace AttendanceAPI.Models.DTOs
         public string Email { get; set; } = string.Empty;
 
         [Required]
-        [MinLength(8)]
+        [MinLength(6)]
         public string Password { get; set; } = string.Empty;
+
+        public int? AuthUserId { get; set; } // Links to Auth API Users table (optional for now)
 
         [Required]
         [MaxLength(100)]
@@ -25,7 +27,7 @@ namespace AttendanceAPI.Models.DTOs
         public string EmployeeId { get; set; } = string.Empty;
 
         [Required]
-        public int Role { get; set; } // 1=Employee, 2=Manager, 3=Administrator
+        public int Role { get; set; } 
 
         public Guid? ManagerId { get; set; }
 
@@ -43,6 +45,9 @@ namespace AttendanceAPI.Models.DTOs
         [MaxLength(100)]
         public string? LastName { get; set; }
 
+        [MaxLength(20)]
+        public string? PhoneNumber { get; set; }
+
         public int? Role { get; set; }
 
         public Guid? ManagerId { get; set; }
@@ -56,6 +61,27 @@ namespace AttendanceAPI.Models.DTOs
     {
         [Required]
         public Guid UserId { get; set; }
+
+        [Required]
+        public int Year { get; set; }
+
+        [Required]
+        [Range(0, 365)]
+        public decimal CasualLeaveBalance { get; set; }
+
+        [Required]
+        [Range(0, 365)]
+        public decimal EarnedLeaveBalance { get; set; }
+
+        [Range(0, 365)]
+        public decimal CompensatoryOffBalance { get; set; } = 0;
+    }
+
+    // New request shape: frontend sends userId as string; accept string and parse when handling
+    public class AllocateLeaveEntitlementRequest
+    {
+        [Required]
+        public string UserId { get; set; } = string.Empty;
 
         [Required]
         public int Year { get; set; }
@@ -93,5 +119,14 @@ namespace AttendanceAPI.Models.DTOs
         public string? Description { get; set; }
         public int Year { get; set; }
         public bool IsActive { get; set; }
+    }
+
+    public class LeaveEntitlementDto
+    {
+        public string UserId { get; set; } = string.Empty;
+        public int Year { get; set; }
+        public decimal CasualLeaveBalance { get; set; }
+        public decimal EarnedLeaveBalance { get; set; }
+        public decimal CompensatoryOffBalance { get; set; }
     }
 }

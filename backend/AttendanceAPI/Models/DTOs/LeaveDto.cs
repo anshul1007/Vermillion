@@ -21,7 +21,7 @@ namespace AttendanceAPI.Models.DTOs
     public class LeaveRequestResponse
     {
         public Guid Id { get; set; }
-        public Guid UserId { get; set; }
+        public int UserId { get; set; }
         public string UserName { get; set; } = string.Empty;
         public string EmployeeId { get; set; } = string.Empty;
         public string LeaveType { get; set; } = string.Empty;

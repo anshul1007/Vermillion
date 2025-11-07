@@ -1,0 +1,30 @@
+using System.ComponentModel.DataAnnotations;
+
+namespace EntryExitAPI.Models.Entities;
+
+public class Contractor
+{
+    public int Id { get; set; }
+
+    [Required]
+    [MaxLength(200)]
+    public string Name { get; set; } = string.Empty;
+
+    [MaxLength(100)]
+    public string? ContactPerson { get; set; }
+
+    [MaxLength(20)]
+    public string? PhoneNumber { get; set; }
+
+    public int ProjectId { get; set; }
+
+    public bool IsActive { get; set; } = true;
+
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    public DateTime? UpdatedAt { get; set; }
+
+    // Navigation properties
+    public virtual Project Project { get; set; } = null!;
+    public virtual ICollection<LabourRegistration> LabourRegistrations { get; set; } = new List<LabourRegistration>();
+}

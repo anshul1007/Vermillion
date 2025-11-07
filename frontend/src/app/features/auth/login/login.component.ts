@@ -10,6 +10,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatIconModule } from '@angular/material/icon';
 import { AuthService } from '../../../core/auth/auth.service';
 import { LoginRequest } from '../../../shared/models/user.model';
+import { take } from 'rxjs/operators';
 
 @Component({
   selector: 'app-login',
@@ -89,76 +90,7 @@ import { LoginRequest } from '../../../shared/models/user.model';
         </mat-card-content>
       </mat-card>
     </div>
-  `,
-  styles: [`
-    .login-container {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      min-height: 100vh;
-      background: linear-gradient(135deg, #8B3A3A 0%, #6B2C2C 100%);
-      padding: 20px;
-    }
-
-    .login-card {
-      width: 100%;
-      max-width: 400px;
-      padding: 20px;
-    }
-
-    mat-card-header {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      margin-bottom: 20px;
-    }
-
-    mat-card-title {
-      font-size: 32px;
-      font-weight: 700;
-      text-align: center;
-      margin-bottom: 8px;
-      background: linear-gradient(135deg, #8B3A3A 0%, #6B2C2C 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-      letter-spacing: 1px;
-    }
-
-    mat-card-subtitle {
-      text-align: center;
-    }
-
-    .full-width {
-      width: 100%;
-    }
-
-    mat-form-field {
-      margin-bottom: 16px;
-    }
-
-    .login-button {
-      height: 48px;
-      font-size: 16px;
-      margin-top: 16px;
-    }
-
-    .error-message {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      color: #f44336;
-      background: #ffebee;
-      padding: 12px;
-      border-radius: 4px;
-      margin-bottom: 16px;
-      font-size: 14px;
-    }
-
-    mat-spinner {
-      margin: 0 auto;
-    }
-  `]
+  `
 })
 export class LoginComponent {
   private authService = inject(AuthService);
@@ -177,14 +109,24 @@ export class LoginComponent {
     this.loading.set(true);
     this.errorMessage.set('');
 
-    this.authService.login(this.credentials).subscribe({
+    // one-off login observable: use take(1) to auto-unsubscribe
+    this.authService.login(this.credentials).pipe(take(1)).subscribe({
       next: (response) => {
         this.loading.set(false);
-        // Navigate based on user role
-        const role = response.user.role;
-        if (role === 'Administrator') {
+        console.debug('Login response:', response);
+
+        // Primary role (mapped by AuthService)
+        const mappedRole = response.user?.role;
+
+        // Also check tenant role names in case mapping failed
+        const tenantRoles: string[] = (response.user?.tenants ?? []).map((t: any) => t.roleName ?? t.RoleName ?? '').filter(Boolean);
+
+        const isAdmin = mappedRole === 'Admin' || mappedRole === 'SystemAdmin' || tenantRoles.some(r => r === 'SystemAdmin' || r === 'Admin');
+        const isManager = mappedRole === 'Manager' || tenantRoles.some(r => r === 'Manager');
+
+        if (isAdmin) {
           this.router.navigate(['/admin']);
-        } else if (role === 'Manager') {
+        } else if (isManager) {
           this.router.navigate(['/manager']);
         } else {
           this.router.navigate(['/employee']);

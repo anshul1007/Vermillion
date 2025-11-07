@@ -8,5 +8,9 @@ export const ADMIN_ROUTES: Routes = [
   {
     path: 'team',
     loadComponent: () => import('../manager/dashboard/manager-dashboard.component').then(m => m.ManagerDashboardComponent)
+  },
+  {
+    path: 'entry-exit',
+    loadComponent: () => import('./entry-exit/entry-exit-dashboard.component').then(m => m.EntryExitDashboardComponent)
   }
 ];

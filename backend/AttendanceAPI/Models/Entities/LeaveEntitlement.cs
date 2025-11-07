@@ -10,13 +10,10 @@ namespace AttendanceAPI.Models.Entities
         public Guid Id { get; set; } = Guid.NewGuid();
 
         [Required]
-        public Guid UserId { get; set; }
-
-        [ForeignKey(nameof(UserId))]
-        public User User { get; set; } = null!;
+        public int UserId { get; set; }
 
         [Required]
-        public int Year { get; set; }
+        public LeaveType LeaveType { get; set; }
 
         [Required, Column(TypeName = "decimal(5,2)")]
         public decimal CasualLeaveBalance { get; set; } = 0;
@@ -26,6 +23,9 @@ namespace AttendanceAPI.Models.Entities
 
         [Required, Column(TypeName = "decimal(5,2)")]
         public decimal CompensatoryOffBalance { get; set; } = 0;
+
+        [Required]
+        public int Year { get; set; } = DateTime.UtcNow.Year;
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;

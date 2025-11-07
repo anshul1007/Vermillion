@@ -31,8 +31,8 @@ namespace AttendanceAPI.Migrations
                     b.Property<DateTime?>("ApprovedAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<Guid?>("ApprovedBy")
-                        .HasColumnType("uniqueidentifier");
+                    b.Property<int?>("ApprovedBy")
+                        .HasColumnType("int");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
@@ -58,12 +58,10 @@ namespace AttendanceAPI.Migrations
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uniqueidentifier");
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("ApprovedBy");
 
                     b.HasIndex("Date");
 
@@ -82,8 +80,8 @@ namespace AttendanceAPI.Migrations
 
                     b.Property<string>("Action")
                         .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
 
                     b.Property<string>("EntityId")
                         .IsRequired()
@@ -108,8 +106,8 @@ namespace AttendanceAPI.Migrations
                     b.Property<DateTime>("Timestamp")
                         .HasColumnType("datetime2");
 
-                    b.Property<Guid?>("UserId")
-                        .HasColumnType("uniqueidentifier");
+                    b.Property<int?>("UserId")
+                        .HasColumnType("int");
 
                     b.HasKey("Id");
 
@@ -120,39 +118,6 @@ namespace AttendanceAPI.Migrations
                     b.HasIndex("EntityType", "EntityId");
 
                     b.ToTable("AuditLogs");
-                });
-
-            modelBuilder.Entity("AttendanceAPI.Models.Entities.Department", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Description")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("WeeklyOffDays")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("Departments");
                 });
 
             modelBuilder.Entity("AttendanceAPI.Models.Entities.FeatureToggle", b =>
@@ -195,8 +160,6 @@ namespace AttendanceAPI.Migrations
 
                     b.HasIndex("IsEnabled");
 
-                    b.HasIndex("LastModifiedBy");
-
                     b.ToTable("FeatureToggles");
                 });
 
@@ -218,19 +181,21 @@ namespace AttendanceAPI.Migrations
                     b.Property<decimal>("EarnedLeaveBalance")
                         .HasColumnType("decimal(5,2)");
 
+                    b.Property<int>("LeaveType")
+                        .HasColumnType("int");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uniqueidentifier");
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
 
                     b.Property<int>("Year")
                         .HasColumnType("int");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("UserId", "Year")
-                        .IsUnique();
+                    b.HasIndex("UserId");
 
                     b.ToTable("LeaveEntitlements");
                 });
@@ -244,8 +209,8 @@ namespace AttendanceAPI.Migrations
                     b.Property<DateTime?>("ApprovedAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<Guid?>("ApprovedBy")
-                        .HasColumnType("uniqueidentifier");
+                    b.Property<int?>("ApprovedBy")
+                        .HasColumnType("int");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
@@ -277,12 +242,10 @@ namespace AttendanceAPI.Migrations
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uniqueidentifier");
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("ApprovedBy");
 
                     b.HasIndex("Status");
 
@@ -328,167 +291,6 @@ namespace AttendanceAPI.Migrations
                     b.HasIndex("Year");
 
                     b.ToTable("PublicHolidays");
-                });
-
-            modelBuilder.Entity("AttendanceAPI.Models.Entities.User", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid?>("DepartmentId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Email")
-                        .IsRequired()
-                        .HasMaxLength(256)
-                        .HasColumnType("nvarchar(256)");
-
-                    b.Property<string>("EmployeeId")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<string>("FirstName")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("LastName")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<Guid?>("ManagerId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("PasswordHash")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("Role")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("DepartmentId");
-
-                    b.HasIndex("Email")
-                        .IsUnique();
-
-                    b.HasIndex("EmployeeId")
-                        .IsUnique();
-
-                    b.HasIndex("ManagerId");
-
-                    b.ToTable("Users");
-                });
-
-            modelBuilder.Entity("AttendanceAPI.Models.Entities.Attendance", b =>
-                {
-                    b.HasOne("AttendanceAPI.Models.Entities.User", "Approver")
-                        .WithMany()
-                        .HasForeignKey("ApprovedBy")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("AttendanceAPI.Models.Entities.User", "User")
-                        .WithMany("Attendances")
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Approver");
-
-                    b.Navigation("User");
-                });
-
-            modelBuilder.Entity("AttendanceAPI.Models.Entities.AuditLog", b =>
-                {
-                    b.HasOne("AttendanceAPI.Models.Entities.User", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("User");
-                });
-
-            modelBuilder.Entity("AttendanceAPI.Models.Entities.FeatureToggle", b =>
-                {
-                    b.HasOne("AttendanceAPI.Models.Entities.User", "LastModifiedByUser")
-                        .WithMany()
-                        .HasForeignKey("LastModifiedBy");
-
-                    b.Navigation("LastModifiedByUser");
-                });
-
-            modelBuilder.Entity("AttendanceAPI.Models.Entities.LeaveEntitlement", b =>
-                {
-                    b.HasOne("AttendanceAPI.Models.Entities.User", "User")
-                        .WithMany("LeaveEntitlements")
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("User");
-                });
-
-            modelBuilder.Entity("AttendanceAPI.Models.Entities.LeaveRequest", b =>
-                {
-                    b.HasOne("AttendanceAPI.Models.Entities.User", "Approver")
-                        .WithMany()
-                        .HasForeignKey("ApprovedBy")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("AttendanceAPI.Models.Entities.User", "User")
-                        .WithMany("LeaveRequests")
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Approver");
-
-                    b.Navigation("User");
-                });
-
-            modelBuilder.Entity("AttendanceAPI.Models.Entities.User", b =>
-                {
-                    b.HasOne("AttendanceAPI.Models.Entities.Department", "Department")
-                        .WithMany("Employees")
-                        .HasForeignKey("DepartmentId");
-
-                    b.HasOne("AttendanceAPI.Models.Entities.User", "Manager")
-                        .WithMany("Subordinates")
-                        .HasForeignKey("ManagerId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("Department");
-
-                    b.Navigation("Manager");
-                });
-
-            modelBuilder.Entity("AttendanceAPI.Models.Entities.Department", b =>
-                {
-                    b.Navigation("Employees");
-                });
-
-            modelBuilder.Entity("AttendanceAPI.Models.Entities.User", b =>
-                {
-                    b.Navigation("Attendances");
-
-                    b.Navigation("LeaveEntitlements");
-
-                    b.Navigation("LeaveRequests");
-
-                    b.Navigation("Subordinates");
                 });
 #pragma warning restore 612, 618
         }

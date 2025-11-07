@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { Observable } from 'rxjs';
-import { map } from 'rxjs/operators';
+import { Observable, of } from 'rxjs';
+import { map, catchError } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
 import { ApiResponse } from '../../shared/models/api-response.model';
 import { User, CreateUserRequest, UpdateUserRequest } from '../../shared/models/admin.model';
@@ -76,7 +76,7 @@ export interface LogPastAttendanceRequest {
 })
 export class AdminService {
   private http = inject(HttpClient);
-  private readonly apiUrl = `${environment.apiUrl}/admin`;
+  private readonly apiUrl = `${environment.attendanceApiUrl}/admin`;
 
   // User Management
   getAllUsers(): Observable<User[]> {
@@ -87,20 +87,62 @@ export class AdminService {
             return response.data;
           }
           throw new Error(response.message || response.error || 'Failed to fetch users');
+        }),
+        catchError(err => {
+          console.error('Error fetching users', err);
+          return of([] as User[]);
         })
       );
   }
 
   createUser(request: CreateUserRequest): Observable<User> {
-    return this.http.post<ApiResponse<User>>(`${this.apiUrl}/users`, request)
+    const authApiUrl = `${environment.apiUrl}/Admin/users`;
+    const body = {
+      username: request.email,
+      email: request.email,
+      password: request.password,
+      role: this.mapRoleNumberToString(request.role),
+      tenantDomain: 'attendance', // Default tenant for attendance system
+      employeeId: request.employeeId,
+      firstName: request.firstName,
+      lastName: request.lastName,
+      departmentId: request.departmentId,
+      managerId: request.managerId
+    };
+
+    return this.http.post<ApiResponse<any>>(authApiUrl, body)
       .pipe(
         map(response => {
           if (response.success && response.data) {
-            return response.data;
+            // Map AuthAPI user response to frontend User model
+            return {
+              id: response.data.id?.toString() || '',
+              email: request.email,
+              firstName: request.firstName,
+              lastName: request.lastName,
+              employeeId: request.employeeId,
+              role: this.mapRoleNumberToString(request.role),
+              managerId: request.managerId,
+              departmentId: request.departmentId,
+              isActive: true
+            } as User;
           }
           throw new Error(response.message || response.error || 'Failed to create user');
+        }),
+        catchError(err => {
+          console.error('Error creating user in AuthAPI', err);
+          throw err;
         })
       );
+  }
+
+  private mapRoleNumberToString(role: number): string {
+    switch (role) {
+      case 0: return 'Employee';
+      case 1: return 'Manager';
+      case 2: return 'Admin';
+      default: return 'Employee';
+    }
   }
 
   updateUser(userId: string, request: UpdateUserRequest): Observable<User> {
@@ -111,6 +153,10 @@ export class AdminService {
             return response.data;
           }
           throw new Error(response.message || response.error || 'Failed to update user');
+        }),
+        catchError(err => {
+          console.error('Error updating user', err);
+          throw err;
         })
       );
   }
@@ -124,6 +170,10 @@ export class AdminService {
             return response.data;
           }
           throw new Error(response.message || response.error || 'Failed to fetch departments');
+        }),
+        catchError(err => {
+          console.error('Error fetching departments', err);
+          return of([] as Department[]);
         })
       );
   }
@@ -136,6 +186,10 @@ export class AdminService {
             return response.data;
           }
           throw new Error(response.message || response.error || 'Failed to create department');
+        }),
+        catchError(err => {
+          console.error('Error creating department', err);
+          throw err;
         })
       );
   }
@@ -148,6 +202,10 @@ export class AdminService {
             return response.data;
           }
           throw new Error(response.message || response.error || 'Failed to update department');
+        }),
+        catchError(err => {
+          console.error('Error updating department', err);
+          throw err;
         })
       );
   }
@@ -159,34 +217,57 @@ export class AdminService {
           if (!response.success) {
             throw new Error(response.message || response.error || 'Failed to delete department');
           }
+        }),
+        catchError(err => {
+          console.error('Error deleting department', err);
+          throw err;
         })
       );
   }
 
   // Leave Entitlement Management
   allocateLeaveEntitlement(request: LeaveEntitlementRequest): Observable<LeaveEntitlementResponse> {
-    return this.http.post<ApiResponse<LeaveEntitlementResponse>>(`${this.apiUrl}/leave-entitlement`, request)
+    return this.http.post<ApiResponse<boolean>>(`${this.apiUrl}/leave-entitlement`, request)
       .pipe(
         map(response => {
-          if (response.success && response.data) {
-            return response.data;
+          if (response.success) {
+            return {
+              userId: request.userId,
+              year: request.year,
+              casualLeaveBalance: request.casualLeaveBalance,
+              earnedLeaveBalance: request.earnedLeaveBalance,
+              compensatoryOffBalance: request.compensatoryOffBalance
+            } as LeaveEntitlementResponse;
           }
-          throw new Error(response.error || 'Failed to allocate leave entitlement');
+          throw new Error(response.message || response.error || 'Failed to allocate leave entitlement');
+        }),
+        catchError(err => {
+          console.error('Error allocating leave entitlement', err);
+          throw err;
         })
       );
   }
 
   getLeaveEntitlement(userId: string, year?: number): Observable<LeaveEntitlementResponse> {
-    let params = new HttpParams();
-    if (year) params = params.set('year', year.toString());
-    
-    return this.http.get<ApiResponse<LeaveEntitlementResponse>>(`${this.apiUrl}/leave-entitlement/${userId}`, { params })
+    const yearParam = year || new Date().getFullYear();
+    return this.http.get<ApiResponse<LeaveEntitlementResponse>>(`${this.apiUrl}/leave-entitlement/${userId}?year=${yearParam}`)
       .pipe(
         map(response => {
           if (response.success && response.data) {
             return response.data;
           }
-          throw new Error(response.error || 'Failed to fetch leave entitlement');
+          throw new Error(response.message || response.error || 'Failed to fetch leave entitlement');
+        }),
+        catchError(err => {
+          console.error('Error fetching leave entitlement', err);
+          // Return default values if not found
+          return of({
+            userId: userId,
+            year: yearParam,
+            casualLeaveBalance: 0,
+            earnedLeaveBalance: 0,
+            compensatoryOffBalance: 0
+          } as LeaveEntitlementResponse);
         })
       );
   }
@@ -199,22 +280,28 @@ export class AdminService {
           if (response.success && response.data) {
             return response.data;
           }
-          throw new Error(response.error || 'Failed to create holiday');
+          throw new Error(response.message || response.error || 'Failed to create holiday');
+        }),
+        catchError(err => {
+          console.error('Error creating holiday', err);
+          throw err;
         })
       );
   }
 
   getPublicHolidays(year?: number): Observable<PublicHoliday[]> {
-    let params = new HttpParams();
-    if (year) params = params.set('year', year.toString());
-    
-    return this.http.get<ApiResponse<PublicHoliday[]>>(`${this.apiUrl}/holidays`, { params })
+    const yearParam = year || new Date().getFullYear();
+    return this.http.get<ApiResponse<PublicHoliday[]>>(`${this.apiUrl}/holidays?year=${yearParam}`)
       .pipe(
         map(response => {
           if (response.success && response.data) {
             return response.data;
           }
           throw new Error(response.error || 'Failed to fetch holidays');
+        }),
+        catchError(err => {
+          console.error('Error fetching holidays', err);
+          return of([] as PublicHoliday[]);
         })
       );
   }
@@ -224,8 +311,12 @@ export class AdminService {
       .pipe(
         map(response => {
           if (!response.success) {
-            throw new Error(response.error || 'Failed to delete holiday');
+            throw new Error(response.message || response.error || 'Failed to delete holiday');
           }
+        }),
+        catchError(err => {
+          console.error('Error deleting holiday', err);
+          throw err;
         })
       );
   }
@@ -239,6 +330,10 @@ export class AdminService {
             return response.data;
           }
           throw new Error(response.message || response.error || 'Failed to fetch team members');
+        }),
+        catchError(err => {
+          console.error('Error fetching team members', err);
+          return of([] as TeamMember[]);
         })
       );
   }
@@ -250,6 +345,10 @@ export class AdminService {
           if (!response.success) {
             throw new Error(response.message || response.error || 'Failed to assign compensatory off');
           }
+        }),
+        catchError(err => {
+          console.error('Error assigning comp-off', err);
+          throw err;
         })
       );
   }
@@ -261,6 +360,10 @@ export class AdminService {
           if (!response.success) {
             throw new Error(response.message || response.error || 'Failed to log past attendance');
           }
+        }),
+        catchError(err => {
+          console.error('Error logging past attendance', err);
+          throw err;
         })
       );
   }
@@ -277,6 +380,10 @@ export class AdminService {
             return response.data;
           }
           throw new Error(response.error || 'Failed to fetch team attendance history');
+        }),
+        catchError(err => {
+          console.error('Error fetching team attendance history', err);
+          return of([] as any[]);
         })
       );
   }
@@ -293,6 +400,10 @@ export class AdminService {
             return response.data;
           }
           throw new Error(response.error || 'Failed to fetch team leave history');
+        }),
+        catchError(err => {
+          console.error('Error fetching team leave history', err);
+          return of([] as any[]);
         })
       );
   }
@@ -310,6 +421,10 @@ export class AdminService {
             return response.data;
           }
           throw new Error(response.error || 'Failed to fetch pending attendance');
+        }),
+        catchError(err => {
+          console.error('Error fetching pending attendance', err);
+          return of([] as any[]);
         })
       );
   }
@@ -321,6 +436,10 @@ export class AdminService {
           if (!response.success) {
             throw new Error(response.error || 'Failed to approve attendance');
           }
+        }),
+        catchError(err => {
+          console.error('Error approving attendance', err);
+          throw err;
         })
       );
   }
@@ -334,6 +453,10 @@ export class AdminService {
           if (!response.success) {
             throw new Error(response.error || 'Failed to reject attendance');
           }
+        }),
+        catchError(err => {
+          console.error('Error rejecting attendance', err);
+          throw err;
         })
       );
   }
@@ -346,6 +469,10 @@ export class AdminService {
             return response.data;
           }
           throw new Error(response.error || 'Failed to fetch pending leave requests');
+        }),
+        catchError(err => {
+          console.error('Error fetching pending leave requests', err);
+          return of([] as any[]);
         })
       );
   }
@@ -362,6 +489,10 @@ export class AdminService {
             return response.data;
           }
           throw new Error(response.error || 'Failed to process leave request');
+        }),
+        catchError(err => {
+          console.error('Error processing leave request', err);
+          throw err;
         })
       );
   }

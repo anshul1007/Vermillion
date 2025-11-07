@@ -2,6 +2,7 @@ import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule, Router } from '@angular/router';
 import { AuthService } from '../../core/auth/auth.service';
+import { take } from 'rxjs/operators';
 
 @Component({
   selector: 'app-navigation',
@@ -16,172 +17,175 @@ import { AuthService } from '../../core/auth/auth.service';
             <span class="logo-subtext">PRECISION DEFINED • SOLUTIONS DELIVERED</span>
           </div>
         </div>
-        
-        @if (authService.currentUser) {
+
+        <ng-container *ngIf="authService.currentUser$ | async as currentUser">
           <div class="nav-links">
-            @if (hasRole('Employee')) {
-              <a routerLink="/employee" routerLinkActive="active" class="nav-link">
+            <ng-container *ngIf="hasRoleUser(currentUser, 'Employee') && hasTenantUser(currentUser, 'attendance')">
+              <a
+                routerLink="/employee"
+                routerLinkActive="active"
+                [routerLinkActiveOptions]="{ exact: true }"
+                class="nav-link"
+              >
                 Dashboard
               </a>
-            }
-            @if (hasRole('Manager')) {
-              <a routerLink="/manager" routerLinkActive="active" class="nav-link">
+            </ng-container>
+
+            <ng-container *ngIf="hasRoleUser(currentUser, 'Manager') && hasTenantUser(currentUser, 'attendance')">
+              <a
+                routerLink="/manager"
+                routerLinkActive="active"
+                [routerLinkActiveOptions]="{ exact: true }"
+                class="nav-link"
+              >
                 Team Management
               </a>
-            }
-            @if (hasRole('Administrator')) {
-              <a routerLink="/admin" routerLinkActive="active" class="nav-link">
-                Admin Panel
+            </ng-container>
+
+            <ng-container *ngIf="hasRoleUser(currentUser, 'Admin')">
+              <ng-container *ngIf="hasTenantRoleUser(currentUser, 'attendance', 'Admin') || hasTenantRoleUser(currentUser, 'attendance', 'SystemAdmin')">
+                <a
+                  routerLink="/admin"
+                  routerLinkActive="active"
+                  [routerLinkActiveOptions]="{ exact: true }"
+                  class="nav-link"
+                >
+                  Admin Panel
+                </a>
+              </ng-container>
+              <ng-container *ngIf="hasTenantUser(currentUser, 'entryexit')">
+                <a routerLink="/admin/entry-exit" routerLinkActive="active" class="nav-link">
+                  Entry/Exit Management
+                </a>
+              </ng-container>
+            </ng-container>
+
+            <ng-container *ngIf="hasRoleUser(currentUser, 'SystemAdmin')">
+              <a
+                routerLink="/system-admin"
+                routerLinkActive="active"
+                class="nav-link system-admin-link"
+              >
+                🔧 System Admin
               </a>
-            }
+            </ng-container>
           </div>
-          
+
           <div class="nav-user">
-            <span class="user-name">{{ authService.currentUser.firstName }} {{ authService.currentUser.lastName }}</span>
-            <span class="user-role">({{ authService.currentUser.role }})</span>
-            <button class="btn-logout" (click)="logout()">Logout</button>
+            <div class="user-dropdown" [class.open]="userMenuOpen">
+              <button class="user-main" (click)="logout()">Logout</button>
+              <button class="user-toggle" (click)="toggleUserMenu($event)" aria-label="Toggle user menu">
+                ▾
+              </button>
+
+              <div class="user-menu" *ngIf="userMenuOpen">
+                <div class="user-info">
+                  <div class="user-name">{{ currentUser.firstName }} {{ currentUser.lastName }}</div>
+                  <div class="user-email">{{ currentUser.email }}</div>
+                  <div class="user-role">Role: {{ currentUser.role }}</div>
+                </div>
+              </div>
+            </div>
           </div>
-        }
+        </ng-container>
       </div>
     </nav>
-  `,
-  styles: [`
-    .navbar {
-      background: linear-gradient(135deg, #8B3A3A 0%, #6B2C2C 100%);
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-      position: sticky;
-      top: 0;
-      z-index: 1000;
-    }
-
-    .nav-container {
-      max-width: 1400px;
-      margin: 0 auto;
-      padding: 0 20px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      min-height: 70px;
-    }
-
-    .nav-brand {
-      .logo {
-        display: flex;
-        flex-direction: column;
-        gap: 2px;
-      }
-
-      .logo-text {
-        color: white;
-        font-size: 28px;
-        font-weight: 700;
-        margin: 0;
-        letter-spacing: 1px;
-        font-family: 'Roboto', sans-serif;
-      }
-
-      .logo-subtext {
-        color: rgba(255, 255, 255, 0.8);
-        font-size: 10px;
-        font-weight: 500;
-        letter-spacing: 2px;
-        text-transform: uppercase;
-      }
-    }
-
-    .nav-links {
-      display: flex;
-      gap: 8px;
-    }
-
-    .nav-link {
-      color: rgba(255, 255, 255, 0.9);
-      text-decoration: none;
-      padding: 8px 16px;
-      border-radius: 4px;
-      font-weight: 500;
-      transition: all 0.3s;
-      
-      &:hover {
-        background: rgba(255, 255, 255, 0.1);
-      }
-      
-      &.active {
-        background: rgba(255, 255, 255, 0.2);
-        color: white;
-      }
-    }
-
-    .nav-user {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      color: white;
-    }
-
-    .user-name {
-      font-weight: 600;
-    }
-
-    .user-role {
-      opacity: 0.8;
-      font-size: 14px;
-    }
-
-    .btn-logout {
-      background: rgba(255, 255, 255, 0.15);
-      color: white;
-      border: 1px solid rgba(255, 255, 255, 0.3);
-      padding: 8px 20px;
-      border-radius: 4px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.3s;
-      
-      &:hover {
-        background: rgba(255, 255, 255, 0.25);
-        border-color: rgba(255, 255, 255, 0.5);
-      }
-    }
-
-    @media (max-width: 768px) {
-      .nav-container {
-        flex-wrap: wrap;
-        gap: 12px;
-      }
-      
-      .nav-links {
-        order: 3;
-        width: 100%;
-        justify-content: center;
-      }
-      
-      .user-role {
-        display: none;
-      }
-    }
-  `]
+  `
 })
 export class NavigationComponent {
   authService = inject(AuthService);
   private router = inject(Router);
+  userMenuOpen = false;
+
+  
+
+  toggleUserMenu(event?: Event) {
+    if (event) {
+      event.stopPropagation();
+    }
+    this.userMenuOpen = !this.userMenuOpen;
+  }
+
+  closeUserMenu() {
+    this.userMenuOpen = false;
+  }
 
   hasRole(role: string): boolean {
     const userRole = this.authService.currentUser?.role;
     if (role === 'Employee') {
-      return userRole === 'Employee' || userRole === 'Manager' || userRole === 'Administrator';
+      return (
+        userRole === 'Employee' ||
+        userRole === 'Manager' ||
+        userRole === 'Admin' ||
+        userRole === 'SystemAdmin'
+      );
     }
     if (role === 'Manager') {
-      return userRole === 'Manager' || userRole === 'Administrator';
+      return userRole === 'Manager' || userRole === 'Admin' || userRole === 'SystemAdmin';
     }
-    if (role === 'Administrator') {
-      return userRole === 'Administrator';
+    if (role === 'Admin') {
+      return userRole === 'Admin' || userRole === 'SystemAdmin';
+    }
+    if (role === 'SystemAdmin') {
+      return userRole === 'SystemAdmin';
+    }
+    if (role === 'Guard') {
+      return userRole === 'Guard';
     }
     return false;
   }
 
+  // Typed helpers used when template binds to an async `currentUser` local
+  hasRoleUser(user: any | null, role: string): boolean {
+    const userRole = user?.role;
+    if (role === 'Employee') {
+      return (
+        userRole === 'Employee' ||
+        userRole === 'Manager' ||
+        userRole === 'Admin' ||
+        userRole === 'SystemAdmin'
+      );
+    }
+    if (role === 'Manager') {
+      return userRole === 'Manager' || userRole === 'Admin' || userRole === 'SystemAdmin';
+    }
+    if (role === 'Admin') {
+      return userRole === 'Admin' || userRole === 'SystemAdmin';
+    }
+    if (role === 'SystemAdmin') {
+      return userRole === 'SystemAdmin';
+    }
+    if (role === 'Guard') {
+      return userRole === 'Guard';
+    }
+    return false;
+  }
+
+  hasTenantUser(user: any | null, domain: string): boolean {
+    const tenants = user?.tenants ?? [];
+    return tenants.some((t: any) => ((t.domain ?? t.tenantName ?? '') as string).toLowerCase() === domain.toLowerCase());
+  }
+
+  hasTenantRoleUser(user: any | null, domain: string, roleName: string): boolean {
+    const tenants = user?.tenants ?? [];
+    return tenants.some((t: any) => (((t.domain ?? t.tenantName) ?? '') as string).toLowerCase() === domain.toLowerCase() && (((t.roleName ?? '') as string).toLowerCase() === roleName.toLowerCase() || ((t.roleName ?? '') as string).toLowerCase() === 'systemadmin'));
+  }
+
+  // Checks if the current user has a tenant with the given domain
+  hasTenant(domain: string): boolean {
+    const tenants = this.authService.currentUser?.tenants ?? [];
+    return tenants.some(t => (t.domain ?? t.tenantName ?? '').toLowerCase() === domain.toLowerCase());
+  }
+
+  // Checks if the current user has the specified role within a particular tenant domain
+  hasTenantRole(domain: string, roleName: string): boolean {
+    const tenants = this.authService.currentUser?.tenants ?? [];
+    return tenants.some(t => ((t.domain ?? t.tenantName) ?? '').toLowerCase() === domain.toLowerCase() && ((t.roleName ?? '').toLowerCase() === roleName.toLowerCase() || (t.roleName ?? '').toLowerCase() === 'systemadmin'));
+  }
+
   logout() {
-    this.authService.logout().subscribe({
+    // one-off observable: complete after first emission to avoid keeping subscriptions open
+    this.authService.logout().pipe(take(1)).subscribe({
       next: () => {
         this.router.navigate(['/login']);
       },
@@ -189,7 +193,7 @@ export class NavigationComponent {
         console.error('Logout error:', error);
         // Still navigate to login even if logout API call fails
         this.router.navigate(['/login']);
-      }
+      },
     });
   }
 }

@@ -1,8 +1,10 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, inject, signal, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { AdminService, PublicHoliday, Department, TeamMember } from '../../../core/services/admin.service';
+import { Subject } from 'rxjs';
+import { takeUntil } from 'rxjs/operators';
 import { AuthService } from '../../../core/auth/auth.service';
 import { User } from '../../../shared/models/admin.model';
 
@@ -10,10 +12,10 @@ import { User } from '../../../shared/models/admin.model';
   selector: 'app-admin-dashboard',
   standalone: true,
   imports: [CommonModule, RouterModule, FormsModule, ReactiveFormsModule],
-  templateUrl: './admin-dashboard.component.html',
-  styleUrl: './admin-dashboard.component.scss'
+  templateUrl: './admin-dashboard.component.html'
 })
 export class AdminDashboardComponent implements OnInit {
+  private destroy$ = new Subject<void>();
   private adminService = inject(AdminService);
   private authService = inject(AuthService);
   private fb = inject(FormBuilder);
@@ -44,7 +46,7 @@ export class AdminDashboardComponent implements OnInit {
       firstName: ['', Validators.required],
       lastName: ['', Validators.required],
       employeeId: ['', Validators.required],
-      role: ['1', Validators.required],
+      role: ['0', Validators.required],
       managerId: [''],
       departmentId: [''],
       password: ['', [Validators.required, Validators.minLength(6)]]
@@ -77,14 +79,18 @@ export class AdminDashboardComponent implements OnInit {
     this.loadHolidays();
   }
 
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
+  }
+
   setActiveTab(tab: 'users' | 'departments' | 'leaves' | 'holidays') {
     this.activeTab.set(tab);
-    if (tab === 'departments') this.loadDepartments();
   }
 
   loadUsers() {
     this.loading.set(true);
-    this.adminService.getAllUsers().subscribe({
+  this.adminService.getAllUsers().pipe(takeUntil(this.destroy$)).subscribe({
       next: (users) => {
         this.users.set(users);
         this.loading.set(false);
@@ -97,7 +103,7 @@ export class AdminDashboardComponent implements OnInit {
   }
 
   loadDepartments() {
-    this.adminService.getAllDepartments().subscribe({
+  this.adminService.getAllDepartments().pipe(takeUntil(this.destroy$)).subscribe({
       next: (departments) => {
         this.departments.set(departments);
       },
@@ -108,7 +114,7 @@ export class AdminDashboardComponent implements OnInit {
   }
 
   loadHolidays() {
-    this.adminService.getPublicHolidays(new Date().getFullYear()).subscribe({
+  this.adminService.getPublicHolidays(new Date().getFullYear()).pipe(takeUntil(this.destroy$)).subscribe({
       next: (holidays) => {
         this.holidays.set(holidays);
       },
@@ -144,11 +150,12 @@ export class AdminDashboardComponent implements OnInit {
       departmentId: formValue.departmentId || undefined
     };
 
-    this.adminService.createUser(request).subscribe({
+  this.adminService.createUser(request).pipe(takeUntil(this.destroy$)).subscribe({
       next: () => {
         this.message.set('User created successfully!');
         this.error.set(false);
-        this.userForm.reset({ role: '1' });
+  // reset to Employee by default for new users
+  this.userForm.reset({ role: '0' });
         this.showUserForm.set(false);
         this.loadUsers();
         this.loading.set(false);
@@ -177,7 +184,7 @@ export class AdminDashboardComponent implements OnInit {
     if (this.leaveForm.invalid) return;
 
     this.loading.set(true);
-    this.adminService.allocateLeaveEntitlement(this.leaveForm.value).subscribe({
+  this.adminService.allocateLeaveEntitlement(this.leaveForm.value).pipe(takeUntil(this.destroy$)).subscribe({
       next: () => {
         this.message.set('Leave entitlement allocated successfully!');
         this.error.set(false);
@@ -209,7 +216,7 @@ export class AdminDashboardComponent implements OnInit {
     if (this.holidayForm.invalid) return;
 
     this.loading.set(true);
-    this.adminService.createPublicHoliday(this.holidayForm.value).subscribe({
+  this.adminService.createPublicHoliday(this.holidayForm.value).pipe(takeUntil(this.destroy$)).subscribe({
       next: () => {
         this.message.set('Holiday created successfully!');
         this.error.set(false);
@@ -229,7 +236,7 @@ export class AdminDashboardComponent implements OnInit {
   deleteHoliday(holidayId: string) {
     if (!confirm('Are you sure you want to delete this holiday?')) return;
 
-    this.adminService.deletePublicHoliday(holidayId).subscribe({
+  this.adminService.deletePublicHoliday(holidayId).pipe(takeUntil(this.destroy$)).subscribe({
       next: () => {
         this.message.set('Holiday deleted successfully');
         this.error.set(false);
@@ -244,15 +251,47 @@ export class AdminDashboardComponent implements OnInit {
 
   getRoleBadgeClass(role: string): string {
     switch(role) {
-      case 'Administrator': return 'badge-danger';
+      case 'SystemAdmin': return 'badge-danger';
+      case 'Admin': return 'badge-danger';
       case 'Manager': return 'badge-warning';
       case 'Employee': return 'badge-secondary';
+      case 'Guard': return 'badge-info';
       default: return 'badge-secondary';
     }
   }
 
   getManagers(): User[] {
-    return this.users().filter(u => u.role === 'Manager' || u.role === 'Administrator');
+    // Only show Admin and Manager roles for attendance tenant users
+    // (AttendanceAPI users are already scoped to attendance tenant)
+    return this.users().filter(u => u.role === 'Manager' || u.role === 'Admin');
+  }
+
+  // Helper method to convert weeklyOffDays from numbers to day names
+  formatWeeklyOffDays(weeklyOffDays: string | string[] | null | undefined): string {
+    if (!weeklyOffDays) return '-';
+    
+    const dayMap: { [key: string]: string } = {
+      '0': 'Sunday',
+      '1': 'Monday',
+      '2': 'Tuesday',
+      '3': 'Wednesday',
+      '4': 'Thursday',
+      '5': 'Friday',
+      '6': 'Saturday'
+    };
+
+    // Handle array type
+    if (Array.isArray(weeklyOffDays)) {
+      return weeklyOffDays
+        .map(day => dayMap[day.toString().trim()] || day.toString().trim())
+        .join(', ');
+    }
+
+    // Handle string type
+    const daysString = weeklyOffDays.toString();
+    return daysString.split(',')
+      .map(day => dayMap[day.trim()] || day.trim())
+      .join(', ');
   }
 
   // Department methods
@@ -269,7 +308,7 @@ export class AdminDashboardComponent implements OnInit {
     this.loading.set(true);
     const request = this.departmentForm.value;
 
-    this.adminService.createDepartment(request).subscribe({
+  this.adminService.createDepartment(request).pipe(takeUntil(this.destroy$)).subscribe({
       next: () => {
         this.message.set('Department created successfully!');
         this.error.set(false);
@@ -289,7 +328,7 @@ export class AdminDashboardComponent implements OnInit {
   deleteDepartment(departmentId: string) {
     if (!confirm('Are you sure? This will unassign employees from this department.')) return;
 
-    this.adminService.deleteDepartment(departmentId).subscribe({
+  this.adminService.deleteDepartment(departmentId).pipe(takeUntil(this.destroy$)).subscribe({
       next: () => {
         this.message.set('Department deleted successfully');
         this.error.set(false);
@@ -310,7 +349,13 @@ export class AdminDashboardComponent implements OnInit {
       firstName: user.firstName,
       lastName: user.lastName,
       employeeId: user.employeeId,
-      role: user.role === 'Employee' ? '1' : user.role === 'Manager' ? '2' : '3',
+      // map role name to numeric value matching backend enum
+      role: user.role === 'Employee' ? '0'
+            : user.role === 'Manager' ? '1'
+            : user.role === 'Admin' ? '2'
+            : user.role === 'SystemAdmin' ? '3'
+            : user.role === 'Guard' ? '4'
+            : '0',
       managerId: user.managerId || '',
       departmentId: user.departmentId || ''
     });
@@ -321,7 +366,7 @@ export class AdminDashboardComponent implements OnInit {
 
   cancelUserEdit() {
     this.editingUserId.set(null);
-    this.userForm.reset({ role: '1' });
+  this.userForm.reset({ role: '0' });
     this.userForm.get('password')?.setValidators([Validators.required, Validators.minLength(6)]);
     this.userForm.get('password')?.updateValueAndValidity();
     this.showUserForm.set(false);
@@ -345,7 +390,7 @@ export class AdminDashboardComponent implements OnInit {
       isActive: true
     };
 
-    this.adminService.updateUser(userId, updateRequest).subscribe({
+  this.adminService.updateUser(userId, updateRequest).pipe(takeUntil(this.destroy$)).subscribe({
       next: () => {
         this.message.set('User updated successfully!');
         this.error.set(false);

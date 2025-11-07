@@ -1,202 +1,272 @@
-# VermillionIndia - Attendance Management System
+# Vermillion - Microservices Platform
 
-A comprehensive attendance and leave management system with role-based access control.
+Enterprise-grade microservices platform for Attendance Management and Construction Site Entry/Exit Tracking with centralized authentication.
 
-> **🚀 New to this project?** Start with the [Quick Start Guide](QUICK_START.md) or [Project Summary](PROJECT_SUMMARY.md)
+## 🏗️ Architecture
 
-## 🎯 Overview
+### Microservices
 
-This system provides a complete solution for managing employee attendance, leave requests, and holiday tracking with separate interfaces for Employees, Managers, and Administrators.
+1. **Auth API** (Port: 5275)
+   - Centralized authentication and authorization
+   - Multi-tenant support (Attendance, Entry/Exit)
+   - JWT token generation and validation
+   - User and tenant management
+   - SSO-ready for Zoho integration
+   - Database: `AuthDB_Dev`
+
+2. **Attendance API** (Port: 5000)
+   - Employee attendance tracking
+   - Leave management and approvals
+   - Admin dashboard and reporting
+   - Role-based access control
+   - Database: `AttendanceDB_Dev`
+   - Tenant: `attendance`
+
+3. **Entry/Exit API** (Port: 5001)
+   - Construction site worker/visitor tracking
+   - Labour registration with barcode scanning
+   - Entry/exit logging with photo capture
+   - Project and contractor management
+   - Offline sync support for mobile
+   - Field-level encryption for sensitive data
+   - Database: `EntryExitDB_Dev`
+   - Tenant: `entryexit`
+
+### Technology Stack
+
+**Backend**
+- .NET 8 Web API
+- Entity Framework Core 8
+- SQL Server LocalDB
+- JWT Bearer Authentication
+- BCrypt password hashing
+- ASP.NET Data Protection (encryption)
+
+**Frontend**
+- Angular 18 (standalone components)
+- Capacitor (for mobile deployment)
+- Capacitor SQLite (offline storage)
+- ZXing (barcode scanning)
+- Capacitor Camera (photo capture)
+
+**Mobile Capabilities**
+- Camera-based barcode scanning
+- Photo capture (mandatory for registrations)
+- Offline-first architecture with sync queue
+- SQLite local database
+- Network status detection
+
+## 🚀 Quick Start
+
+### Prerequisites
+- Node.js 18+
+- .NET 8 SDK
+- SQL Server LocalDB
+- PowerShell 5.1+
+
+### Start All Services
+
+```powershell
+.\scripts\start-all-services.ps1
+```
+
+This will start:
+- Auth API: http://localhost:5275/swagger
+- Attendance API: http://localhost:5000/swagger
+- Entry/Exit API: http://localhost:5001/swagger
+
+### Manual Start
+
+```powershell
+# Terminal 1: Auth API
+cd backend\AuthAPI
+dotnet run
+
+# Terminal 2: Attendance API
+cd backend\AttendanceAPI
+dotnet run
+
+# Terminal 3: Entry/Exit API
+cd backend\EntryExitAPI
+dotnet run
+```
 
 ## 📚 Documentation
 
-- **[QUICK_START.md](QUICK_START.md)** - 5-minute setup guide
-- **[SETUP_GUIDE.md](SETUP_GUIDE.md)** - Complete implementation guide
-- **[PROJECT_SUMMARY.md](PROJECT_SUMMARY.md)** - Project status & features
-- **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** - Common issues
+- [Microservices Integration Guide](MICROSERVICES_INTEGRATION_GUIDE.md)
+- [Auth API Documentation](backend/AuthAPI/README.md)
+- [API Documentation](API_DOCUMENTATION.md)
+- [Feature Toggles](FEATURE_TOGGLE_IMPLEMENTATION.md)
+- [System User Guide](SYSTEM_USER_GUIDE.md)
+- [Test Credentials](TEST_CREDENTIALS.md)
+- [Setup Guide](SETUP_GUIDE.md)
+- [Quick Start Guide](QUICK_START.md)
 
-### Technical Docs
-- [Architecture](docs/ARCHITECTURE.md) - System design
-- [Database](docs/DATABASE.md) - PostgreSQL schema
-- [API](docs/API.md) - Endpoints & authentication
-- [Deployment](docs/DEPLOYMENT.md) - Azure, AWS, Docker
-- [Flows](docs/diagrams/FLOWS.md) - Process diagrams
+## 🔐 Default Credentials
 
-## 📁 Project Structure
+### Attendance System Admin
+- **Username**: `admin`
+- **Password**: `Admin@123`
+- **Tenant Domain**: `attendance`
+- **Email**: `admin@attendance.com`
 
-```
-Attendance/
-├── frontend/              # Angular 18 Application
-│   ├── src/app/          # Application code
-│   └── package.json      # Dependencies
-│
-├── backend/               # .NET 8 Web API
-│   ├── AttendanceAPI/    # API Project
-│   ├── setup-packages.ps1    # Package installation script
-│   └── start-api.ps1         # Quick start script
-│
-├── docs/                  # Technical Documentation
-│   ├── ARCHITECTURE.md   # System design
-│   ├── DATABASE.md       # PostgreSQL schema
-│   ├── API.md            # API endpoints
-│   ├── DEPLOYMENT.md     # Deployment guides
-│   └── diagrams/         # Flow diagrams
-│
-├── scripts/               # Utility Scripts
-│   ├── start-all.ps1     # Start both apps
-│   └── test-azure-connection.ps1    # Test database
-│
-├── archive/               # Legacy/Reference Files
-│   └── DATABASE_SQLSERVER.md        # SQL Server version
-│
-├── .gitignore             # Git ignore rules
-├── .gitattributes         # Git line endings
-├── README.md              # This file
-├── QUICK_START.md         # 5-minute setup
-├── SETUP_GUIDE.md         # Complete guide
-├── PROJECT_SUMMARY.md     # Project status
-└── TROUBLESHOOTING.md     # Common issues
-```
+### Entry/Exit System Admin
+- **Username**: `admin`
+- **Password**: `Admin@123`
+- **Tenant Domain**: `entryexit`
+- **Email**: `admin@entryexit.com`
 
-## � Version Control
+## 🗄️ Databases
 
-This project uses Git for version control:
+All databases use SQL Server LocalDB `(localdb)\MSSQLLocalDB`:
 
-```powershell
-# Clone repository (if from remote)
-git clone <repository-url>
+1. **AuthDB_Dev** - Authentication and tenant data
+   - Tables: Tenants, Users, RefreshTokens
 
-# Check status
-git status
+2. **AttendanceDB_Dev** - Attendance management
+   - Tables: Employees, AttendanceRecords, LeaveRequests, etc.
 
-# View what's ignored
-git check-ignore -v backend/bin/
-```
+3. **EntryExitDB_Dev** - Entry/exit tracking
+   - Tables: Projects, Contractors, Labours, LabourRegistrations, Visitors, EntryExitRecords
 
-**Important:** Sensitive files are automatically excluded via `.gitignore`:
-- Connection strings with real passwords
-- Build outputs (bin/, obj/, node_modules/)
-- User-specific IDE settings
+## 🔑 Key Features
 
-See **[GIT_SETUP.md](GIT_SETUP.md)** for detailed Git configuration.
+### Auth API
+- ✅ Multi-tenant architecture
+- ✅ JWT access tokens (60 min) and refresh tokens (7 days)
+- ✅ Role-based authorization
+- ✅ Token revocation
+- ✅ SSO infrastructure for Zoho (future)
+- ✅ BCrypt password hashing
 
-## �🚀 Quick Start
+### Attendance API
+- ✅ Clock in/out tracking
+- ✅ Leave request workflow
+- ✅ Approval system
+- ✅ Admin dashboard
+- ✅ Feature toggles
+- ✅ System users
 
-### Prerequisites
+### Entry/Exit API
+- ✅ Labour registration with barcode
+- ✅ Visitor management
+- ✅ Entry/exit logging with photos
+- ✅ Project and contractor tracking
+- ✅ Double-entry prevention
+- ✅ Offline sync for mobile
+- ✅ Field-level encryption (Aadhar)
+- ✅ Batch sync endpoint
 
-- **Frontend**: Node.js 18+ and npm
-- **Backend**: .NET 8 SDK
-- **Database**: Azure PostgreSQL (configured)
-- **Git**: For version control
+## 📱 Mobile App (Entry/Exit)
 
-### Frontend Setup
+### Features
+- Camera-based barcode scanning (no hardware scanner needed)
+- Mandatory photo capture for registrations
+- Offline mode with local SQLite database
+- Auto-sync when network available
+- Double-entry prevention
+- Search by barcode or name
 
+### Setup
 ```bash
-cd frontend
+cd frontend-mobile
 npm install
-npm start
+npx cap sync android
+npx cap open android
 ```
 
-The application will run on `http://localhost:4200`
+## 🔧 Development
 
-### Backend Setup
-
+### Add New Migration
 ```powershell
-cd backend
-.\setup-packages.ps1  # Install packages & EF tools
-.\start-api.ps1       # Start API
+# Auth API
+cd backend\AuthAPI
+dotnet ef migrations add MigrationName
+dotnet ef database update
+
+# Attendance API
+cd backend\AttendanceAPI
+dotnet ef migrations add MigrationName
+dotnet ef database update
+
+# Entry/Exit API
+cd backend\EntryExitAPI
+dotnet ef migrations add MigrationName
+dotnet ef database update
 ```
 
-API: `http://localhost:5146`  
-Swagger: `http://localhost:5146/swagger`
+### Testing APIs
 
-## 👥 User Roles
+#### Login to Auth API
+```powershell
+Invoke-WebRequest -Uri "http://localhost:5275/api/auth/login" -Method POST -ContentType "application/json" -Body '{"username":"admin","password":"Admin@123","tenantDomain":"attendance"}'
+```
 
-### Employee
-- Daily login/logout for attendance tracking
-- View attendance history
-- Raise leave requests (Casual & Earned)
-- View leave balance
-- Track compensatory off for weekend/holiday work
+#### Call Protected Endpoint
+```powershell
+$token = "your-jwt-token-here"
+Invoke-WebRequest -Uri "http://localhost:5001/api/labour" -Method GET -Headers @{"Authorization"="Bearer $token"}
+```
 
-### Manager
-- All employee features
-- Approve/reject team leave requests
-- Approve/reject team attendance
-- View team attendance reports
+## 🔄 Authentication Flow
 
-### Administrator
-- Create and manage user profiles
-- Allocate holiday entitlements
-- Manage public holidays
-- System-wide reports and analytics
-- User role management
+1. **User logs in** → Auth API validates credentials → Returns JWT access token + refresh token
+2. **User accesses feature** → Frontend sends request with `Authorization: Bearer {token}`
+3. **API validates JWT** → Extracts user info (userId, role, tenantDomain) → Processes request
+4. **Token expires** → Frontend calls `/api/auth/refresh` → Gets new tokens
+5. **User logs out** → Frontend calls `/api/auth/revoke` → Token marked as revoked
 
-## 🎨 Features
+## 🎯 Tenant Architecture
 
-### Attendance Management
-- ✅ Manual login/logout with system timestamp
-- ✅ Automatic detection of weekends/public holidays
-- ✅ Compensatory off tracking for holiday work
-- ✅ Attendance history and reports
+Each application is registered as a **tenant** in Auth API:
 
-### Leave Management
-- ✅ Casual Leave requests
-- ✅ Earned Leave requests
-- ✅ Leave balance tracking
-- ✅ Approval workflow (Manager → Approval)
+- **Tenant Domain**: Unique identifier (`attendance`, `entryexit`)
+- **Isolated Users**: Users belong to one tenant
+- **Shared JWT Secret**: All APIs validate tokens using same secret
+- **Tenant Claims**: JWT includes `TenantId` and `TenantDomain` claims
 
-### Admin Features
-- ✅ User profile creation
-- ✅ Holiday calendar management
-- ✅ Leave entitlement allocation
-- ✅ Role-based access control
+This enables:
+- Single sign-on across apps (future)
+- Centralized user management
+- Role-based access per tenant
+- Easy addition of new microservices
 
-## 📊 Technology Stack
+## 🛡️ Security
 
-### Frontend
-- **Framework**: Angular 18
-- **UI Library**: Angular Material
-- **State Management**: NgRx (optional) / Services
-- **HTTP Client**: Angular HttpClient
-- **Authentication**: JWT Token-based
+- ✅ JWT-based authentication
+- ✅ BCrypt password hashing (cost factor 10)
+- ✅ Token expiration and refresh
+- ✅ Token revocation support
+- ✅ Field-level encryption for PII (Aadhar)
+- ✅ CORS configured
+- ⚠️ HTTPS recommended for production
+- ⚠️ Move JWT secret to environment variables/Azure Key Vault in production
 
-### Backend
-- **Framework**: .NET 8 Web API
-- **ORM**: Entity Framework Core 8
-- **Authentication**: JWT Bearer Authentication
-- **Database**: SQL Server / PostgreSQL
-- **API Documentation**: Swagger/OpenAPI
+## 🔮 Future Enhancements
 
-## 📖 Documentation
+- [ ] Zoho SSO integration
+- [ ] API Gateway (optional, currently direct API calls)
+- [ ] Rate limiting
+- [ ] API key authentication for app-to-app calls
+- [ ] Audit logging
+- [ ] Real-time notifications (SignalR)
+- [ ] Mobile app for Attendance system
+- [ ] Geolocation tracking for attendance
 
-- [Architecture Overview](docs/ARCHITECTURE.md)
-- [API Documentation](docs/API.md)
-- [Database Schema](docs/DATABASE.md)
-- [Deployment Guide](docs/DEPLOYMENT.md)
-- [User Guide](docs/USER_GUIDE.md)
+## 📋 Project Structure
 
-## 🔐 Security
-
-- JWT-based authentication
-- Role-based authorization
-- Secure password hashing (BCrypt)
-- HTTPS enforcement
-- CORS configuration
-
-## 📦 Independent Deployment
-
-Both frontend and backend are designed to be deployed independently:
-
-### Frontend Deployment
-- Build: `npm run build`
-- Deploy to: Azure Static Web Apps, Netlify, Vercel, or any static hosting
-- Environment configuration via `environment.ts`
-
-### Backend Deployment
-- Build: `dotnet publish -c Release`
-- Deploy to: Azure App Service, AWS Elastic Beanstalk, Docker, or IIS
-- Configuration via `appsettings.json`
+```
+Vermillion/
+├── backend/
+│   ├── AuthAPI/              # Authentication microservice
+│   ├── AttendanceAPI/        # Attendance management
+│   └── EntryExitAPI/         # Entry/exit tracking
+├── frontend/                 # Angular web app (Attendance)
+├── frontend-mobile/          # Capacitor mobile app (Entry/Exit)
+├── scripts/                  # Utility scripts
+│   └── start-all-services.ps1
+└── docs/                     # Documentation
+```
 
 ## 📝 License
 
@@ -208,5 +278,5 @@ Please read [CONTRIBUTING.md](docs/CONTRIBUTING.md) for details on our code of c
 
 ---
 
-**Version**: 1.0.0  
-**Last Updated**: October 15, 2025
+**Version**: 2.0.0  
+**Last Updated**: October 29, 2025

@@ -1,349 +1,498 @@
 <div class="admin-dashboard">
   <div class="dashboard-header">
     <h1>Admin Dashboard</h1>
-    <p>Welcome, {{ currentUser?.firstName }} {{ currentUser?.lastName }}</p>
   </div>
 
+  <!-- Quick Links -->
+
   @if (message()) {
-    <div class="alert" [class.alert-success]="!error()" [class.alert-danger]="error()">
-      {{ message() }}
-    </div>
+  <div class="alert" [class.alert-success]="!error()" [class.alert-danger]="error()">
+    {{ message() }}
+  </div>
   }
 
   <!-- Tab Navigation -->
   <div class="tabs">
-    <button class="tab-button" [class.active]="activeTab() === 'users'" (click)="setActiveTab('users')">
+    <button
+      class="tab-button"
+      [class.active]="activeTab() === 'users'"
+      (click)="setActiveTab('users')"
+    >
       User Management
     </button>
-    <button class="tab-button" [class.active]="activeTab() === 'departments'" (click)="setActiveTab('departments')">
+    <button
+      class="tab-button"
+      [class.active]="activeTab() === 'departments'"
+      (click)="setActiveTab('departments')"
+    >
       Departments
     </button>
-    <button class="tab-button" [class.active]="activeTab() === 'leaves'" (click)="setActiveTab('leaves')">
+    <button
+      class="tab-button"
+      [class.active]="activeTab() === 'leaves'"
+      (click)="setActiveTab('leaves')"
+    >
       Leave Allocation
     </button>
-    <button class="tab-button" [class.active]="activeTab() === 'holidays'" (click)="setActiveTab('holidays')">
+    <button
+      class="tab-button"
+      [class.active]="activeTab() === 'holidays'"
+      (click)="setActiveTab('holidays')"
+    >
       Public Holidays
     </button>
   </div>
 
   <!-- User Management Tab -->
   @if (activeTab() === 'users') {
-    <div class="users-section card">
-      <div class="section-header">
-        <h2>Users</h2>
-        <button class="btn btn-primary" (click)="toggleUserForm()">
-          {{ showUserForm() ? 'Cancel' : '+ Create User' }}
-        </button>
+  <div class="users-section card">
+    <div class="section-header">
+      <h2>Users</h2>
+      <button class="btn btn-primary" (click)="toggleUserForm()">
+        {{ showUserForm() ? 'Cancel' : '+ Create User' }}
+      </button>
+    </div>
+
+    @if (showUserForm()) {
+    <form [formGroup]="userForm" (ngSubmit)="submitUserForm()" class="form-card">
+      <h3>{{ editingUserId() ? 'Edit User' : 'Create User' }}</h3>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="firstName">First Name</label>
+          <input
+            type="text"
+            id="firstName"
+            formControlName="firstName"
+            class="form-control"
+            placeholder="Enter first name"
+          />
+        </div>
+        <div class="form-group">
+          <label for="lastName">Last Name</label>
+          <input
+            type="text"
+            id="lastName"
+            formControlName="lastName"
+            class="form-control"
+            placeholder="Enter last name"
+          />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="email">Email</label>
+          <input
+            type="email"
+            id="email"
+            formControlName="email"
+            class="form-control"
+            placeholder="user@example.com"
+          />
+        </div>
+        <div class="form-group">
+          <label for="employeeId">Employee ID</label>
+          <input
+            type="text"
+            id="employeeId"
+            formControlName="employeeId"
+            class="form-control"
+            placeholder="EMP001"
+          />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="role">Role</label>
+          <select id="role" formControlName="role" class="form-control">
+            <option value="">Select Role</option>
+            <option value="0">Employee</option>
+            <option value="1">Manager</option>
+            <option value="2">Admin</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="departmentId">Department</label>
+          <select id="departmentId" formControlName="departmentId" class="form-control">
+            <option value="">No Department</option>
+            @for (dept of departments(); track dept.id) {
+            <option [value]="dept.id">{{ dept.name }}</option>
+            }
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="managerId">Manager</label>
+          <select id="managerId" formControlName="managerId" class="form-control">
+            <option value="">No Manager</option>
+            @for (manager of getManagers(); track manager.id) {
+            <option [value]="manager.id">{{ manager.firstName }} {{ manager.lastName }}</option>
+            }
+          </select>
+        </div>
+        @if (!editingUserId()) {
+        <div class="form-group">
+          <label for="password">Password</label>
+          <input
+            type="password"
+            id="password"
+            formControlName="password"
+            class="form-control"
+            placeholder="Enter password"
+          />
+        </div>
+        }
       </div>
 
-      @if (showUserForm()) {
-        <form [formGroup]="userForm" (ngSubmit)="submitUserForm()" class="user-form">
-          <h3>{{ editingUserId() ? 'Edit User' : 'Create User' }}</h3>
-          
-          <div class="form-row">
-            <div class="form-group">
-              <label for="firstName">First Name</label>
-              <input type="text" id="firstName" formControlName="firstName" class="form-control" placeholder="Enter first name">
-            </div>
-            <div class="form-group">
-              <label for="lastName">Last Name</label>
-              <input type="text" id="lastName" formControlName="lastName" class="form-control" placeholder="Enter last name">
-            </div>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label for="email">Email</label>
-              <input type="email" id="email" formControlName="email" class="form-control" placeholder="user@example.com">
-            </div>
-            <div class="form-group">
-              <label for="employeeId">Employee ID</label>
-              <input type="text" id="employeeId" formControlName="employeeId" class="form-control" placeholder="EMP001">
-            </div>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label for="role">Role</label>
-              <select id="role" formControlName="role" class="form-control">
-                <option value="">Select Role</option>
-                <option value="1">Employee</option>
-                <option value="2">Manager</option>
-                <option value="3">Administrator</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label for="departmentId">Department</label>
-              <select id="departmentId" formControlName="departmentId" class="form-control">
-                <option value="">No Department</option>
-                @for (dept of departments(); track dept.id) {
-                  <option [value]="dept.id">{{ dept.name }}</option>
-                }
-              </select>
-            </div>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label for="managerId">Manager</label>
-              <select id="managerId" formControlName="managerId" class="form-control">
-                <option value="">No Manager</option>
-                @for (manager of getManagers(); track manager.id) {
-                  <option [value]="manager.id">{{ manager.firstName }} {{ manager.lastName }}</option>
-                }
-              </select>
-            </div>
-            @if (!editingUserId()) {
-              <div class="form-group">
-                <label for="password">Password</label>
-                <input type="password" id="password" formControlName="password" class="form-control" placeholder="Enter password">
-              </div>
-            }
-          </div>
-
-          @if (message()) {
-            <div class="alert alert-form" [class.alert-success]="!error()" [class.alert-danger]="error()">
-              {{ message() }}
-            </div>
-          }
-
-          <div class="form-actions">
-            <button type="submit" class="btn btn-primary" [disabled]="userForm.invalid || loading()">
-              {{ loading() ? (editingUserId() ? 'Updating...' : 'Creating...') : (editingUserId() ? 'Update User' : 'Create User') }}
-            </button>
-            @if (editingUserId()) {
-              <button type="button" class="btn btn-secondary" (click)="cancelUserEdit()">Cancel</button>
-            }
-          </div>
-        </form>
+      @if (message()) {
+      <div class="alert alert-form" [class.alert-success]="!error()" [class.alert-danger]="error()">
+        {{ message() }}
+      </div>
       }
 
-      <div class="table-responsive">
-        <table class="table">
-          <thead>
-            <tr>
-              <th>Employee ID</th>
-              <th>Name</th>
-              <th>Email</th>
-              <th>Role</th>
-              <th>Department</th>
-              <th>Status</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (user of users(); track user.id) {
-              <tr>
-                <td>{{ user.employeeId }}</td>
-                <td>{{ user.firstName }} {{ user.lastName }}</td>
-                <td>{{ user.email }}</td>
-                <td><span class="badge" [ngClass]="getRoleBadgeClass(user.role)">{{ user.role }}</span></td>
-                <td>{{ user.departmentName || '-' }}</td>
-                <td><span class="badge" [class.badge-success]="user.isActive" [class.badge-secondary]="!user.isActive">
-                  {{ user.isActive ? 'Active' : 'Inactive' }}
-                </span></td>
-                <td>
-                  <button class="btn btn-sm btn-primary" (click)="editUser(user)">Edit</button>
-                </td>
-              </tr>
-            }
-          </tbody>
-        </table>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary" [disabled]="userForm.invalid || loading()">
+          {{
+            loading()
+              ? editingUserId()
+                ? 'Updating...'
+                : 'Creating...'
+              : editingUserId()
+              ? 'Update User'
+              : 'Create User'
+          }}
+        </button>
+        @if (editingUserId()) {
+        <button type="button" class="btn btn-secondary" (click)="cancelUserEdit()">Cancel</button>
+        }
       </div>
+    </form>
+    }
+
+    <div class="table-responsive">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Employee ID</th>
+            <th>Name</th>
+            <th>Email</th>
+            <th>Phone Number</th>
+            <th>Role</th>
+            <th>Department</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (user of users(); track user.id) {
+          <tr>
+            <td>{{ user.employeeId }}</td>
+            <td>{{ user.firstName }} {{ user.lastName }}</td>
+            <td>{{ user.email }}</td>
+            <td>{{ user.phoneNumber || '-' }}</td>
+            <td>
+              <span class="badge" [ngClass]="getRoleBadgeClass(user.role)">{{ user.role }}</span>
+            </td>
+            <td>{{ user.departmentName || '-' }}</td>
+            <td>
+              <span
+                class="badge"
+                [class.badge-success]="user.isActive"
+                [class.badge-secondary]="!user.isActive"
+              >
+                {{ user.isActive ? 'Active' : 'Inactive' }}
+              </span>
+            </td>
+            <td>
+              <button class="btn btn-sm btn-primary" (click)="editUser(user)">Edit</button>
+            </td>
+          </tr>
+          }
+        </tbody>
+      </table>
     </div>
+  </div>
   }
 
   <!-- Departments Tab -->
   @if (activeTab() === 'departments') {
-    <div class="departments-section card">
-      <div class="section-header">
-        <h2>Departments</h2>
-        <button class="btn btn-primary" (click)="toggleDepartmentForm()">
-          {{ showDepartmentForm() ? 'Cancel' : '+ Create Department' }}
-        </button>
-      </div>
-
-      @if (showDepartmentForm()) {
-        <form [formGroup]="departmentForm" (ngSubmit)="submitDepartmentForm()" class="form-card">
-          <div class="form-group">
-            <label>Department Name</label>
-            <input type="text" formControlName="name" class="form-control" placeholder="e.g., Engineering">
-          </div>
-          
-          <div class="form-group">
-            <label>Description</label>
-            <input type="text" formControlName="description" class="form-control" placeholder="Department description">
-          </div>
-
-          <div class="form-group">
-            <label>Weekly Off Days</label>
-            <input type="text" formControlName="weeklyOffDays" class="form-control" placeholder="e.g., Saturday,Sunday or Tuesday">
-            <small class="form-text">Enter comma-separated day names (e.g., Saturday,Sunday or Tuesday)</small>
-          </div>
-
-          <button type="submit" class="btn btn-success" [disabled]="departmentForm.invalid || loading()">
-            {{ loading() ? 'Creating...' : 'Create Department' }}
-          </button>
-        </form>
-      }
-
-      <div class="table-responsive">
-        <table class="table">
-          <thead>
-            <tr>
-              <th>Department Name</th>
-              <th>Description</th>
-              <th>Weekly Off Days</th>
-              <th>Status</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (dept of departments(); track dept.id) {
-              <tr>
-                <td><strong>{{ dept.name }}</strong></td>
-                <td>{{ dept.description || '-' }}</td>
-                <td>{{ dept.weeklyOffDays }}</td>
-                <td><span class="badge" [class.badge-success]="dept.isActive" [class.badge-secondary]="!dept.isActive">
-                  {{ dept.isActive ? 'Active' : 'Inactive' }}
-                </span></td>
-                <td>
-                  <button class="btn btn-sm btn-danger" (click)="deleteDepartment(dept.id!)">Delete</button>
-                </td>
-              </tr>
-            }
-          </tbody>
-        </table>
-      </div>
+  <div class="departments-section card">
+    <div class="section-header">
+      <h2>Departments</h2>
+      <button class="btn btn-primary" (click)="toggleDepartmentForm()">
+        {{ showDepartmentForm() ? 'Cancel' : '+ Create Department' }}
+      </button>
     </div>
+
+    @if (showDepartmentForm()) {
+    <form [formGroup]="departmentForm" (ngSubmit)="submitDepartmentForm()" class="form-card">
+      <div class="form-group">
+        <label>Department Name</label>
+        <input
+          type="text"
+          formControlName="name"
+          class="form-control"
+          placeholder="e.g., Engineering"
+        />
+      </div>
+
+      <div class="form-group">
+        <label>Description</label>
+        <input
+          type="text"
+          formControlName="description"
+          class="form-control"
+          placeholder="Department description"
+        />
+      </div>
+
+      <div class="form-group">
+        <label>Weekly Off Days</label>
+        <input
+          type="text"
+          formControlName="weeklyOffDays"
+          class="form-control"
+          placeholder="e.g., Saturday,Sunday or Tuesday"
+        />
+        <small class="form-text"
+          >Enter comma-separated day names (e.g., Saturday,Sunday or Tuesday)</small
+        >
+      </div>
+
+      <button
+        type="submit"
+        class="btn btn-primary"
+        [disabled]="departmentForm.invalid || loading()"
+      >
+        {{ loading() ? 'Creating...' : 'Create Department' }}
+      </button>
+    </form>
+    }
+
+    <div class="table-responsive">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Department Name</th>
+            <th>Description</th>
+            <th>Weekly Off Days</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (dept of departments(); track dept.id) {
+          <tr>
+            <td>
+              <strong>{{ dept.name }}</strong>
+            </td>
+            <td>{{ dept.description || '-' }}</td>
+            <td>{{ formatWeeklyOffDays(dept.weeklyOffDays) }}</td>
+            <td>
+              <span
+                class="badge"
+                [class.badge-success]="dept.isActive"
+                [class.badge-secondary]="!dept.isActive"
+              >
+                {{ dept.isActive ? 'Active' : 'Inactive' }}
+              </span>
+            </td>
+            <td>
+              <button class="btn btn-sm btn-danger" (click)="deleteDepartment(dept.id!)">
+                Delete
+              </button>
+            </td>
+          </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </div>
   }
 
   <!-- Leave Allocation Tab -->
   @if (activeTab() === 'leaves') {
-    <div class="leaves-section card">
-      <div class="section-header">
-        <h2>Leave Entitlement Allocation</h2>
-        <button class="btn btn-primary" (click)="toggleLeaveForm()">
-          {{ showLeaveForm() ? 'Cancel' : '+ Allocate Leaves' }}
-        </button>
-      </div>
-
-      @if (showLeaveForm()) {
-        <div class="leave-allocation-form">
-          <form [formGroup]="leaveForm" (ngSubmit)="submitLeaveForm()">
-            <div class="form-group">
-              <label for="userId">Employee</label>
-              <select id="userId" formControlName="userId" class="form-control">
-                <option value="">Select Employee</option>
-                @for (user of users(); track user.id) {
-                  <option [value]="user.id">{{ user.firstName }} {{ user.lastName }} ({{ user.employeeId }})</option>
-                }
-              </select>
-            </div>
-            
-            <div class="form-group">
-              <label for="year">Year</label>
-              <input type="number" id="year" formControlName="year" class="form-control" placeholder="e.g., 2025">
-            </div>
-
-            <div class="form-row">
-              <div class="form-group">
-                <label for="casualLeave">Casual Leave</label>
-                <input type="number" id="casualLeave" formControlName="casualLeaveBalance" class="form-control" placeholder="Default: 12">
-              </div>
-              <div class="form-group">
-                <label for="earnedLeave">Earned Leave</label>
-                <input type="number" id="earnedLeave" formControlName="earnedLeaveBalance" class="form-control" placeholder="Default: 15">
-              </div>
-            </div>
-
-            <div class="form-group">
-              <label for="compOff">Compensatory Off</label>
-              <input type="number" id="compOff" formControlName="compensatoryOffBalance" class="form-control" placeholder="Default: 0">
-            </div>
-
-            @if (message()) {
-              <div class="alert alert-form" [class.alert-success]="!error()" [class.alert-danger]="error()">
-                {{ message() }}
-              </div>
-            }
-
-            <button type="submit" class="btn btn-success" [disabled]="leaveForm.invalid || loading()">
-              {{ loading() ? 'Allocating...' : 'Allocate Leaves' }}
-            </button>
-          </form>
-        </div>
-      }
-
-      <div class="info-box">
-        <p>💡 Allocate annual leave entitlements to employees. Default: 12 Casual Leave + 15 Earned Leave per year.</p>
-      </div>
+  <div class="leaves-section card">
+    <div class="section-header">
+      <h2>Leave Entitlement Allocation</h2>
+      <button class="btn btn-primary" (click)="toggleLeaveForm()">
+        {{ showLeaveForm() ? 'Cancel' : '+ Allocate Leaves' }}
+      </button>
     </div>
+
+    @if (showLeaveForm()) {
+    <div class="leave-allocation-form">
+      <form [formGroup]="leaveForm" (ngSubmit)="submitLeaveForm()" class="form-card">
+        <div class="form-group">
+          <label for="userId">Employee</label>
+          <select id="userId" formControlName="userId" class="form-control">
+            <option value="">Select Employee</option>
+            @for (user of users(); track user.id) {
+            <option [value]="user.id">
+              {{ user.firstName }} {{ user.lastName }} ({{ user.employeeId }})
+            </option>
+            }
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="year">Year</label>
+          <input
+            type="number"
+            id="year"
+            formControlName="year"
+            class="form-control"
+            placeholder="e.g., 2025"
+          />
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="casualLeave">Casual Leave</label>
+            <input
+              type="number"
+              id="casualLeave"
+              formControlName="casualLeaveBalance"
+              class="form-control"
+              placeholder="Default: 12"
+            />
+          </div>
+          <div class="form-group">
+            <label for="earnedLeave">Earned Leave</label>
+            <input
+              type="number"
+              id="earnedLeave"
+              formControlName="earnedLeaveBalance"
+              class="form-control"
+              placeholder="Default: 15"
+            />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="compOff">Compensatory Off</label>
+          <input
+            type="number"
+            id="compOff"
+            formControlName="compensatoryOffBalance"
+            class="form-control"
+            placeholder="Default: 0"
+          />
+        </div>
+
+        @if (message()) {
+        <div
+          class="alert alert-form"
+          [class.alert-success]="!error()"
+          [class.alert-danger]="error()"
+        >
+          {{ message() }}
+        </div>
+        }
+
+        <button type="submit" class="btn btn-primary" [disabled]="leaveForm.invalid || loading()">
+          {{ loading() ? 'Allocating...' : 'Allocate Leaves' }}
+        </button>
+      </form>
+    </div>
+    }
+
+    <div class="info-box">
+      <p>
+        💡 Allocate annual leave entitlements to employees. Default: 12 Casual Leave + 15 Earned
+        Leave per year.
+      </p>
+    </div>
+  </div>
   }
 
   <!-- Public Holidays Tab -->
   @if (activeTab() === 'holidays') {
-    <div class="holidays-section card">
-      <div class="section-header">
-        <h2>Public Holidays</h2>
-        <button class="btn btn-primary" (click)="toggleHolidayForm()">
-          {{ showHolidayForm() ? 'Cancel' : '+ Add Holiday' }}
-        </button>
-      </div>
-
-      @if (showHolidayForm()) {
-        <div class="holiday-form">
-          <form [formGroup]="holidayForm" (ngSubmit)="submitHolidayForm()">
-            <div class="form-row">
-              <div class="form-group">
-                <label for="holidayName">Holiday Name</label>
-                <input type="text" id="holidayName" formControlName="name" class="form-control" placeholder="e.g., New Year's Day">
-              </div>
-              <div class="form-group">
-                <label for="holidayDate">Date</label>
-                <input type="date" id="holidayDate" formControlName="date" class="form-control">
-              </div>
-            </div>
-
-            <div class="form-group">
-              <label for="holidayDescription">Description (Optional)</label>
-              <input type="text" id="holidayDescription" formControlName="description" class="form-control" placeholder="Additional details about the holiday">
-            </div>
-
-            @if (message()) {
-              <div class="alert alert-form" [class.alert-success]="!error()" [class.alert-danger]="error()">
-                {{ message() }}
-              </div>
-            }
-
-            <button type="submit" class="btn btn-success" [disabled]="holidayForm.invalid || loading()">
-              {{ loading() ? 'Adding...' : 'Add Holiday' }}
-            </button>
-          </form>
-        </div>
-      }
-
-      <div class="table-responsive">
-        <table class="table">
-          <thead>
-            <tr>
-              <th>Holiday Name</th>
-              <th>Date</th>
-              <th>Description</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (holiday of holidays(); track holiday.id) {
-              <tr>
-                <td><strong>{{ holiday.name }}</strong></td>
-                <td>{{ holiday.date | date:'mediumDate' }}</td>
-                <td>{{ holiday.description || '-' }}</td>
-                <td>
-                  <button class="btn btn-sm btn-danger" (click)="deleteHoliday(holiday.id!)">Delete</button>
-                </td>
-              </tr>
-            }
-          </tbody>
-        </table>
-      </div>
+  <div class="holidays-section card">
+    <div class="section-header">
+      <h2>Public Holidays</h2>
+      <button class="btn btn-primary" (click)="toggleHolidayForm()">
+        {{ showHolidayForm() ? 'Cancel' : '+ Add Holiday' }}
+      </button>
     </div>
+
+    @if (showHolidayForm()) {
+    <div class="holiday-form">
+      <form [formGroup]="holidayForm" (ngSubmit)="submitHolidayForm()" class="form-card">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="holidayName">Holiday Name</label>
+            <input
+              type="text"
+              id="holidayName"
+              formControlName="name"
+              class="form-control"
+              placeholder="e.g., New Year's Day"
+            />
+          </div>
+          <div class="form-group">
+            <label for="holidayDate">Date</label>
+            <input type="date" id="holidayDate" formControlName="date" class="form-control" />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="holidayDescription">Description (Optional)</label>
+          <input
+            type="text"
+            id="holidayDescription"
+            formControlName="description"
+            class="form-control"
+            placeholder="Additional details about the holiday"
+          />
+        </div>
+
+        @if (message()) {
+        <div
+          class="alert alert-form"
+          [class.alert-success]="!error()"
+          [class.alert-danger]="error()"
+        >
+          {{ message() }}
+        </div>
+        }
+
+        <button type="submit" class="btn btn-primary" [disabled]="holidayForm.invalid || loading()">
+          {{ loading() ? 'Adding...' : 'Add Holiday' }}
+        </button>
+      </form>
+    </div>
+    }
+
+    <div class="table-responsive">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Holiday Name</th>
+            <th>Date</th>
+            <th>Description</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (holiday of holidays(); track holiday.id) {
+          <tr>
+            <td>
+              <strong>{{ holiday.name }}</strong>
+            </td>
+            <td>{{ holiday.date | date : 'mediumDate' }}</td>
+            <td>{{ holiday.description || '-' }}</td>
+            <td>
+              <button class="btn btn-sm btn-danger" (click)="deleteHoliday(holiday.id!)">
+                Delete
+              </button>
+            </td>
+          </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </div>
   }
 </div>

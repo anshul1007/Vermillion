@@ -24,8 +24,6 @@ namespace AttendanceAPI.Models.Entities
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
         public Guid? LastModifiedBy { get; set; }
-
-        [ForeignKey(nameof(LastModifiedBy))]
-        public User? LastModifiedByUser { get; set; }
     }
 }
+

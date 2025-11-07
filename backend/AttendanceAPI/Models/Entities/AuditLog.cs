@@ -9,12 +9,9 @@ namespace AttendanceAPI.Models.Entities
         [Key]
         public Guid Id { get; set; } = Guid.NewGuid();
 
-        public Guid? UserId { get; set; }
+        public int? UserId { get; set; }
 
-        [ForeignKey(nameof(UserId))]
-        public User? User { get; set; }
-
-        [Required, MaxLength(100)]
+        [Required, MaxLength(50)]
         public string Action { get; set; } = string.Empty;
 
         [Required, MaxLength(100)]

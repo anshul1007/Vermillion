@@ -1,18 +1,25 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { AuthService } from '../../../core/auth/auth.service';
 import { ApprovalService, TeamMember } from '../../../core/services/approval.service';
 import { AdminService } from '../../../core/services/admin.service';
 import { LeaveService } from '../../../core/services/leave.service';
+import { Subject } from 'rxjs';
+import { takeUntil } from 'rxjs/operators';
 
 @Component({
   selector: 'app-manager-dashboard',
   standalone: true,
   imports: [CommonModule],
-  templateUrl: './manager-dashboard.component.html',
-  styleUrl: './manager-dashboard.component.scss'
+  templateUrl: './manager-dashboard.component.html'
 })
 export class ManagerDashboardComponent implements OnInit {
+  private destroy$ = new Subject<void>();
+
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
+  }
   private authService = inject(AuthService);
   private approvalService = inject(ApprovalService);
   private adminService = inject(AdminService);
@@ -75,12 +82,12 @@ export class ManagerDashboardComponent implements OnInit {
   loadTeamAttendance() {
     this.loading.set(true);
     const user = this.currentUser;
-    const isAdmin = user?.role === 'Administrator';
+    const isAdmin = user?.role === 'SystemAdmin' || user?.role === 'Admin';
     const service = isAdmin ? 
       this.adminService.getPendingAttendance(this.selectedDate()) : 
       this.approvalService.getPendingAttendance(this.selectedDate());
     
-    service.subscribe({
+    service.pipe(takeUntil(this.destroy$)).subscribe({
       next: (records: any) => {
         this.teamAttendance.set(records);
         this.loading.set(false);
@@ -96,12 +103,12 @@ export class ManagerDashboardComponent implements OnInit {
 
   loadPendingLeaveRequests() {
     const user = this.currentUser;
-    const isAdmin = user?.role === 'Administrator';
+    const isAdmin = user?.role === 'SystemAdmin' || user?.role === 'Admin';
     const service = isAdmin ? 
       this.adminService.getPendingLeaveRequests() : 
       this.leaveService.getPendingLeaveRequestsForApproval();
     
-    service.subscribe({
+    service.pipe(takeUntil(this.destroy$)).subscribe({
       next: (requests: any) => {
         this.pendingLeaveRequests.set(requests);
       },
@@ -117,12 +124,12 @@ export class ManagerDashboardComponent implements OnInit {
     }
 
     const user = this.currentUser;
-    const isAdmin = user?.role === 'Administrator';
+    const isAdmin = user?.role === 'SystemAdmin' || user?.role === 'Admin';
     const service = isAdmin ? 
       this.adminService.approveAttendance(attendanceId) : 
       this.approvalService.approveAttendance(attendanceId);
     
-    service.subscribe({
+    service.pipe(takeUntil(this.destroy$)).subscribe({
       next: () => {
         this.message.set('Attendance approved successfully');
         this.error.set(false);
@@ -144,12 +151,12 @@ export class ManagerDashboardComponent implements OnInit {
     }
 
     const user = this.currentUser;
-    const isAdmin = user?.role === 'Administrator';
+    const isAdmin = user?.role === 'SystemAdmin' || user?.role === 'Admin';
     const service = isAdmin ? 
       this.adminService.rejectAttendance(attendanceId, reason) : 
       this.approvalService.rejectAttendance(attendanceId, reason);
     
-    service.subscribe({
+    service.pipe(takeUntil(this.destroy$)).subscribe({
       next: () => {
         this.message.set('Attendance rejected');
         this.error.set(false);
@@ -170,12 +177,12 @@ export class ManagerDashboardComponent implements OnInit {
     }
 
     const user = this.currentUser;
-    const isAdmin = user?.role === 'Administrator';
+    const isAdmin = user?.role === 'SystemAdmin' || user?.role === 'Admin';
     const service = isAdmin ? 
       this.adminService.approveOrRejectLeave(leaveRequestId, true) : 
       this.leaveService.approveLeave(leaveRequestId);
     
-    service.subscribe({
+    service.pipe(takeUntil(this.destroy$)).subscribe({
       next: () => {
         this.message.set('Leave request approved successfully');
         this.error.set(false);
@@ -197,12 +204,12 @@ export class ManagerDashboardComponent implements OnInit {
     }
 
     const user = this.currentUser;
-    const isAdmin = user?.role === 'Administrator';
+    const isAdmin = user?.role === 'SystemAdmin' || user?.role === 'Admin';
     const service = isAdmin ? 
       this.adminService.approveOrRejectLeave(leaveRequestId, false, reason) : 
       this.leaveService.rejectLeave(leaveRequestId, reason);
     
-    service.subscribe({
+    service.pipe(takeUntil(this.destroy$)).subscribe({
       next: () => {
         this.message.set('Leave request rejected');
         this.error.set(false);
@@ -228,12 +235,12 @@ export class ManagerDashboardComponent implements OnInit {
 
   loadTeamAttendanceHistory() {
     const user = this.currentUser;
-    const isAdmin = user?.role === 'Administrator';
+    const isAdmin = user?.role === 'SystemAdmin' || user?.role === 'Admin';
     const service = isAdmin ? 
       this.adminService.getTeamAttendanceHistory(this.reportStartDate(), this.reportEndDate()) : 
       this.approvalService.getTeamAttendanceHistory(this.reportStartDate(), this.reportEndDate());
     
-    service.subscribe({
+    service.pipe(takeUntil(this.destroy$)).subscribe({
       next: (records: any) => {
         this.teamAttendanceHistory.set(records);
       },
@@ -245,12 +252,12 @@ export class ManagerDashboardComponent implements OnInit {
 
   loadTeamLeaveHistory() {
     const user = this.currentUser;
-    const isAdmin = user?.role === 'Administrator';
+    const isAdmin = user?.role === 'SystemAdmin' || user?.role === 'Admin';
     const service = isAdmin ? 
       this.adminService.getTeamLeaveHistory(this.reportStartDate(), this.reportEndDate()) : 
       this.approvalService.getTeamLeaveHistory(this.reportStartDate(), this.reportEndDate());
     
-    service.subscribe({
+    service.pipe(takeUntil(this.destroy$)).subscribe({
       next: (records: any) => {
         this.teamLeaveHistory.set(records);
       },
@@ -274,10 +281,10 @@ export class ManagerDashboardComponent implements OnInit {
 
   loadTeamMembers() {
     const user = this.currentUser;
-    const isAdmin = user?.role === 'Administrator';
+    const isAdmin = user?.role === 'SystemAdmin' || user?.role === 'Admin';
     const service = isAdmin ? this.adminService.getAllTeamMembers() : this.approvalService.getTeamMembers();
     
-    service.subscribe({
+    service.pipe(takeUntil(this.destroy$)).subscribe({
       next: (members: any) => {
         this.teamMembers.set(members);
       },
@@ -301,12 +308,12 @@ export class ManagerDashboardComponent implements OnInit {
     }
 
     const user = this.currentUser;
-    const isAdmin = user?.role === 'Administrator';
+    const isAdmin = user?.role === 'SystemAdmin' || user?.role === 'Admin';
     const service = isAdmin ? 
       this.adminService.assignCompensatoryOff({ employeeId, days, reason }) : 
       this.approvalService.assignCompensatoryOff(employeeId, days, reason);
 
-    service.subscribe({
+    service.pipe(takeUntil(this.destroy$)).subscribe({
       next: () => {
         this.setCompOffMessage(employeeId, `Successfully assigned ${days} compensatory off day(s)`, false);
         // Clear form only on success
@@ -358,12 +365,12 @@ export class ManagerDashboardComponent implements OnInit {
     console.log('Calling service...', { employeeId, date, loginTime, logoutTimeValue });
 
     const user = this.currentUser;
-    const isAdmin = user?.role === 'Administrator';
+    const isAdmin = user?.role === 'SystemAdmin' || user?.role === 'Admin';
     const service = isAdmin ? 
       this.adminService.logPastAttendance({ employeeId, date, loginTime, logoutTime: logoutTimeValue }) : 
       this.approvalService.logPastAttendance(employeeId, date, loginTime, logoutTimeValue);
 
-    service.subscribe({
+    service.pipe(takeUntil(this.destroy$)).subscribe({
       next: () => {
         console.log('Success!');
         this.setAttendanceMessage(employeeId, 'Past attendance logged successfully', false);

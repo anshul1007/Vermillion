@@ -1,129 +1,252 @@
-using AttendanceAPI.Models.DTOs;
-using AttendanceAPI.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using AttendanceAPI.Data;
+using AttendanceAPI.Models.DTOs;
+using AttendanceAPI.Models.Entities;
+using Microsoft.EntityFrameworkCore;
+using AttendanceAPI.Services;
 
 namespace AttendanceAPI.Controllers
 {
     [ApiController]
-    [Route("api/[controller]")]
-    [Authorize(Roles = "Administrator")]
+    [Route("api/admin")]
+    [Authorize]
     public class AdminController : ControllerBase
     {
-        private readonly IAdminService _adminService;
+        private readonly IAuthApiClient _authClient;
+        private readonly ApplicationDbContext _db;
         private readonly ILogger<AdminController> _logger;
+        private readonly ICurrentUserService _currentUserService;
+        private readonly ITeamManagementHelper _teamHelper;
 
-        public AdminController(IAdminService adminService, ILogger<AdminController> logger)
+        public AdminController(
+            IAuthApiClient authClient,
+            ApplicationDbContext db,
+            ILogger<AdminController> logger,
+            ICurrentUserService currentUserService,
+            ITeamManagementHelper teamHelper)
         {
-            _adminService = adminService;
+            _authClient = authClient;
+            _db = db;
             _logger = logger;
+            _currentUserService = currentUserService;
+            _teamHelper = teamHelper;
         }
 
-        [HttpPost("users")]
-        public async Task<IActionResult> CreateUser([FromBody] CreateUserRequest request)
+        // Helper: returns set of userIds that report to the current manager, or null if employees fetch fails
+        private async Task<HashSet<int>?> GetManagerTeamUserIdsAsync()
+        {
+            var callerId = _currentUserService.GetCurrentUserId();
+            if (!callerId.HasValue)
+                return new HashSet<int>(); // caller authorized earlier, return empty to result in no records
+
+            return await _teamHelper.GetManagerTeamUserIdsAsync(callerId.Value);
+        }
+
+        // Build TeamMemberDto list but exclude any users who have the SystemAdmin role in AuthAPI
+        private async Task<List<TeamMemberDto>> BuildTeamMemberDtosExcludingSystemAdminsAsync(IEnumerable<EmployeeDto> employees)
+        {
+            return await _teamHelper.BuildTeamMemberDtosExcludingSystemAdminsAsync(employees);
+        }
+
+        [HttpGet("users")]
+        [Authorize(Roles = "Admin,SystemAdmin")]
+        public async Task<IActionResult> GetUsers()
         {
             try
             {
-                var user = await _adminService.CreateUserAsync(request);
-                return Ok(ApiResponse<UserDto>.SuccessResponse(user, "User created successfully"));
-            }
-            catch (InvalidOperationException ex)
-            {
-                return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
+                var employees = await _authClient.GetAllEmployeesAsync();
+                if (employees == null)
+                    return StatusCode(502, ApiResponse<object>.ErrorResponse("Failed to fetch users from AuthAPI"));
+
+                // Filter out users based on their roles and include role information
+                var filteredEmployees = new List<EmployeeWithRoleDto>();
+                
+                foreach (var employee in employees)
+                {
+                    // Get the user's role in the Attendance tenant
+                    var userRole = await _authClient.GetUserRoleAsync(employee.UserId);
+                    
+                    // Skip if role fetch failed or user has no role
+                    if (string.IsNullOrEmpty(userRole))
+                        continue;
+                    
+                    // Exclude Guards and SystemAdmins - they don't use attendance system
+                    if (userRole.Equals("Guard", StringComparison.OrdinalIgnoreCase) ||
+                        userRole.Equals("SystemAdmin", StringComparison.OrdinalIgnoreCase))
+                        continue;
+                    
+                    // Create EmployeeWithRoleDto including the role information
+                    filteredEmployees.Add(new EmployeeWithRoleDto(
+                        employee.Id,
+                        employee.UserId,
+                        employee.EmployeeId,
+                        employee.FirstName,
+                        employee.LastName,
+                        employee.DepartmentId,
+                        employee.DepartmentName,
+                        employee.Department,
+                        employee.ManagerId,
+                        employee.Manager,
+                        employee.Email,
+                        employee.IsActive,
+                        employee.PhoneNumber,
+                        userRole
+                    ));
+                }
+
+                return Ok(ApiResponse<List<EmployeeWithRoleDto>>.SuccessResponse(filteredEmployees));
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error creating user");
+                _logger.LogError(ex, "Error fetching users");
                 return StatusCode(500, ApiResponse<object>.ErrorResponse("An error occurred", ex.Message));
             }
         }
 
+        /// <summary>
+        /// Update user details including employee information
+        /// </summary>
         [HttpPut("users/{userId}")]
+        [Authorize(Roles = "Admin,SystemAdmin")]
         public async Task<IActionResult> UpdateUser(Guid userId, [FromBody] UpdateUserRequest request)
         {
             try
             {
-                var user = await _adminService.UpdateUserAsync(userId, request);
-                return Ok(ApiResponse<UserDto>.SuccessResponse(user, "User updated successfully"));
-            }
-            catch (InvalidOperationException ex)
-            {
-                return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
+                // First, get the employee to find their actual User ID
+                var employees = await _authClient.GetAllEmployeesAsync();
+                if (employees == null)
+                    return StatusCode(502, ApiResponse<object>.ErrorResponse("Failed to fetch employees from AuthAPI"));
+
+                var employee = employees.FirstOrDefault(e => e.Id == userId.ToString());
+                if (employee == null)
+                    return NotFound(ApiResponse<object>.ErrorResponse($"Employee {userId} not found"));
+
+                // Update user in AuthAPI using the integer User ID, not the GUID Employee ID
+                var updateResponse = await _authClient.UpdateUserAsync(employee.UserId.ToString(), request);
+                if (!updateResponse)
+                    return StatusCode(502, ApiResponse<object>.ErrorResponse("Failed to update user in AuthAPI"));
+
+                // Fetch updated employee data
+                var updatedEmployees = await _authClient.GetAllEmployeesAsync();
+                if (updatedEmployees == null)
+                    return StatusCode(502, ApiResponse<object>.ErrorResponse("Failed to fetch updated user from AuthAPI"));
+
+                var updatedEmployee = updatedEmployees.FirstOrDefault(e => e.Id == userId.ToString());
+                if (updatedEmployee == null)
+                    return NotFound(ApiResponse<object>.ErrorResponse($"User {userId} not found"));
+
+                // Get the user's role
+                var userRole = await _authClient.GetUserRoleAsync(updatedEmployee.UserId);
+                
+                // Create EmployeeWithRoleDto including the role information
+                var result = new EmployeeWithRoleDto(
+                    updatedEmployee.Id,
+                    updatedEmployee.UserId,
+                    updatedEmployee.EmployeeId,
+                    updatedEmployee.FirstName,
+                    updatedEmployee.LastName,
+                    updatedEmployee.DepartmentId,
+                    updatedEmployee.DepartmentName,
+                    updatedEmployee.Department,
+                    updatedEmployee.ManagerId,
+                    updatedEmployee.Manager,
+                    updatedEmployee.Email,
+                    updatedEmployee.IsActive,
+                    updatedEmployee.PhoneNumber,
+                    userRole
+                );
+
+                return Ok(ApiResponse<EmployeeWithRoleDto>.SuccessResponse(result));
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error updating user");
+                _logger.LogError(ex, "Error updating user {UserId}", userId);
                 return StatusCode(500, ApiResponse<object>.ErrorResponse("An error occurred", ex.Message));
             }
         }
 
-        [HttpGet("users")]
-        public async Task<IActionResult> GetAllUsers()
+        [HttpGet("departments")]
+        [Authorize(Roles = "Admin,SystemAdmin")]
+        public async Task<IActionResult> GetDepartments()
         {
-            try
-            {
-                var users = await _adminService.GetAllUsersAsync();
-                return Ok(ApiResponse<List<UserDto>>.SuccessResponse(users));
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error getting users");
-                return StatusCode(500, ApiResponse<object>.ErrorResponse("An error occurred", ex.Message));
-            }
+            var data = await _authClient.GetAllDepartmentsAsync();
+            if (data == null)
+                return StatusCode(502, ApiResponse<object>.ErrorResponse("Failed to fetch departments from AuthAPI"));
+
+            return Ok(ApiResponse<List<DepartmentDto>>.SuccessResponse(data.ToList()));
         }
 
-        [HttpPost("leave-entitlement")]
-        public async Task<IActionResult> AllocateLeaveEntitlement([FromBody] AllocateLeaveRequest request)
+        // Public Holiday endpoints
+        [HttpGet("holidays")]
+        public async Task<IActionResult> GetPublicHolidays([FromQuery] int? year)
         {
             try
             {
-                var result = await _adminService.AllocateLeaveEntitlementAsync(request);
-                return Ok(ApiResponse<bool>.SuccessResponse(result, "Leave entitlement allocated successfully"));
-            }
-            catch (InvalidOperationException ex)
-            {
-                return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error allocating leave entitlement");
-                return StatusCode(500, ApiResponse<object>.ErrorResponse("An error occurred", ex.Message));
-            }
-        }
+                var yearParam = year ?? DateTime.UtcNow.Year;
+                var holidays = await _db.PublicHolidays
+                    .AsNoTracking()
+                    .Where(h => h.Year == yearParam && h.IsActive)
+                    .OrderBy(h => h.Date)
+                    .ToListAsync();
 
-        [HttpGet("leave-entitlement/{userId}")]
-        public async Task<IActionResult> GetUserLeaveBalance(Guid userId, [FromQuery] int year)
-        {
-            try
-            {
-                if (year == 0) year = DateTime.UtcNow.Year;
-
-                var balance = await _adminService.GetUserLeaveBalanceAsync(userId, year);
-                if (balance == null)
+                var dtos = holidays.Select(h => new PublicHolidayDto
                 {
-                    return NotFound(ApiResponse<object>.ErrorResponse("No leave entitlement found for this user and year"));
-                }
+                    Id = h.Id,
+                    Date = h.Date,
+                    Name = h.Name,
+                    Description = h.Description,
+                    Year = h.Year,
+                    IsActive = h.IsActive
+                }).ToList();
 
-                return Ok(ApiResponse<LeaveBalanceDto>.SuccessResponse(balance));
+                return Ok(ApiResponse<List<PublicHolidayDto>>.SuccessResponse(dtos));
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error getting leave balance");
+                _logger.LogError(ex, "Error fetching public holidays");
                 return StatusCode(500, ApiResponse<object>.ErrorResponse("An error occurred", ex.Message));
             }
         }
 
         [HttpPost("holidays")]
+        // Allow both Admin (HR) and SystemAdmin to create holidays
+        [Authorize(Roles = "Admin,SystemAdmin")]
         public async Task<IActionResult> CreatePublicHoliday([FromBody] CreatePublicHolidayRequest request)
         {
             try
             {
-                var holiday = await _adminService.CreatePublicHolidayAsync(request);
-                return Ok(ApiResponse<PublicHolidayDto>.SuccessResponse(holiday, "Public holiday created successfully"));
-            }
-            catch (InvalidOperationException ex)
-            {
-                return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
+                if (!ModelState.IsValid)
+                    return BadRequest(ApiResponse<object>.ErrorResponse("Invalid request"));
+
+                // Prevent duplicate by date
+                var exists = await _db.PublicHolidays.AnyAsync(h => h.Date == request.Date && h.IsActive);
+                if (exists)
+                    return Conflict(ApiResponse<object>.ErrorResponse("A public holiday already exists for the specified date"));
+
+                var ph = new PublicHoliday
+                {
+                    Date = request.Date,
+                    Name = request.Name,
+                    Description = request.Description,
+                    Year = request.Date.Year,
+                    IsActive = true
+                };
+
+                _db.PublicHolidays.Add(ph);
+                await _db.SaveChangesAsync();
+
+                var dto = new PublicHolidayDto
+                {
+                    Id = ph.Id,
+                    Date = ph.Date,
+                    Name = ph.Name,
+                    Description = ph.Description,
+                    Year = ph.Year,
+                    IsActive = ph.IsActive
+                };
+
+                return Ok(ApiResponse<PublicHolidayDto>.SuccessResponse(dto, "Public holiday created"));
             }
             catch (Exception ex)
             {
@@ -132,34 +255,23 @@ namespace AttendanceAPI.Controllers
             }
         }
 
-        [HttpGet("holidays")]
-        public async Task<IActionResult> GetPublicHolidays([FromQuery] int year)
+        [HttpDelete("holidays/{id}")]
+        // Allow both Admin (HR) and SystemAdmin to delete holidays
+        [Authorize(Roles = "Admin,SystemAdmin")]
+        public async Task<IActionResult> DeletePublicHoliday(Guid id)
         {
             try
             {
-                if (year == 0) year = DateTime.UtcNow.Year;
+                var ph = await _db.PublicHolidays.FindAsync(id);
+                if (ph == null)
+                    return NotFound(ApiResponse<object>.ErrorResponse("Public holiday not found"));
 
-                var holidays = await _adminService.GetPublicHolidaysAsync(year);
-                return Ok(ApiResponse<List<PublicHolidayDto>>.SuccessResponse(holidays));
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error getting public holidays");
-                return StatusCode(500, ApiResponse<object>.ErrorResponse("An error occurred", ex.Message));
-            }
-        }
+                // Mark as inactive instead of deleting to preserve history
+                ph.IsActive = false;
+                _db.PublicHolidays.Update(ph);
+                await _db.SaveChangesAsync();
 
-        [HttpDelete("holidays/{holidayId}")]
-        public async Task<IActionResult> DeletePublicHoliday(Guid holidayId)
-        {
-            try
-            {
-                var result = await _adminService.DeletePublicHolidayAsync(holidayId);
-                return Ok(ApiResponse<bool>.SuccessResponse(result, "Public holiday deleted successfully"));
-            }
-            catch (InvalidOperationException ex)
-            {
-                return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
+                return Ok(new ApiResponse<object> { Success = true, Data = default, Message = "Public holiday deactivated" });
             }
             catch (Exception ex)
             {
@@ -168,257 +280,566 @@ namespace AttendanceAPI.Controllers
             }
         }
 
-        // Department Management
-        [HttpPost("departments")]
-        public async Task<IActionResult> CreateDepartment([FromBody] CreateDepartmentRequest request)
-        {
-            try
-            {
-                var department = await _adminService.CreateDepartmentAsync(request);
-                return Ok(ApiResponse<DepartmentDto>.SuccessResponse(department, "Department created successfully"));
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error creating department");
-                return StatusCode(500, ApiResponse<object>.ErrorResponse("An error occurred", ex.Message));
-            }
-        }
-
-        [HttpGet("departments")]
-        public async Task<IActionResult> GetAllDepartments()
-        {
-            try
-            {
-                var departments = await _adminService.GetAllDepartmentsAsync();
-                return Ok(ApiResponse<List<DepartmentDto>>.SuccessResponse(departments));
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error getting departments");
-                return StatusCode(500, ApiResponse<object>.ErrorResponse("An error occurred", ex.Message));
-            }
-        }
-
-        [HttpPut("departments/{departmentId}")]
-        public async Task<IActionResult> UpdateDepartment(Guid departmentId, [FromBody] UpdateDepartmentRequest request)
-        {
-            try
-            {
-                var department = await _adminService.UpdateDepartmentAsync(departmentId, request);
-                return Ok(ApiResponse<DepartmentDto>.SuccessResponse(department, "Department updated successfully"));
-            }
-            catch (InvalidOperationException ex)
-            {
-                return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error updating department");
-                return StatusCode(500, ApiResponse<object>.ErrorResponse("An error occurred", ex.Message));
-            }
-        }
-
-        [HttpDelete("departments/{departmentId}")]
-        public async Task<IActionResult> DeleteDepartment(Guid departmentId)
-        {
-            try
-            {
-                var result = await _adminService.DeleteDepartmentAsync(departmentId);
-                return Ok(ApiResponse<bool>.SuccessResponse(result, "Department deleted successfully"));
-            }
-            catch (InvalidOperationException ex)
-            {
-                return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error deleting department");
-                return StatusCode(500, ApiResponse<object>.ErrorResponse("An error occurred", ex.Message));
-            }
-        }
-
-        [HttpGet("team-members")]
-        public async Task<IActionResult> GetAllTeamMembers()
-        {
-            try
-            {
-                var teamMembers = await _adminService.GetAllTeamMembersAsync();
-                return Ok(ApiResponse<List<TeamMemberDto>>.SuccessResponse(teamMembers));
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error getting team members");
-                return StatusCode(500, ApiResponse<object>.ErrorResponse("An error occurred", ex.Message));
-            }
-        }
-
-        [HttpPost("assign-comp-off")]
-        public async Task<IActionResult> AssignCompensatoryOff([FromBody] AssignCompOffRequest request)
-        {
-            try
-            {
-                await _adminService.AssignCompensatoryOffAsync(request.EmployeeId, request.Days, request.Reason);
-                return Ok(ApiResponse<string>.SuccessResponse("Success", "Compensatory off assigned successfully"));
-            }
-            catch (InvalidOperationException ex)
-            {
-                return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error assigning compensatory off");
-                return StatusCode(500, ApiResponse<object>.ErrorResponse("An error occurred", ex.Message));
-            }
-        }
-
-        [HttpPost("log-past-attendance")]
-        public async Task<IActionResult> LogPastAttendance([FromBody] LogPastAttendanceRequest request)
-        {
-            try
-            {
-                await _adminService.LogPastAttendanceAsync(request.EmployeeId, request.Date, request.LoginTime, request.LogoutTime);
-                return Ok(ApiResponse<string>.SuccessResponse("Success", "Past attendance logged successfully"));
-            }
-            catch (ArgumentException ex)
-            {
-                return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
-            }
-            catch (InvalidOperationException ex)
-            {
-                return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error logging past attendance");
-                return StatusCode(500, ApiResponse<object>.ErrorResponse("An error occurred", ex.Message));
-            }
-        }
-
-        [HttpGet("attendance/history")]
-        public async Task<IActionResult> GetTeamAttendanceHistory([FromQuery] DateTime? startDate, [FromQuery] DateTime? endDate)
-        {
-            try
-            {
-                var start = startDate ?? DateTime.Today.AddMonths(-1);
-                var end = endDate ?? DateTime.Today;
-                var records = await _adminService.GetTeamAttendanceHistoryAsync(start, end);
-                return Ok(ApiResponse<List<AttendanceDto>>.SuccessResponse(records, "Team attendance history retrieved successfully"));
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error getting team attendance history");
-                return StatusCode(500, ApiResponse<object>.ErrorResponse("An error occurred", ex.Message));
-            }
-        }
-
-        [HttpGet("leave/history")]
-        public async Task<IActionResult> GetTeamLeaveHistory([FromQuery] DateTime? startDate, [FromQuery] DateTime? endDate)
-        {
-            try
-            {
-                var start = startDate ?? DateTime.Today.AddMonths(-1);
-                var end = endDate ?? DateTime.Today;
-                var records = await _adminService.GetTeamLeaveHistoryAsync(start, end);
-                return Ok(ApiResponse<List<LeaveRequestResponse>>.SuccessResponse(records, "Team leave history retrieved successfully"));
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error getting team leave history");
-                return StatusCode(500, ApiResponse<object>.ErrorResponse("An error occurred", ex.Message));
-            }
-        }
-
+        // Pending attendance approvals for a given date - accessible to Managers and Admins
         [HttpGet("attendance/pending")]
-        public async Task<IActionResult> GetPendingAttendanceApprovals([FromQuery] string? date)
+        [Authorize(Roles = "Manager,Admin,SystemAdmin")]
+        public async Task<IActionResult> GetPendingAttendance([FromQuery] DateTime? date)
         {
             try
             {
-                var pendingAttendances = await _adminService.GetPendingAttendanceApprovalsAsync();
-                
-                // Filter by date if provided
-                if (!string.IsNullOrEmpty(date) && DateOnly.TryParse(date, out var filterDate))
+                var target = date.HasValue ? DateOnly.FromDateTime(date.Value) : DateOnly.FromDateTime(DateTime.UtcNow);
+                var query = _db.Attendance
+                    .AsNoTracking()
+                    .Where(a => a.Date == target && a.Status == ApprovalStatus.Pending)
+                    .OrderBy(a => a.LoginTime)
+                    .AsQueryable();
+
+                // If caller is a Manager, limit results to their direct reports only
+                if (User.IsInRole("Manager") && !User.IsInRole("Admin") && !User.IsInRole("SystemAdmin"))
                 {
-                    pendingAttendances = pendingAttendances.Where(a => a.Date == filterDate).ToList();
+                    var teamUserIds = await GetManagerTeamUserIdsAsync();
+                    if (teamUserIds == null)
+                        return StatusCode(502, ApiResponse<object>.ErrorResponse("Failed to fetch users from AuthAPI"));
+
+                    query = query.Where(a => teamUserIds.Contains(a.UserId));
                 }
-                
-                return Ok(ApiResponse<List<AttendanceDto>>.SuccessResponse(pendingAttendances, "Pending attendance approvals retrieved successfully"));
+
+                var records = await query.ToListAsync();
+
+                var dtos = records.Select(att => new AttendanceDto
+                {
+                    Id = att.Id,
+                    UserId = att.UserId,
+                    UserName = string.Empty,
+                    EmployeeId = string.Empty,
+                    LoginTime = att.LoginTime,
+                    LogoutTime = att.LogoutTime,
+                    Date = att.Date,
+                    IsWeekend = att.IsWeekend,
+                    IsPublicHoliday = att.IsPublicHoliday,
+                    Status = att.Status.ToString(),
+                    ApproverName = null,
+                    ApprovedAt = att.ApprovedAt,
+                    WorkDuration = att.LogoutTime.HasValue ? att.LogoutTime.Value - att.LoginTime : (TimeSpan?)null
+                }).ToList();
+
+                return Ok(ApiResponse<List<AttendanceDto>>.SuccessResponse(dtos));
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error getting pending attendance approvals");
+                _logger.LogError(ex, "Error fetching pending attendance");
                 return StatusCode(500, ApiResponse<object>.ErrorResponse("An error occurred", ex.Message));
             }
         }
 
+        /// <summary>
+        /// Approve an attendance record
+        /// </summary>
         [HttpPost("attendance/{attendanceId}/approve")]
+        [Authorize(Roles = "Manager,Admin,SystemAdmin")]
         public async Task<IActionResult> ApproveAttendance(Guid attendanceId)
         {
             try
             {
-                var attendance = await _adminService.ApproveAttendanceAsync(attendanceId);
-                return Ok(ApiResponse<AttendanceDto>.SuccessResponse(attendance, "Attendance approved successfully"));
-            }
-            catch (InvalidOperationException ex)
-            {
-                return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
+                var attendance = await _db.Attendance.FindAsync(attendanceId);
+                if (attendance == null)
+                    return NotFound(ApiResponse<object>.ErrorResponse($"Attendance record {attendanceId} not found"));
+
+                // Check if already processed
+                if (attendance.Status != ApprovalStatus.Pending)
+                    return BadRequest(ApiResponse<object>.ErrorResponse($"Attendance already {attendance.Status}"));
+
+                // Get current user ID
+                var currentUserId = _currentUserService.GetCurrentUserId();
+                if (!currentUserId.HasValue)
+                    return Unauthorized(ApiResponse<object>.ErrorResponse("Invalid or missing user claim"));
+
+                // Approve the attendance
+                attendance.Status = ApprovalStatus.Approved;
+                attendance.ApprovedBy = currentUserId.Value;
+                attendance.ApprovedAt = DateTime.UtcNow;
+
+                await _db.SaveChangesAsync();
+
+                return Ok(ApiResponse<bool>.SuccessResponse(true, "Attendance approved successfully"));
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error approving attendance");
+                _logger.LogError(ex, "Error approving attendance {AttendanceId}", attendanceId);
                 return StatusCode(500, ApiResponse<object>.ErrorResponse("An error occurred", ex.Message));
             }
         }
 
+        /// <summary>
+        /// Reject an attendance record
+        /// </summary>
         [HttpPost("attendance/{attendanceId}/reject")]
+        [Authorize(Roles = "Manager,Admin,SystemAdmin")]
         public async Task<IActionResult> RejectAttendance(Guid attendanceId)
         {
             try
             {
-                var attendance = await _adminService.RejectAttendanceAsync(attendanceId, null);
-                return Ok(ApiResponse<AttendanceDto>.SuccessResponse(attendance, "Attendance rejected successfully"));
-            }
-            catch (InvalidOperationException ex)
-            {
-                return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
+                var attendance = await _db.Attendance.FindAsync(attendanceId);
+                if (attendance == null)
+                    return NotFound(ApiResponse<object>.ErrorResponse($"Attendance record {attendanceId} not found"));
+
+                // Check if already processed
+                if (attendance.Status != ApprovalStatus.Pending)
+                    return BadRequest(ApiResponse<object>.ErrorResponse($"Attendance already {attendance.Status}"));
+
+                // Get current user ID
+                var currentUserId = _currentUserService.GetCurrentUserId();
+                if (!currentUserId.HasValue)
+                    return Unauthorized(ApiResponse<object>.ErrorResponse("Invalid or missing user claim"));
+
+                // Reject the attendance (note: Attendance entity doesn't have RejectionReason field)
+                attendance.Status = ApprovalStatus.Rejected;
+                attendance.ApprovedBy = currentUserId.Value;  // Track who rejected it
+                attendance.ApprovedAt = DateTime.UtcNow;      // Track when it was rejected
+
+                await _db.SaveChangesAsync();
+
+                return Ok(ApiResponse<bool>.SuccessResponse(true, "Attendance rejected successfully"));
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error rejecting attendance");
+                _logger.LogError(ex, "Error rejecting attendance {AttendanceId}", attendanceId);
                 return StatusCode(500, ApiResponse<object>.ErrorResponse("An error occurred", ex.Message));
             }
         }
 
+        // Pending leave requests - accessible to Managers and Admins
         [HttpGet("leave/pending")]
+        [Authorize(Roles = "Manager,Admin,SystemAdmin")]
         public async Task<IActionResult> GetPendingLeaveRequests()
         {
             try
             {
-                var pendingRequests = await _adminService.GetPendingLeaveRequestsAsync();
-                return Ok(ApiResponse<List<LeaveRequestResponse>>.SuccessResponse(pendingRequests, "Pending leave requests retrieved successfully"));
+                var query = _db.LeaveRequests
+                    .AsNoTracking()
+                    .Where(l => l.Status == ApprovalStatus.Pending)
+                    .OrderBy(l => l.CreatedAt)
+                    .AsQueryable();
+
+                // If caller is a Manager, limit to their direct reports
+                if (User.IsInRole("Manager") && !User.IsInRole("Admin") && !User.IsInRole("SystemAdmin"))
+                {
+                    var teamUserIds = await GetManagerTeamUserIdsAsync();
+                    if (teamUserIds == null)
+                        return StatusCode(502, ApiResponse<object>.ErrorResponse("Failed to fetch users from AuthAPI"));
+
+                    query = query.Where(l => teamUserIds.Contains(l.UserId));
+                }
+
+                var pending = await query.ToListAsync();
+
+                var dtos = pending.Select(l => new LeaveRequestResponse
+                {
+                    Id = l.Id,
+                    UserId = l.UserId,
+                    UserName = string.Empty,
+                    EmployeeId = string.Empty,
+                    LeaveType = l.LeaveType.ToString(),
+                    StartDate = l.StartDate,
+                    EndDate = l.EndDate,
+                    TotalDays = l.TotalDays,
+                    Reason = l.Reason,
+                    Status = l.Status.ToString(),
+                    ApproverName = null,
+                    ApprovedAt = l.ApprovedAt,
+                    RejectionReason = l.RejectionReason,
+                    CreatedAt = l.CreatedAt
+                }).ToList();
+
+                return Ok(ApiResponse<List<LeaveRequestResponse>>.SuccessResponse(dtos));
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error getting pending leave requests");
+                _logger.LogError(ex, "Error fetching pending leave requests");
                 return StatusCode(500, ApiResponse<object>.ErrorResponse("An error occurred", ex.Message));
             }
         }
 
+        /// <summary>
+        /// Approve or reject a leave request
+        /// </summary>
         [HttpPost("leave/approve")]
+        [Authorize(Roles = "Manager,Admin,SystemAdmin")]
         public async Task<IActionResult> ApproveOrRejectLeave([FromBody] ApproveLeaveRequest request)
         {
             try
             {
-                var result = await _adminService.ApproveOrRejectLeaveAsync(request.LeaveRequestId, request.Approved, request.RejectionReason);
-                var message = request.Approved ? "Leave request approved successfully" : "Leave request rejected";
-                return Ok(ApiResponse<LeaveRequestResponse>.SuccessResponse(result, message));
-            }
-            catch (InvalidOperationException ex)
-            {
-                return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
+                if (!ModelState.IsValid)
+                    return BadRequest(ApiResponse<object>.ErrorResponse("Invalid request"));
+
+                var leaveRequest = await _db.LeaveRequests.FindAsync(request.LeaveRequestId);
+                if (leaveRequest == null)
+                    return NotFound(ApiResponse<object>.ErrorResponse($"Leave request {request.LeaveRequestId} not found"));
+
+                // Check if already processed
+                if (leaveRequest.Status != ApprovalStatus.Pending)
+                    return BadRequest(ApiResponse<object>.ErrorResponse($"Leave request already {leaveRequest.Status}"));
+
+                // Get current user ID
+                var currentUserId = _currentUserService.GetCurrentUserId();
+                if (!currentUserId.HasValue)
+                    return Unauthorized(ApiResponse<object>.ErrorResponse("Invalid or missing user claim"));
+
+                // Update status
+                if (request.Approved)
+                {
+                    leaveRequest.Status = ApprovalStatus.Approved;
+                    leaveRequest.ApprovedBy = currentUserId.Value;
+                    leaveRequest.ApprovedAt = DateTime.UtcNow;
+
+                    // Deduct from leave balance
+                    var year = leaveRequest.StartDate.Year;
+                    var entitlement = await _db.LeaveEntitlements
+                        .FirstOrDefaultAsync(e => e.UserId == leaveRequest.UserId && e.Year == year);
+
+                    if (entitlement != null)
+                    {
+                        switch (leaveRequest.LeaveType)
+                        {
+                            case LeaveType.CasualLeave:
+                                entitlement.CasualLeaveBalance -= leaveRequest.TotalDays;
+                                break;
+                            case LeaveType.EarnedLeave:
+                                entitlement.EarnedLeaveBalance -= leaveRequest.TotalDays;
+                                break;
+                            case LeaveType.CompensatoryOff:
+                                entitlement.CompensatoryOffBalance -= leaveRequest.TotalDays;
+                                break;
+                        }
+                        entitlement.UpdatedAt = DateTime.UtcNow;
+                    }
+                }
+                else
+                {
+                    leaveRequest.Status = ApprovalStatus.Rejected;
+                    leaveRequest.RejectionReason = request.RejectionReason;
+                    leaveRequest.ApprovedBy = currentUserId.Value;  // Track who rejected it
+                    leaveRequest.ApprovedAt = DateTime.UtcNow;      // Track when it was rejected
+                }
+
+                leaveRequest.UpdatedAt = DateTime.UtcNow;
+                await _db.SaveChangesAsync();
+
+                return Ok(ApiResponse<bool>.SuccessResponse(true, $"Leave request {(request.Approved ? "approved" : "rejected")} successfully"));
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error processing leave request");
+                return StatusCode(500, ApiResponse<object>.ErrorResponse("An error occurred", ex.Message));
+            }
+        }
+
+        // Team members for a manager. If managerId not provided, uses caller's user id.
+        [HttpGet("team-members")]
+        [Authorize(Roles = "Manager,Admin,SystemAdmin")]
+        public async Task<IActionResult> GetTeamMembers([FromQuery] string? managerId)
+        {
+            try
+            {
+                // Determine caller id from claims
+                var callerId = _currentUserService.GetCurrentUserId();
+                if (!callerId.HasValue)
+                    return Unauthorized(ApiResponse<object>.ErrorResponse("Invalid or missing user claim"));
+
+                var data = await _authClient.GetAllEmployeesAsync();
+                if (data == null)
+                    return StatusCode(502, ApiResponse<object>.ErrorResponse("Failed to fetch users from AuthAPI"));
+
+                if ((User.IsInRole("Admin") || User.IsInRole("SystemAdmin")) && string.IsNullOrEmpty(managerId))
+                {
+                    var all = await BuildTeamMemberDtosExcludingSystemAdminsAsync(data);
+                    return Ok(ApiResponse<List<TeamMemberDto>>.SuccessResponse(all));
+                }
+
+                var effectiveManagerId = managerId ?? callerId.Value.ToString();
+
+                // If requesting another manager's team, ensure caller is Admin or SystemAdmin
+                if (!string.IsNullOrEmpty(managerId) && managerId != callerId.Value.ToString() && !User.IsInRole("Admin") && !User.IsInRole("SystemAdmin"))
+                    return Forbid();
+
+                var filtered = data.Where(e => !string.IsNullOrEmpty(e.ManagerId) && e.ManagerId == effectiveManagerId);
+                var list = await BuildTeamMemberDtosExcludingSystemAdminsAsync(filtered);
+
+                return Ok(ApiResponse<List<TeamMemberDto>>.SuccessResponse(list));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error fetching team members");
+                return StatusCode(500, ApiResponse<object>.ErrorResponse("An error occurred", ex.Message));
+            }
+        }
+
+        // Attendance history for admins/managers across users
+        [HttpGet("attendance/history")]
+        [Authorize(Roles = "Manager,Admin,SystemAdmin")]
+        public async Task<IActionResult> GetAttendanceHistory([FromQuery] DateTime? startDate, [FromQuery] DateTime? endDate, [FromQuery] int? userId, [FromQuery] int page = 1, [FromQuery] int pageSize = 50)
+        {
+            try
+            {
+                var end = endDate?.Date ?? DateTime.UtcNow.Date;
+                var start = startDate?.Date ?? end.AddDays(-30);
+
+                var query = _db.Attendance.AsNoTracking().AsQueryable();
+                query = query.Where(a => a.Date >= DateOnly.FromDateTime(start) && a.Date <= DateOnly.FromDateTime(end));
+
+                // Manager should see only their team members unless they are Admin/SystemAdmin
+                if (User.IsInRole("Manager") && !User.IsInRole("Admin") && !User.IsInRole("SystemAdmin"))
+                {
+                    var teamUserIds = await GetManagerTeamUserIdsAsync();
+                    if (teamUserIds == null)
+                        return StatusCode(502, ApiResponse<object>.ErrorResponse("Failed to fetch users from AuthAPI"));
+
+                    if (userId.HasValue)
+                    {
+                        // If requesting a specific user's history, ensure that user is in manager's team
+                        if (!teamUserIds.Contains(userId.Value))
+                            return Forbid();
+
+                        query = query.Where(a => a.UserId == userId.Value);
+                    }
+                    else
+                    {
+                        query = query.Where(a => teamUserIds.Contains(a.UserId));
+                    }
+                }
+                else
+                {
+                    if (userId.HasValue)
+                        query = query.Where(a => a.UserId == userId.Value);
+                }
+
+                // validate paging
+                page = Math.Max(1, page);
+                pageSize = Math.Clamp(pageSize, 1, 500);
+                var skip = (page - 1) * pageSize;
+
+                var records = await query.OrderByDescending(a => a.Date).Skip(skip).Take(pageSize).ToListAsync();
+
+                var dtos = records.Select(att => new AttendanceDto
+                {
+                    Id = att.Id,
+                    UserId = att.UserId,
+                    UserName = string.Empty,
+                    EmployeeId = string.Empty,
+                    LoginTime = att.LoginTime,
+                    LogoutTime = att.LogoutTime,
+                    Date = att.Date,
+                    IsWeekend = att.IsWeekend,
+                    IsPublicHoliday = att.IsPublicHoliday,
+                    Status = att.Status.ToString(),
+                    ApproverName = null,
+                    ApprovedAt = att.ApprovedAt,
+                    WorkDuration = att.LogoutTime.HasValue ? att.LogoutTime.Value - att.LoginTime : (TimeSpan?)null
+                }).ToList();
+
+                return Ok(ApiResponse<List<AttendanceDto>>.SuccessResponse(dtos));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error fetching attendance history");
+                return StatusCode(500, ApiResponse<object>.ErrorResponse("An error occurred", ex.Message));
+            }
+        }
+
+        // Leave history for admins/managers across users
+        [HttpGet("leave/history")]
+        [Authorize(Roles = "Manager,Admin,SystemAdmin")]
+        public async Task<IActionResult> GetLeaveHistory([FromQuery] DateTime? startDate, [FromQuery] DateTime? endDate, [FromQuery] int? userId, [FromQuery] int page = 1, [FromQuery] int pageSize = 50)
+        {
+            try
+            {
+                var end = endDate?.Date ?? DateTime.UtcNow.Date;
+                var start = startDate?.Date ?? end.AddDays(-90);
+
+                var query = _db.LeaveRequests.AsNoTracking().AsQueryable();
+                query = query.Where(l => l.StartDate >= DateOnly.FromDateTime(start) && l.StartDate <= DateOnly.FromDateTime(end));
+
+                // Manager should see only their team members unless they are Admin/SystemAdmin
+                if (User.IsInRole("Manager") && !User.IsInRole("Admin") && !User.IsInRole("SystemAdmin"))
+                {
+                    var teamUserIds = await GetManagerTeamUserIdsAsync();
+                    if (teamUserIds == null)
+                        return StatusCode(502, ApiResponse<object>.ErrorResponse("Failed to fetch users from AuthAPI"));
+
+                    if (userId.HasValue)
+                    {
+                        if (!teamUserIds.Contains(userId.Value))
+                            return Forbid();
+
+                        query = query.Where(l => l.UserId == userId.Value);
+                    }
+                    else
+                    {
+                        query = query.Where(l => teamUserIds.Contains(l.UserId));
+                    }
+                }
+                else
+                {
+                    if (userId.HasValue)
+                        query = query.Where(l => l.UserId == userId.Value);
+                }
+
+                page = Math.Max(1, page);
+                pageSize = Math.Clamp(pageSize, 1, 500);
+                var skip = (page - 1) * pageSize;
+
+                var records = await query.OrderByDescending(l => l.CreatedAt).Skip(skip).Take(pageSize).ToListAsync();
+
+                var dtos = records.Select(l => new LeaveRequestResponse
+                {
+                    Id = l.Id,
+                    UserId = l.UserId,
+                    UserName = string.Empty,
+                    EmployeeId = string.Empty,
+                    LeaveType = l.LeaveType.ToString(),
+                    StartDate = l.StartDate,
+                    EndDate = l.EndDate,
+                    TotalDays = l.TotalDays,
+                    Reason = l.Reason,
+                    Status = l.Status.ToString(),
+                    ApproverName = null,
+                    ApprovedAt = l.ApprovedAt,
+                    RejectionReason = l.RejectionReason,
+                    CreatedAt = l.CreatedAt
+                }).ToList();
+
+                return Ok(ApiResponse<List<LeaveRequestResponse>>.SuccessResponse(dtos));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error fetching leave history");
+                return StatusCode(500, ApiResponse<object>.ErrorResponse("An error occurred", ex.Message));
+            }
+        }
+
+        // Allocate leave entitlement (Admin UI) - upsert per user-year
+        [HttpPost("leave-entitlement")]
+        [Authorize(Roles = "Admin,SystemAdmin")]
+        public async Task<IActionResult> AllocateLeaveEntitlement([FromBody] AllocateLeaveEntitlementRequest request)
+        {
+            try
+            {
+                if (!ModelState.IsValid)
+                    return BadRequest(ApiResponse<object>.ErrorResponse("Invalid request"));
+
+                int userId;
+                
+                // Check if the userId is a GUID (Employee.Id) or an integer (User.Id)
+                if (Guid.TryParse(request.UserId, out var employeeGuid))
+                {
+                    // It's an Employee GUID, need to look up the User.Id
+                    var employees = await _authClient.GetAllEmployeesAsync();
+                    if (employees == null)
+                        return StatusCode(502, ApiResponse<object>.ErrorResponse("Failed to fetch employees from AuthAPI"));
+
+                    var employee = employees.FirstOrDefault(e => e.Id == request.UserId);
+                    if (employee == null)
+                        return NotFound(ApiResponse<object>.ErrorResponse($"Employee {request.UserId} not found"));
+
+                    userId = employee.UserId;
+                }
+                else if (!int.TryParse(request.UserId, out userId))
+                {
+                    return BadRequest(ApiResponse<object>.ErrorResponse("Invalid userId format"));
+                }
+
+                // Upsert: try to find an existing entitlement row for the same user and year.
+                // The LeaveEntitlement entity doesn't have an explicit Year column, so we use CreatedAt/UpdatedAt year as the marker.
+                var existing = await _db.LeaveEntitlements
+                    .Where(e => e.UserId == userId && e.Year == request.Year)
+                    .OrderByDescending(e => e.UpdatedAt)
+                    .FirstOrDefaultAsync();
+
+                if (existing != null)
+                {
+                    // Update existing record
+                    existing.CasualLeaveBalance = request.CasualLeaveBalance;
+                    existing.EarnedLeaveBalance = request.EarnedLeaveBalance;
+                    existing.CompensatoryOffBalance = request.CompensatoryOffBalance;
+                    existing.UpdatedAt = DateTime.UtcNow;
+
+                    _db.LeaveEntitlements.Update(existing);
+                }
+                else
+                {
+                    // Create a new entitlement entry (year is inferred from CreatedAt)
+                    var entitlement = new LeaveEntitlement
+                    {
+                        UserId = userId,
+                        LeaveType = LeaveType.CasualLeave, // placeholder; entity keeps balances rather than per-type rows
+                        CasualLeaveBalance = request.CasualLeaveBalance,
+                        EarnedLeaveBalance = request.EarnedLeaveBalance,
+                        CompensatoryOffBalance = request.CompensatoryOffBalance,
+                        Year = request.Year,
+                        CreatedAt = DateTime.UtcNow,
+                        UpdatedAt = DateTime.UtcNow
+                    };
+
+                    _db.LeaveEntitlements.Add(entitlement);
+                }
+                await _db.SaveChangesAsync();
+
+                return Ok(ApiResponse<bool>.SuccessResponse(true, "Leave entitlement allocated"));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error allocating leave entitlement");
+                return StatusCode(500, ApiResponse<object>.ErrorResponse("An error occurred", ex.Message));
+            }
+        }
+
+        // Get leave entitlement for a user for a year
+        [HttpGet("leave-entitlement/{userId}")]
+        [Authorize(Roles = "Admin,SystemAdmin")]
+        public async Task<IActionResult> GetLeaveEntitlement(string userId, [FromQuery] int? year)
+        {
+            try
+            {
+                if (!int.TryParse(userId, out var uid))
+                    return BadRequest(ApiResponse<object>.ErrorResponse("Invalid userId"));
+
+                var targetYear = year ?? DateTime.UtcNow.Year;
+
+                // Find an entitlement for the requested year (match CreatedAt or UpdatedAt year)
+                var ent = await _db.LeaveEntitlements
+                    .AsNoTracking()
+                    .Where(e => e.UserId == uid && e.Year == targetYear)
+                    .OrderByDescending(e => e.UpdatedAt)
+                    .FirstOrDefaultAsync();
+
+                if (ent == null)
+                {
+                    // Return default zeros if not found
+                    var empty = new LeaveEntitlementDto
+                    {
+                        UserId = userId,
+                        Year = targetYear,
+                        CasualLeaveBalance = 0m,
+                        EarnedLeaveBalance = 0m,
+                        CompensatoryOffBalance = 0m
+                    };
+                    return Ok(ApiResponse<LeaveEntitlementDto>.SuccessResponse(empty));
+                }
+
+                var dto = new LeaveEntitlementDto
+                {
+                    UserId = userId,
+                    Year = targetYear,
+                    CasualLeaveBalance = ent.CasualLeaveBalance,
+                    EarnedLeaveBalance = ent.EarnedLeaveBalance,
+                    CompensatoryOffBalance = ent.CompensatoryOffBalance
+                };
+
+                return Ok(ApiResponse<LeaveEntitlementDto>.SuccessResponse(dto));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error fetching leave entitlement");
                 return StatusCode(500, ApiResponse<object>.ErrorResponse("An error occurred", ex.Message));
             }
         }
