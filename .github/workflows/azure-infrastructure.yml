@@ -62,13 +62,25 @@ jobs:
         ENV="${{ github.event.inputs.environment }}"
         RESOURCE_GROUP="vermillion-${ENV}-rg"
 
-        echo "Creating Resource Group: $RESOURCE_GROUP"
-        az group create \
-          --name $RESOURCE_GROUP \
-          --location ${{ github.event.inputs.location }}
+        echo "Checking Resource Group: $RESOURCE_GROUP"
+        
+        # Check if resource group already exists
+        if az group show --name $RESOURCE_GROUP >/dev/null 2>&1; then
+          EXISTING_LOCATION=$(az group show --name $RESOURCE_GROUP --query location -o tsv)
+          echo "✅ Resource Group already exists: $RESOURCE_GROUP (location: $EXISTING_LOCATION)"
+          echo "Using existing resource group location for consistency."
+          RG_LOCATION=$EXISTING_LOCATION
+        else
+          echo "Creating Resource Group: $RESOURCE_GROUP in ${{ github.event.inputs.location }}"
+          az group create \
+            --name $RESOURCE_GROUP \
+            --location ${{ github.event.inputs.location }}
+          RG_LOCATION="${{ github.event.inputs.location }}"
+          echo "✅ Resource Group created: $RESOURCE_GROUP"
+        fi
 
         echo "RESOURCE_GROUP=$RESOURCE_GROUP" >> $GITHUB_ENV
-        echo "✅ Resource Group created: $RESOURCE_GROUP"
+        echo "RG_LOCATION=$RG_LOCATION" >> $GITHUB_ENV
 
     - name: 💾 Create Azure SQL Server
       run: |
