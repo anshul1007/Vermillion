@@ -11,53 +11,57 @@ import { takeUntil, take } from 'rxjs/operators';
   imports: [CommonModule, FormsModule],
   template: `
     <div class="tenants-container">
-      <div class="header">
-        <h1>Tenants Management</h1>
-        <p class="subtitle">Manage application tenants and configurations</p>
+      <div class="dashboard-header">
+        <div>
+          <h1>Tenants Management</h1>
+          <p>Manage application tenants and configurations</p>
+        </div>
       </div>
 
       @if (loading()) {
-        <div class="loading">Loading tenants...</div>
+        <div class="alert alert-info">Loading tenants...</div>
       } @else if (error()) {
-        <div class="error">{{ error() }}</div>
+        <div class="alert alert-danger">{{ error() }}</div>
       } @else {
-        <div class="tenants-grid">
-          @for (tenant of tenants(); track tenant.id) {
-            <div class="role-card tenant-card" [class.inactive]="!tenant.isActive">
-              <div class="tenant-header">
-                <h3>{{ tenant.name }}</h3>
-                <span class="status-badge" [class.active]="tenant.isActive">
-                  {{ tenant.isActive ? 'Active' : 'Inactive' }}
-                </span>
-              </div>
-              <div class="tenant-info">
-                <div class="info-row">
-                  <span class="label">Domain:</span>
-                  <span class="value domain-badge">{{ tenant.domain }}</span>
+        <div class="card">
+          <div class="tenants-grid">
+            @for (tenant of tenants(); track tenant.id) {
+              <div class="role-card tenant-card" [class.inactive]="!tenant.isActive">
+                <div class="tenant-header">
+                  <h3>{{ tenant.name }}</h3>
+                  <span class="badge" [class.badge-success]="tenant.isActive" [class.badge-inactive]="!tenant.isActive">
+                    {{ tenant.isActive ? 'Active' : 'Inactive' }}
+                  </span>
                 </div>
-                <div class="info-row">
-                  <span class="label">Users:</span>
-                  <span class="value">{{ tenant.userCount || 0 }}</span>
-                </div>
-                <div class="info-row">
-                  <span class="label">Created:</span>
-                  <span class="value">{{ formatDate(tenant.createdAt) }}</span>
-                </div>
-                @if (tenant.apiKey) {
+                <div class="tenant-info">
                   <div class="info-row">
-                    <span class="label">API Key:</span>
-                    <span class="value api-key">{{ maskApiKey(tenant.apiKey) }}</span>
-                    <button class="btn-copy" (click)="copyApiKey(tenant.apiKey)" title="Copy API Key">📋</button>
+                    <span class="label">Domain:</span>
+                    <span class="value domain-badge">{{ tenant.domain }}</span>
                   </div>
-                }
+                  <div class="info-row">
+                    <span class="label">Users:</span>
+                    <span class="value">{{ tenant.userCount || 0 }}</span>
+                  </div>
+                  <div class="info-row">
+                    <span class="label">Created:</span>
+                    <span class="value">{{ formatDate(tenant.createdAt) }}</span>
+                  </div>
+                  @if (tenant.apiKey) {
+                    <div class="info-row">
+                      <span class="label">API Key:</span>
+                      <span class="value api-key">{{ maskApiKey(tenant.apiKey) }}</span>
+                      <button class="btn btn-sm btn-copy" (click)="copyApiKey(tenant.apiKey)" title="Copy API Key">📋</button>
+                    </div>
+                  }
+                </div>
+                <div class="tenant-actions">
+                  <button class="btn btn-sm btn-warning" (click)="editTenant(tenant)">
+                    Edit Details
+                  </button>
+                </div>
               </div>
-              <div class="tenant-actions">
-                <button class="btn-sm btn-warning" (click)="editTenant(tenant)">
-                  Edit Details
-                </button>
-              </div>
-            </div>
-          }
+            }
+          </div>
         </div>
       }
 
@@ -72,17 +76,17 @@ import { takeUntil, take } from 'rxjs/operators';
             <div class="modal-body">
               <div class="form-group">
                 <label>Tenant Name</label>
-                <input type="text" [(ngModel)]="tenantForm.name" placeholder="Enter tenant name" />
+                <input type="text" [(ngModel)]="tenantForm.name" placeholder="Enter tenant name" class="form-control" />
               </div>
               <div class="form-group">
                 <label>Domain</label>
-                <input type="text" [(ngModel)]="tenantForm.domain" placeholder="Enter domain (e.g., attendance)" />
+                <input type="text" [(ngModel)]="tenantForm.domain" placeholder="Enter domain (e.g., attendance)" class="form-control" />
                 <small class="help-text">⚠️ Changing domain may affect JWT claims and authentication</small>
               </div>
             </div>
             <div class="modal-footer">
-              <button class="btn-secondary" (click)="closeModal()">Cancel</button>
-              <button class="btn-primary" (click)="saveTenant()">Update</button>
+              <button class="btn btn-secondary" (click)="closeModal()">Cancel</button>
+              <button class="btn btn-primary" (click)="saveTenant()">Update</button>
             </div>
           </div>
         </div>

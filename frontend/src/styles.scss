@@ -1568,6 +1568,18 @@ form > .btn:last-child:not(.form-actions .btn) {
   gap: var(--spacing-md);
 }
 
+.attendance-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  justify-content: space-between;
+}
+
+.attendance-action {
+  display: flex;
+  align-items: center;
+}
+
 .status-badge {
   display: inline-block;
   padding: 8px 16px;
@@ -1797,6 +1809,342 @@ form > .btn:last-child:not(.form-actions .btn) {
 .form-group-grow {
   flex-grow: 2;
   min-width: 200px;
+}
+
+// =============================================================================
+// SYSTEM ADMIN COMPONENTS
+// =============================================================================
+.system-admin-container,
+.tenants-container,
+.roles-container,
+.users-container,
+.permissions-container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: var(--spacing-xl);
+}
+
+.admin-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--spacing-lg);
+  margin-top: var(--spacing-xl);
+}
+
+.admin-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: var(--spacing-xl);
+  background: var(--color-surface);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  text-decoration: none;
+  color: var(--mat-sys-on-surface);
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.admin-card:hover {
+  border-color: var(--color-primary-1);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-4px);
+}
+
+.admin-card .card-icon {
+  width: 64px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--color-primary-1) 0%, var(--color-primary-2) 100%);
+  border-radius: 50%;
+  margin-bottom: var(--spacing-md);
+}
+
+.admin-card .card-icon svg {
+  color: var(--color-primary-contrast);
+}
+
+.admin-card h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0 0 var(--spacing-sm) 0;
+  color: var(--mat-sys-on-surface);
+}
+
+.admin-card p {
+  font-size: 0.9rem;
+  color: var(--color-muted);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.action-tag {
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.tenants-grid,
+.roles-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: var(--spacing-lg);
+  margin-top: var(--spacing-xl);
+}
+
+.tenant-header,
+.role-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-md);
+}
+
+.tenant-header h3,
+.role-header h3 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--mat-sys-on-surface);
+}
+
+.tenant-info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  margin: var(--spacing-md) 0;
+}
+
+.info-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  font-size: 0.9rem;
+}
+
+.info-row .label {
+  font-weight: 500;
+  color: var(--color-muted);
+  min-width: 80px;
+}
+
+.info-row .value {
+  color: var(--mat-sys-on-surface);
+}
+
+.domain-badge {
+  background: var(--color-surface-light);
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  font-family: monospace;
+  font-size: 0.85rem;
+}
+
+.tenant-actions,
+.role-actions {
+  display: flex;
+  gap: var(--spacing-sm);
+  flex-wrap: wrap;
+  margin-top: var(--spacing-md);
+  padding-top: var(--spacing-md);
+  border-top: 1px solid var(--color-border-light);
+}
+
+.role-description {
+  color: var(--color-muted);
+  font-size: 0.9rem;
+  margin: var(--spacing-sm) 0;
+}
+
+.role-stats {
+  display: flex;
+  gap: var(--spacing-lg);
+  margin: var(--spacing-md) 0;
+}
+
+.role-stats .stat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  font-size: 0.9rem;
+  color: var(--color-muted);
+}
+
+.role-stats .stat strong {
+  font-size: 1.5rem;
+  color: var(--color-primary-1);
+}
+
+.btn-copy {
+  background: none;
+  border: none;
+  padding: 4px 8px;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: background-color 0.2s;
+}
+
+.btn-copy:hover {
+  background: var(--color-surface-hover);
+}
+
+.btn-info {
+  background: var(--color-info);
+  color: var(--color-primary-contrast);
+}
+
+.btn-info:hover:not(:disabled) {
+  filter: brightness(0.95);
+}
+
+.btn-sm.btn-info,
+.btn-sm.btn-warning {
+  padding: 0.4rem 0.8rem;
+  font-size: 0.85rem;
+}
+
+.permissions-grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+  margin: var(--spacing-md) 0;
+}
+
+.permission-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-md);
+  background: var(--color-surface-light);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-light);
+}
+
+.permission-info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.permission-info strong {
+  color: var(--mat-sys-on-surface);
+  font-size: 0.95rem;
+}
+
+.permission-info small {
+  color: var(--color-muted);
+  font-size: 0.85rem;
+}
+
+.resource-tag {
+  display: inline-block;
+  background: var(--color-primary-1);
+  color: var(--color-primary-contrast);
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 0.8rem;
+  margin-right: var(--spacing-xs);
+}
+
+.add-permission-form {
+  display: flex;
+  gap: var(--spacing-sm);
+  flex-wrap: wrap;
+  padding: var(--spacing-md);
+  background: var(--color-surface-light);
+  border-radius: var(--radius-md);
+  margin-top: var(--spacing-md);
+}
+
+.add-permission-form .form-group {
+  flex: 1;
+  min-width: 150px;
+}
+
+.api-key {
+  font-family: monospace;
+  background: var(--color-surface-light);
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border-light);
+  font-size: 0.85rem;
+  color: var(--mat-sys-on-surface);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.users-table {
+  margin-top: var(--spacing-xl);
+}
+
+.access-list,
+.add-access-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+  margin: var(--spacing-md) 0;
+}
+
+.access-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-md);
+  background: var(--color-surface-light);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-light);
+}
+
+.access-info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.access-info strong {
+  color: var(--mat-sys-on-surface);
+  font-size: 0.95rem;
+}
+
+.role-badge {
+  margin-right: var(--spacing-xs);
+}
+
+.add-access-form {
+  display: flex;
+  flex-direction: row;
+  gap: var(--spacing-sm);
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+
+.add-access-form .form-group {
+  flex: 1;
+  min-width: 200px;
+}
+
+.tenant-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-xs);
+}
+
+.action-buttons {
+  display: flex;
+  gap: var(--spacing-xs);
+  flex-wrap: wrap;
+}
+
+.modal-lg {
+  max-width: 800px;
 }
 
 // =============================================================================

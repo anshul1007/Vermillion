@@ -12,55 +12,60 @@ import { take } from 'rxjs/operators';
   imports: [CommonModule, FormsModule],
   template: `
     <div class="roles-container">
-      <div class="header">
-        <h1>Roles Management</h1>
-        <button class="btn-primary" (click)="showCreateModal()">
-          <span>+ Create Role</span>
+      <div class="dashboard-header">
+        <div>
+          <h1>Roles Management</h1>
+          <p>Manage system roles and permissions</p>
+        </div>
+        <button class="btn btn-primary" (click)="showCreateModal()">
+          + Create Role
         </button>
       </div>
 
       @if (loading()) {
-        <div class="loading">Loading roles...</div>
+        <div class="alert alert-info">Loading roles...</div>
       } @else if (error()) {
-        <div class="error">{{ error() }}</div>
+        <div class="alert alert-danger">{{ error() }}</div>
       } @else {
-        <div class="roles-grid">
-          @for (role of roles(); track role.id) {
-            <div class="role-card" [class.inactive]="!role.isActive">
-              <div class="role-header">
-                <h3>{{ role.name }}</h3>
-                <span class="status-badge" [class.active]="role.isActive">
-                  {{ role.isActive ? 'Active' : 'Inactive' }}
-                </span>
-              </div>
-              <p class="role-description">{{ role.description || 'No description' }}</p>
-              <div class="role-stats">
-                <span class="stat">
-                  <strong>{{ role.permissionCount || 0 }}</strong> Permissions
-                </span>
-              </div>
-              <div class="role-actions">
-                <button class="btn-sm btn-info" (click)="viewPermissions(role)">
-                  View Permissions
-                </button>
-                <button class="btn-sm btn-warning" (click)="editRole(role)">
-                  Edit
-                </button>
-                @if (role.isActive) {
-                  <button class="btn-sm btn-secondary" (click)="toggleStatus(role)">
-                    Deactivate
+        <div class="card">
+          <div class="roles-grid">
+            @for (role of roles(); track role.id) {
+              <div class="role-card" [class.inactive]="!role.isActive">
+                <div class="role-header">
+                  <h3>{{ role.name }}</h3>
+                  <span class="badge" [class.badge-success]="role.isActive" [class.badge-inactive]="!role.isActive">
+                    {{ role.isActive ? 'Active' : 'Inactive' }}
+                  </span>
+                </div>
+                <p class="role-description">{{ role.description || 'No description' }}</p>
+                <div class="role-stats">
+                  <span class="stat">
+                    <strong>{{ role.permissionCount || 0 }}</strong> Permissions
+                  </span>
+                </div>
+                <div class="role-actions">
+                  <button class="btn btn-sm btn-info" (click)="viewPermissions(role)">
+                    View Permissions
                   </button>
-                } @else {
-                  <button class="btn-sm btn-success" (click)="toggleStatus(role)">
-                    Activate
+                  <button class="btn btn-sm btn-warning" (click)="editRole(role)">
+                    Edit
                   </button>
-                }
-                <button class="btn-sm btn-danger" (click)="deleteRole(role)">
-                  Delete
-                </button>
+                  @if (role.isActive) {
+                    <button class="btn btn-sm btn-secondary" (click)="toggleStatus(role)">
+                      Deactivate
+                    </button>
+                  } @else {
+                    <button class="btn btn-sm btn-success" (click)="toggleStatus(role)">
+                      Activate
+                    </button>
+                  }
+                  <button class="btn btn-sm btn-danger" (click)="deleteRole(role)">
+                    Delete
+                  </button>
+                </div>
               </div>
-            </div>
-          }
+            }
+          </div>
         </div>
       }
 
@@ -75,16 +80,16 @@ import { take } from 'rxjs/operators';
             <div class="modal-body">
               <div class="form-group">
                 <label>Role Name *</label>
-                <input type="text" [(ngModel)]="roleForm.name" placeholder="Enter role name" />
+                <input type="text" [(ngModel)]="roleForm.name" placeholder="Enter role name" class="form-control" />
               </div>
               <div class="form-group">
                 <label>Description</label>
-                <textarea [(ngModel)]="roleForm.description" placeholder="Enter role description" rows="3"></textarea>
+                <textarea [(ngModel)]="roleForm.description" placeholder="Enter role description" rows="3" class="form-control"></textarea>
               </div>
             </div>
             <div class="modal-footer">
-              <button class="btn-secondary" (click)="closeModal()">Cancel</button>
-              <button class="btn-primary" (click)="saveRole()">
+              <button class="btn btn-secondary" (click)="closeModal()">Cancel</button>
+              <button class="btn btn-primary" (click)="saveRole()">
                 {{ editingRole() ? 'Update' : 'Create' }}
               </button>
             </div>
@@ -110,7 +115,7 @@ import { take } from 'rxjs/operators';
                       <span class="resource-tag">{{ perm.resource }}.{{ perm.action }}</span>
                       <p>{{ perm.description }}</p>
                     </div>
-                    <button class="btn-sm btn-danger" (click)="removePermission(perm.id)">
+                    <button class="btn btn-sm btn-danger" (click)="removePermission(perm.id)">
                       Remove
                     </button>
                   </div>
@@ -119,17 +124,19 @@ import { take } from 'rxjs/operators';
 
               <h3>Add Permission</h3>
               <div class="add-permission-form">
-                <select [(ngModel)]="newPermissionId" class="form-control">
-                  <option [value]="0">Select Permission</option>
-                  @for (perm of availablePermissions(); track perm.id) {
-                    <option [value]="perm.id">{{ perm.name }} ({{ perm.resource }}.{{ perm.action }})</option>
-                  }
-                </select>
-                <button class="btn-primary" (click)="addPermission()">Add</button>
+                <div class="form-group">
+                  <select [(ngModel)]="newPermissionId" class="form-control">
+                    <option [value]="0">Select Permission</option>
+                    @for (perm of availablePermissions(); track perm.id) {
+                      <option [value]="perm.id">{{ perm.name }} ({{ perm.resource }}.{{ perm.action }})</option>
+                    }
+                  </select>
+                </div>
+                <button class="btn btn-primary" (click)="addPermission()">Add</button>
               </div>
             </div>
             <div class="modal-footer">
-              <button class="btn-secondary" (click)="closePermissionsModal()">Close</button>
+              <button class="btn btn-secondary" (click)="closePermissionsModal()">Close</button>
             </div>
           </div>
         </div>

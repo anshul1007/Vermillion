@@ -11,20 +11,23 @@ import { takeUntil, take } from 'rxjs/operators';
   imports: [CommonModule, FormsModule],
   template: `
     <div class="permissions-container">
-      <div class="header">
-        <h1>Permissions Management</h1>
-        <button class="btn-primary" (click)="showCreateModal()">
-          <span>+ Create Permission</span>
+      <div class="dashboard-header">
+        <div>
+          <h1>Permissions Management</h1>
+          <p>Define granular permissions for resources</p>
+        </div>
+        <button class="btn btn-primary" (click)="showCreateModal()">
+          + Create Permission
         </button>
       </div>
 
       @if (loading()) {
-        <div class="loading">Loading permissions...</div>
+        <div class="alert alert-info">Loading permissions...</div>
       } @else if (error()) {
-        <div class="error">{{ error() }}</div>
+        <div class="alert alert-danger">{{ error() }}</div>
       } @else {
-        <div class="table-container">
-          <table class="permissions-table">
+        <div class="card">
+          <table class="table permissions-table">
             <thead>
               <tr>
                 <th>ID</th>
@@ -42,17 +45,17 @@ import { takeUntil, take } from 'rxjs/operators';
                   <td>{{ permission.id }}</td>
                   <td><strong>{{ permission.name }}</strong></td>
                   <td><span class="resource-tag">{{ permission.resource }}</span></td>
-                  <td><span class="action-tag">{{ permission.action }}</span></td>
+                  <td><span class="badge badge-info action-tag">{{ permission.action }}</span></td>
                   <td>{{ permission.description || '-' }}</td>
                   <td>
-                    <span class="status-badge" [class.active]="permission.isActive">
+                    <span class="badge" [class.badge-success]="permission.isActive" [class.badge-inactive]="!permission.isActive">
                       {{ permission.isActive ? 'Active' : 'Inactive' }}
                     </span>
                   </td>
                   <td>
                     <div class="action-buttons">
-                      <button class="btn-sm btn-warning" (click)="editPermission(permission)">✏️</button>
-                      <button class="btn-sm btn-danger" (click)="deletePermission(permission)">🗑️</button>
+                      <button class="btn btn-sm btn-warning" (click)="editPermission(permission)" title="Edit">✏️</button>
+                      <button class="btn btn-sm btn-danger" (click)="deletePermission(permission)" title="Delete">🗑️</button>
                     </div>
                   </td>
                 </tr>
@@ -73,24 +76,24 @@ import { takeUntil, take } from 'rxjs/operators';
             <div class="modal-body">
               <div class="form-group">
                 <label>Permission Name *</label>
-                <input type="text" [(ngModel)]="permissionForm.name" placeholder="e.g., user.create" />
+                <input type="text" [(ngModel)]="permissionForm.name" placeholder="e.g., user.create" class="form-control" />
               </div>
               <div class="form-group">
                 <label>Resource *</label>
-                <input type="text" [(ngModel)]="permissionForm.resource" placeholder="e.g., user, attendance, leave" />
+                <input type="text" [(ngModel)]="permissionForm.resource" placeholder="e.g., user, attendance, leave" class="form-control" />
               </div>
               <div class="form-group">
                 <label>Action *</label>
-                <input type="text" [(ngModel)]="permissionForm.action" placeholder="e.g., create, view, update, delete" />
+                <input type="text" [(ngModel)]="permissionForm.action" placeholder="e.g., create, view, update, delete" class="form-control" />
               </div>
               <div class="form-group">
                 <label>Description</label>
-                <textarea [(ngModel)]="permissionForm.description" placeholder="Enter permission description" rows="3"></textarea>
+                <textarea [(ngModel)]="permissionForm.description" placeholder="Enter permission description" rows="3" class="form-control"></textarea>
               </div>
             </div>
             <div class="modal-footer">
-              <button class="btn-secondary" (click)="closeModal()">Cancel</button>
-              <button class="btn-primary" (click)="savePermission()">
+              <button class="btn btn-secondary" (click)="closeModal()">Cancel</button>
+              <button class="btn btn-primary" (click)="savePermission()">
                 {{ editingPermission() ? 'Update' : 'Create' }}
               </button>
             </div>

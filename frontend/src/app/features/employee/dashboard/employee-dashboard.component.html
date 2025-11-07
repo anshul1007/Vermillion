@@ -1,6 +1,7 @@
 <div class="employee-dashboard">
   <div class="dashboard-header">
     <h1>Employee Dashboard</h1>
+    <p>Your today's attendance and quick actions</p>
   </div>
 
   <!-- Clock In/Out Section -->
@@ -8,42 +9,51 @@
     <h2>Today's Attendance</h2>
     <div class="attendance-status">
       @if (todayAttendance()) {
+      <div class="attendance-row">
         <div class="status-info">
-          <div class="status-badge" [class.clocked-in]="!todayAttendance()?.logoutTime" 
-               [class.clocked-out]="todayAttendance()?.logoutTime">
+          <div
+            class="status-badge"
+            [class.clocked-in]="!todayAttendance()?.logoutTime"
+            [class.clocked-out]="todayAttendance()?.logoutTime"
+          >
             {{ todayAttendance()?.logoutTime ? 'Clocked Out' : 'Clocked In' }}
           </div>
           <div class="time-info">
-            <p><strong>Login:</strong> {{ todayAttendance()?.loginTime | date:'short' }}</p>
+            <p><strong>Login:</strong> {{ todayAttendance()?.loginTime | date : 'short' }}</p>
             @if (todayAttendance()?.logoutTime) {
-              <p><strong>Logout:</strong> {{ todayAttendance()?.logoutTime | date:'short' }}</p>
-            }
-            @if (todayAttendance()?.isWeekend) {
-              <p class="weekend-badge">🎉 Weekend Work - Compensatory Off Earned!</p>
-            }
-            @if (todayAttendance()?.isPublicHoliday) {
-              <p class="holiday-badge">🎊 Holiday Work - Compensatory Off Earned!</p>
+            <p><strong>Logout:</strong> {{ todayAttendance()?.logoutTime | date : 'short' }}</p>
+            } @if (todayAttendance()?.isWeekend) {
+            <p class="weekend-badge">🎉 Weekend Work - Compensatory Off Earned!</p>
+            } @if (todayAttendance()?.isPublicHoliday) {
+            <p class="holiday-badge">🎊 Holiday Work - Compensatory Off Earned!</p>
             }
           </div>
         </div>
-        @if (!todayAttendance()?.logoutTime) {
+        <div class="attendance-action">
+          @if (!todayAttendance()?.logoutTime) {
           <button class="btn btn-danger" (click)="clockOut()" [disabled]="loading()">
             {{ loading() ? 'Processing...' : 'Clock Out' }}
           </button>
-        }
-      } @else {
-        <div class="no-attendance">
-          <p>You haven't clocked in today</p>
-          <button class="btn btn-primary" (click)="clockIn()" [disabled]="loading()">
-            {{ loading() ? 'Processing...' : 'Clock In' }}
-          </button>
+          }
         </div>
+      </div>
+      } @else {
+      <div class="no-attendance">
+        <p>You haven't clocked in today</p>
+        <button class="btn btn-primary" (click)="clockIn()" [disabled]="loading()">
+          {{ loading() ? 'Processing...' : 'Clock In' }}
+        </button>
+      </div>
       }
     </div>
     @if (attendanceMessage()) {
-      <div class="alert" [class.alert-success]="!attendanceError()" [class.alert-danger]="attendanceError()">
-        {{ attendanceMessage() }}
-      </div>
+    <div
+      class="alert"
+      [class.alert-success]="!attendanceError()"
+      [class.alert-danger]="attendanceError()"
+    >
+      {{ attendanceMessage() }}
+    </div>
     }
   </div>
 
@@ -51,22 +61,22 @@
   <div class="leave-balance-card card">
     <h2>Leave Balance</h2>
     @if (leaveBalance()) {
-      <div class="balance-grid">
-        <div class="balance-item">
-          <label>Casual Leave</label>
-          <span class="balance-value">{{ leaveBalance()?.casualLeaveBalance }}</span>
-        </div>
-        <div class="balance-item">
-          <label>Earned Leave</label>
-          <span class="balance-value">{{ leaveBalance()?.earnedLeaveBalance }}</span>
-        </div>
-        <div class="balance-item">
-          <label>Compensatory Off</label>
-          <span class="balance-value">{{ leaveBalance()?.compensatoryOffBalance }}</span>
-        </div>
+    <div class="balance-grid">
+      <div class="balance-item">
+        <label>Casual Leave</label>
+        <span class="balance-value">{{ leaveBalance()?.casualLeaveBalance }}</span>
       </div>
+      <div class="balance-item">
+        <label>Earned Leave</label>
+        <span class="balance-value">{{ leaveBalance()?.earnedLeaveBalance }}</span>
+      </div>
+      <div class="balance-item">
+        <label>Compensatory Off</label>
+        <span class="balance-value">{{ leaveBalance()?.compensatoryOffBalance }}</span>
+      </div>
+    </div>
     } @else {
-      <p>Loading leave balance...</p>
+    <p>Loading leave balance...</p>
     }
   </div>
 
@@ -79,43 +89,47 @@
       </button>
     </div>
     @if (leaveRequestExpanded()) {
-      <form [formGroup]="leaveForm" (ngSubmit)="submitLeaveRequest()">
+    <form [formGroup]="leaveForm" (ngSubmit)="submitLeaveRequest()">
+      <div class="form-group">
+        <label for="leaveType">Leave Type</label>
+        <select id="leaveType" formControlName="leaveType" class="form-control">
+          <option value="">Select Leave Type</option>
+          <option value="1">Casual Leave</option>
+          <option value="2">Earned Leave</option>
+          <option value="3">Compensatory Off</option>
+        </select>
+      </div>
+
+      <div class="form-row">
         <div class="form-group">
-          <label for="leaveType">Leave Type</label>
-          <select id="leaveType" formControlName="leaveType" class="form-control">
-            <option value="">Select Leave Type</option>
-            <option value="1">Casual Leave</option>
-            <option value="2">Earned Leave</option>
-            <option value="3">Compensatory Off</option>
-          </select>
+          <label for="startDate">Start Date</label>
+          <input type="date" id="startDate" formControlName="startDate" class="form-control" />
         </div>
-        
-        <div class="form-row">
-          <div class="form-group">
-            <label for="startDate">Start Date</label>
-            <input type="date" id="startDate" formControlName="startDate" class="form-control">
-          </div>
-          <div class="form-group">
-            <label for="endDate">End Date</label>
-            <input type="date" id="endDate" formControlName="endDate" class="form-control">
-          </div>
-        </div>
-
         <div class="form-group">
-          <label for="reason">Reason</label>
-          <textarea id="reason" formControlName="reason" class="form-control" rows="3"></textarea>
+          <label for="endDate">End Date</label>
+          <input type="date" id="endDate" formControlName="endDate" class="form-control" />
         </div>
+      </div>
 
-        @if (leaveMessage()) {
-          <div class="alert alert-form" [class.alert-success]="!leaveError()" [class.alert-danger]="leaveError()">
-            {{ leaveMessage() }}
-          </div>
-        }
+      <div class="form-group">
+        <label for="reason">Reason</label>
+        <textarea id="reason" formControlName="reason" class="form-control" rows="3"></textarea>
+      </div>
 
-        <button type="submit" class="btn btn-primary" [disabled]="leaveForm.invalid || loading()">
-          {{ loading() ? 'Submitting...' : 'Submit Leave Request' }}
-        </button>
-      </form>
+      @if (leaveMessage()) {
+      <div
+        class="alert alert-form"
+        [class.alert-success]="!leaveError()"
+        [class.alert-danger]="leaveError()"
+      >
+        {{ leaveMessage() }}
+      </div>
+      }
+
+      <button type="submit" class="btn btn-primary" [disabled]="leaveForm.invalid || loading()">
+        {{ loading() ? 'Submitting...' : 'Submit Leave Request' }}
+      </button>
+    </form>
     }
   </div>
 
@@ -127,51 +141,51 @@
         {{ attendanceHistoryExpanded() ? '−' : '+' }}
       </button>
     </div>
-    @if (attendanceHistoryExpanded()) {
-      @if (attendanceHistory().length > 0) {
-        <div class="table-responsive">
-          <table class="table">
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Login Time</th>
-                <th>Logout Time</th>
-                <th>Type</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (record of attendanceHistory(); track record.id) {
-                <tr>
-                  <td>{{ record.date | date:'mediumDate' }}</td>
-                  <td>{{ record.loginTime | date:'short' }}</td>
-                  <td>{{ record.logoutTime ? (record.logoutTime | date:'short') : '-' }}</td>
-                  <td>
-                    @if (record.isWeekend) {
-                      <span class="badge badge-info">Weekend</span>
-                    } @else if (record.isPublicHoliday) {
-                      <span class="badge badge-warning">Holiday</span>
-                    } @else {
-                      <span class="badge badge-secondary">Regular</span>
-                    }
-                  </td>
-                  <td>
-                    <span class="badge" 
-                          [class.badge-success]="record.status === 'Approved'"
-                          [class.badge-warning]="record.status === 'Pending'"
-                          [class.badge-danger]="record.status === 'Rejected'">
-                      {{ record.status }}
-                    </span>
-                  </td>
-                </tr>
+    @if (attendanceHistoryExpanded()) { @if (attendanceHistory().length > 0) {
+    <div class="table-responsive">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Login Time</th>
+            <th>Logout Time</th>
+            <th>Type</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (record of attendanceHistory(); track record.id) {
+          <tr>
+            <td>{{ record.date | date : 'mediumDate' }}</td>
+            <td>{{ record.loginTime | date : 'short' }}</td>
+            <td>{{ record.logoutTime ? (record.logoutTime | date : 'short') : '-' }}</td>
+            <td>
+              @if (record.isWeekend) {
+              <span class="badge badge-info">Weekend</span>
+              } @else if (record.isPublicHoliday) {
+              <span class="badge badge-warning">Holiday</span>
+              } @else {
+              <span class="badge badge-secondary">Regular</span>
               }
-            </tbody>
-          </table>
-        </div>
-      } @else {
-        <p>No attendance records found</p>
-      }
-    }
+            </td>
+            <td>
+              <span
+                class="badge"
+                [class.badge-success]="record.status === 'Approved'"
+                [class.badge-warning]="record.status === 'Pending'"
+                [class.badge-danger]="record.status === 'Rejected'"
+              >
+                {{ record.status }}
+              </span>
+            </td>
+          </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    } @else {
+    <p>No attendance records found</p>
+    } }
   </div>
 
   <!-- Leave Requests -->
@@ -182,56 +196,58 @@
         {{ myLeaveRequestsExpanded() ? '−' : '+' }}
       </button>
     </div>
-    @if (myLeaveRequestsExpanded()) {
-      @if (myLeaveRequests().length > 0) {
-        <div class="table-responsive">
-          <table class="table">
-            <thead>
-              <tr>
-                <th>Leave Type</th>
-                <th>Start Date</th>
-                <th>End Date</th>
-                <th>Days</th>
-                <th>Status</th>
-                <th>Reason</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (request of myLeaveRequests(); track request.id) {
-                <tr>
-                  <td>{{ getLeaveTypeName(request.leaveType) }}</td>
-                  <td>{{ request.startDate | date:'mediumDate' }}</td>
-                  <td>{{ request.endDate | date:'mediumDate' }}</td>
-                  <td>{{ request.totalDays }}</td>
-                  <td>
-                    <span class="badge" 
-                          [class.badge-success]="request.status === 'Approved'"
-                          [class.badge-warning]="request.status === 'Pending'"
-                          [class.badge-danger]="request.status === 'Rejected'"
-                          [class.badge-secondary]="request.status === 'Cancelled'">
-                      {{ request.status }}
-                    </span>
-                  </td>
-                  <td>{{ request.reason }}</td>
-                  <td>
-                    @if (canCancelLeaveRequest(request.status)) {
-                      <button class="btn btn-sm btn-danger" 
-                              (click)="cancelLeaveRequest(request.id)"
-                              [disabled]="loading()">
-                        Cancel
-                      </button>
-                    }
-                  </td>
-                </tr>
+    @if (myLeaveRequestsExpanded()) { @if (myLeaveRequests().length > 0) {
+    <div class="table-responsive">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Leave Type</th>
+            <th>Start Date</th>
+            <th>End Date</th>
+            <th>Days</th>
+            <th>Status</th>
+            <th>Reason</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (request of myLeaveRequests(); track request.id) {
+          <tr>
+            <td>{{ getLeaveTypeName(request.leaveType) }}</td>
+            <td>{{ request.startDate | date : 'mediumDate' }}</td>
+            <td>{{ request.endDate | date : 'mediumDate' }}</td>
+            <td>{{ request.totalDays }}</td>
+            <td>
+              <span
+                class="badge"
+                [class.badge-success]="request.status === 'Approved'"
+                [class.badge-warning]="request.status === 'Pending'"
+                [class.badge-danger]="request.status === 'Rejected'"
+                [class.badge-secondary]="request.status === 'Cancelled'"
+              >
+                {{ request.status }}
+              </span>
+            </td>
+            <td>{{ request.reason }}</td>
+            <td>
+              @if (canCancelLeaveRequest(request.status)) {
+              <button
+                class="btn btn-sm btn-danger"
+                (click)="cancelLeaveRequest(request.id)"
+                [disabled]="loading()"
+              >
+                Cancel
+              </button>
               }
-            </tbody>
-          </table>
-        </div>
-      } @else {
-        <p>No leave requests found</p>
-      }
-    }
+            </td>
+          </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    } @else {
+    <p>No leave requests found</p>
+    } }
   </div>
 
   <!-- Public Holidays -->
@@ -242,31 +258,29 @@
         {{ publicHolidaysExpanded() ? '−' : '+' }}
       </button>
     </div>
-    @if (publicHolidaysExpanded()) {
-      @if (publicHolidays().length > 0) {
-        <div class="table-responsive">
-          <table class="table">
-            <thead>
-              <tr>
-                <th>Holiday Name</th>
-                <th>Date</th>
-                <th>Description</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (holiday of publicHolidays(); track holiday.id) {
-                <tr>
-                  <td>{{ holiday.name }}</td>
-                  <td>{{ holiday.date | date:'mediumDate' }}</td>
-                  <td>{{ holiday.description || '-' }}</td>
-                </tr>
-              }
-            </tbody>
-          </table>
-        </div>
-      } @else {
-        <p>No public holidays found</p>
-      }
-    }
+    @if (publicHolidaysExpanded()) { @if (publicHolidays().length > 0) {
+    <div class="table-responsive">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Holiday Name</th>
+            <th>Date</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (holiday of publicHolidays(); track holiday.id) {
+          <tr>
+            <td>{{ holiday.name }}</td>
+            <td>{{ holiday.date | date : 'mediumDate' }}</td>
+            <td>{{ holiday.description || '-' }}</td>
+          </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    } @else {
+    <p>No public holidays found</p>
+    } }
   </div>
 </div>

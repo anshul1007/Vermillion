@@ -18,20 +18,23 @@ import { takeUntil } from 'rxjs/operators';
   imports: [CommonModule, FormsModule],
   template: `
     <div class="users-container">
-      <div class="header">
-        <h1>Users Management</h1>
-        <button class="btn-primary" (click)="showCreateModal()">
-          <span>+ Create User</span>
+      <div class="dashboard-header">
+        <div>
+          <h1>Users Management</h1>
+          <p>Manage system users and access control</p>
+        </div>
+        <button class="btn btn-primary" (click)="showCreateModal()">
+          + Create User
         </button>
       </div>
 
       @if (loading()) {
-      <div class="loading">Loading users...</div>
+      <div class="alert alert-info">Loading users...</div>
       } @else if (error()) {
-      <div class="error">{{ error() }}</div>
+      <div class="alert alert-danger">{{ error() }}</div>
       } @else {
-      <div class="table-container">
-        <table class="users-table">
+      <div class="card">
+        <table class="table users-table">
           <thead>
             <tr>
               <th>ID</th>
@@ -51,7 +54,7 @@ import { takeUntil } from 'rxjs/operators';
               <td>
                 <div class="tenant-badges">
                   @for (tenant of user.tenants; track tenant.tenantId) {
-                  <span class="badge" [class.inactive]="!tenant.isActive">
+                  <span class="badge" [class.badge-inactive]="!tenant.isActive">
                     {{ tenant.tenantName }}: {{ tenant.roleName }}
                   </span>
                   }
@@ -60,20 +63,20 @@ import { takeUntil } from 'rxjs/operators';
               <td>{{ formatDate(user.createdAt) }}</td>
               <td>
                 <div class="action-buttons">
-                  <button class="btn-sm btn-info" (click)="viewUser(user)" title="View Details">
+                  <button class="btn btn-sm btn-info" (click)="viewUser(user)" title="View Details">
                     👁️
                   </button>
-                  <button class="btn-sm btn-warning" (click)="editUser(user)" title="Edit">
+                  <button class="btn btn-sm btn-warning" (click)="editUser(user)" title="Edit">
                     ✏️
                   </button>
                   <button
-                    class="btn-sm btn-success"
+                    class="btn btn-sm btn-success"
                     (click)="manageAccess(user)"
                     title="Manage Access"
                   >
                     🔑
                   </button>
-                  <button class="btn-sm btn-danger" (click)="deleteUser(user)" title="Delete">
+                  <button class="btn btn-sm btn-danger" (click)="deleteUser(user)" title="Delete">
                     🗑️
                   </button>
                 </div>
@@ -96,15 +99,15 @@ import { takeUntil } from 'rxjs/operators';
           <div class="modal-body">
             <div class="form-group">
               <label>Username *</label>
-              <input type="text" [(ngModel)]="userForm.username" placeholder="Enter username" />
+              <input type="text" [(ngModel)]="userForm.username" placeholder="Enter username" class="form-control" />
             </div>
             <div class="form-group">
               <label>Email *</label>
-              <input type="email" [(ngModel)]="userForm.email" placeholder="Enter email" />
+              <input type="email" [(ngModel)]="userForm.email" placeholder="Enter email" class="form-control" />
             </div>
             <div class="form-group">
               <label>Password {{ editingUser() ? '(leave blank to keep current)' : '*' }}</label>
-              <input type="password" [(ngModel)]="userForm.password" placeholder="Enter password" />
+              <input type="password" [(ngModel)]="userForm.password" placeholder="Enter password" class="form-control" />
             </div>
             <div class="form-group">
               <label>External Provider</label>
@@ -112,12 +115,13 @@ import { takeUntil } from 'rxjs/operators';
                 type="text"
                 [(ngModel)]="userForm.externalProvider"
                 placeholder="e.g., Zoho, Google (optional)"
+                class="form-control"
               />
             </div>
           </div>
           <div class="modal-footer">
-            <button class="btn-secondary" (click)="closeModal()">Cancel</button>
-            <button class="btn-primary" (click)="saveUser()">
+            <button class="btn btn-secondary" (click)="closeModal()">Cancel</button>
+            <button class="btn btn-primary" (click)="saveUser()">
               {{ editingUser() ? 'Update' : 'Create' }}
             </button>
           </div>
@@ -141,13 +145,13 @@ import { takeUntil } from 'rxjs/operators';
                 <div class="access-info">
                   <strong>{{ tenant.tenantName }}</strong> ({{ tenant.tenantDomain }})
                   <br />
-                  <span class="role-badge">{{ tenant.roleName }}</span>
-                  <span class="status-badge" [class.active]="tenant.isActive">
+                  <span class="badge badge-info role-badge">{{ tenant.roleName }}</span>
+                  <span class="badge" [class.badge-success]="tenant.isActive" [class.badge-inactive]="!tenant.isActive">
                     {{ tenant.isActive ? 'Active' : 'Inactive' }}
                   </span>
                 </div>
                 <button
-                  class="btn-sm btn-danger"
+                  class="btn btn-sm btn-danger"
                   (click)="removeAccess(tenant.tenantId, tenant.roleId)"
                 >
                   Remove
@@ -158,23 +162,27 @@ import { takeUntil } from 'rxjs/operators';
 
             <h3 class="mt-8">Add New Access</h3>
             <div class="add-access-form">
-              <select [(ngModel)]="newAccess.tenantId" class="form-control">
-                <option [value]="0">Select Tenant</option>
-                @for (tenant of tenants(); track tenant.id) {
-                <option [value]="tenant.id">{{ tenant.name }} ({{ tenant.domain }})</option>
-                }
-              </select>
-              <select [(ngModel)]="newAccess.roleId" class="form-control">
-                <option [value]="0">Select Role</option>
-                @for (role of roles(); track role.id) {
-                <option [value]="role.id">{{ role.name }}</option>
-                }
-              </select>
-              <button class="btn-primary" (click)="addAccess()">Add Access</button>
+              <div class="form-group">
+                <select [(ngModel)]="newAccess.tenantId" class="form-control">
+                  <option [value]="0">Select Tenant</option>
+                  @for (tenant of tenants(); track tenant.id) {
+                  <option [value]="tenant.id">{{ tenant.name }} ({{ tenant.domain }})</option>
+                  }
+                </select>
+              </div>
+              <div class="form-group">
+                <select [(ngModel)]="newAccess.roleId" class="form-control">
+                  <option [value]="0">Select Role</option>
+                  @for (role of roles(); track role.id) {
+                  <option [value]="role.id">{{ role.name }}</option>
+                  }
+                </select>
+              </div>
+              <button class="btn btn-primary" (click)="addAccess()">Add Access</button>
             </div>
           </div>
           <div class="modal-footer">
-            <button class="btn-secondary" (click)="closeAccessModal()">Close</button>
+            <button class="btn btn-secondary" (click)="closeAccessModal()">Close</button>
           </div>
         </div>
       </div>

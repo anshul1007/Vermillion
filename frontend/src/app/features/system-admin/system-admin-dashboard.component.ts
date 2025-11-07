@@ -8,9 +8,11 @@ import { RouterModule } from '@angular/router';
   imports: [CommonModule, RouterModule],
   template: `
     <div class="system-admin-container">
-      <div class="header">
-        <h1>System Administration</h1>
-        <p class="subtitle">Manage users, roles, permissions, and tenants</p>
+      <div class="dashboard-header">
+        <div>
+          <h1>System Administration</h1>
+          <p>Manage users, roles, permissions, and tenants</p>
+        </div>
       </div>
 
       <div class="admin-cards">
