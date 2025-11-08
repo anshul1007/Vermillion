@@ -51,10 +51,55 @@ jobs:
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-    - name: 📦 Setup build output dir
+    - name: � Detect changed backend projects
+      id: changes
+      run: |
+        echo "Determining changed backend projects..."
+        # For manual triggers, build all by default
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          echo "attendance_changed=true" >> $GITHUB_OUTPUT
+          echo "auth_changed=true" >> $GITHUB_OUTPUT
+          echo "entryexit_changed=true" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+
+        if [ "${{ github.event.before }}" = "0000000000000000000000000000000000000000" ]; then
+          echo "attendance_changed=true" >> $GITHUB_OUTPUT
+          echo "auth_changed=true" >> $GITHUB_OUTPUT
+          echo "entryexit_changed=true" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+
+        git fetch --no-tags --prune
+        CHANGED=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} || true)
+        echo "Files changed: $CHANGED"
+
+        if echo "$CHANGED" | grep -qE '^backend/AttendanceAPI/'; then
+          echo "attendance_changed=true" >> $GITHUB_OUTPUT
+        else
+          echo "attendance_changed=false" >> $GITHUB_OUTPUT
+        fi
+
+        if echo "$CHANGED" | grep -qE '^backend/AuthAPI/'; then
+          echo "auth_changed=true" >> $GITHUB_OUTPUT
+        else
+          echo "auth_changed=false" >> $GITHUB_OUTPUT
+        fi
+
+        if echo "$CHANGED" | grep -qE '^backend/EntryExitAPI/'; then
+          echo "entryexit_changed=true" >> $GITHUB_OUTPUT
+        else
+          echo "entryexit_changed=false" >> $GITHUB_OUTPUT
+        fi
+
+    - name: �📦 Setup build output dir
       run: mkdir -p ${{ env.DOTNET_ROOT }}
 
     - name: 🔁 Build & Publish Backends
+      env:
+        ATT_CHANGED: ${{ steps.changes.outputs.attendance_changed }}
+        AUTH_CHANGED: ${{ steps.changes.outputs.auth_changed }}
+        ENTRY_CHANGED: ${{ steps.changes.outputs.entryexit_changed }}
       run: |
         set -e
         ENV="${{ steps.env.outputs.environment }}"
@@ -69,6 +114,21 @@ jobs:
           APP_ID=${APP_IDS[$i]}
           PROJECT_PATH="backend/$PROJ"
           OUT_DIR="${{ env.DOTNET_ROOT }}/myapp-$APP_ID"
+
+          # Determine whether this project changed (skip if not)
+          CHANGED_FLAG=false
+          if [ "$PROJ" = "AttendanceAPI" ]; then
+            CHANGED_FLAG="$ATT_CHANGED"
+          elif [ "$PROJ" = "AuthAPI" ]; then
+            CHANGED_FLAG="$AUTH_CHANGED"
+          elif [ "$PROJ" = "EntryExitAPI" ]; then
+            CHANGED_FLAG="$ENTRY_CHANGED"
+          fi
+
+          if [ "$CHANGED_FLAG" != "true" ]; then
+            echo "Skipping $PROJ because no changes detected."
+            continue
+          fi
 
           echo "\n=== Building $PROJ (path=$PROJECT_PATH) ==="
           dotnet restore "$PROJECT_PATH"

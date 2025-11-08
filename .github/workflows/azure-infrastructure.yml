@@ -194,15 +194,9 @@ jobs:
         echo "ENVIRONMENT=$ENV" >> $GITHUB_ENV
 
         # Create three databases for the services (idempotent)
-        if [ "$ENV" = "prod" ]; then
-          DB1="AttendanceDB_Prod"
-          DB2="AuthDB_Prod"
-          DB3="EntryExitDB_Prod"
-        else
-          DB1="AttendanceDB_${ENV}"
-          DB2="AuthDB_${ENV}"
-          DB3="EntryExitDB_${ENV}"
-        fi
+        DB1="AttendanceDB_${ENV}"
+        DB2="AuthDB_${ENV}"
+        DB3="EntryExitDB_${ENV}"
 
         echo "Creating databases: $DB1, $DB2, $DB3"
         az sql db create --resource-group ${{ env.RESOURCE_GROUP }} --server $SQL_SERVER_NAME --name "$DB1" --service-objective Basic || true
@@ -232,7 +226,7 @@ jobs:
     - name: 🌐 Create App Service Plan
       run: |
         ENV="${{ github.event.inputs.environment }}"
-        APP_PLAN_NAME="vermillion-attendance-plan-${ENV}"
+        APP_PLAN_NAME="vermillion-plan-${ENV}"
         
         # Check if App Service Plan already exists
         if az appservice plan show --name $APP_PLAN_NAME --resource-group ${{ env.RESOURCE_GROUP }} 2>/dev/null; then
@@ -278,29 +272,42 @@ jobs:
 
     - name: 🔗 Configure Connection Strings for Backends
       run: |
-        # Connection string used by all backend web apps
-        CONNECTION_STRING="Server=tcp:${{ env.SQL_SERVER_NAME }}.database.windows.net,1433;Initial Catalog=AttendanceDB;User ID=sqladmin;Password=${{ secrets.SQL_ADMIN_PASSWORD_PROD }};Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;"
+        # Build per-backend connection strings (Initial Catalog varies per service)
+        ATT_DB_NAME="AttendanceDB_${{ github.event.inputs.environment }}"
+        AUTH_DB_NAME="AuthDB_${{ github.event.inputs.environment }}"
+        ENTRY_DB_NAME="EntryExitDB_${{ github.event.inputs.environment }}"
 
-        # Iterate known backend env vars set earlier
-        for k in ATTENDANCE_API_WEBAPP_NAME AUTH_API_WEBAPP_NAME ENTRYEXIT_API_WEBAPP_NAME; do
-          # Indirect expansion to read variable by name
-          WEBAPP_NAME=${!k}
-          # fallback: get from constructed name if not present
-          if [ -z "$WEBAPP_NAME" ]; then
-            case $k in
-              ATTENDANCE_API_WEBAPP_NAME) WEBAPP_NAME="vermillion-attendance-api-${{ github.event.inputs.environment }}" ;;
-              AUTH_API_WEBAPP_NAME) WEBAPP_NAME="vermillion-auth-api-${{ github.event.inputs.environment }}" ;;
-              ENTRYEXIT_API_WEBAPP_NAME) WEBAPP_NAME="vermillion-entryexit-api-${{ github.event.inputs.environment }}" ;;
-            esac
-          fi
+        ATT_CONN="Server=tcp:${{ env.SQL_SERVER_NAME }}.database.windows.net,1433;Initial Catalog=${ATT_DB_NAME};User ID=${{ env.SQL_ADMIN_USER }};Password=${{ secrets.SQL_ADMIN_PASSWORD_PROD }};Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;"
+        AUTH_CONN="Server=tcp:${{ env.SQL_SERVER_NAME }}.database.windows.net,1433;Initial Catalog=${AUTH_DB_NAME};User ID=${{ env.SQL_ADMIN_USER }};Password=${{ secrets.SQL_ADMIN_PASSWORD_PROD }};Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;"
+        ENTRY_CONN="Server=tcp:${{ env.SQL_SERVER_NAME }}.database.windows.net,1433;Initial Catalog=${ENTRY_DB_NAME};User ID=${{ env.SQL_ADMIN_USER }};Password=${{ secrets.SQL_ADMIN_PASSWORD_PROD }};Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;"
 
-          echo "Configuring connection string for $WEBAPP_NAME"
-          az webapp config connection-string set \
-            --name "$WEBAPP_NAME" \
-            --resource-group ${{ env.RESOURCE_GROUP }} \
-            --connection-string-type SQLAzure \
-            --settings DefaultConnection="$CONNECTION_STRING"
-        done
+        # Configure the appropriate connection string per web app
+        # Attendance API
+        ATT_WEBAPP=${ATTENDANCE_API_WEBAPP_NAME:-vermillion-attendance-api-${{ github.event.inputs.environment }}}
+        echo "Configuring connection string for $ATT_WEBAPP (Initial Catalog=${ATT_DB_NAME})"
+        az webapp config connection-string set \
+          --name "$ATT_WEBAPP" \
+          --resource-group ${{ env.RESOURCE_GROUP }} \
+          --connection-string-type SQLAzure \
+          --settings DefaultConnection="$ATT_CONN"
+
+        # Auth API
+        AUTH_WEBAPP=${AUTH_API_WEBAPP_NAME:-vermillion-auth-api-${{ github.event.inputs.environment }}}
+        echo "Configuring connection string for $AUTH_WEBAPP (Initial Catalog=${AUTH_DB_NAME})"
+        az webapp config connection-string set \
+          --name "$AUTH_WEBAPP" \
+          --resource-group ${{ env.RESOURCE_GROUP }} \
+          --connection-string-type SQLAzure \
+          --settings DefaultConnection="$AUTH_CONN"
+
+        # EntryExit API
+        ENTRY_WEBAPP=${ENTRYEXIT_API_WEBAPP_NAME:-vermillion-entryexit-api-${{ github.event.inputs.environment }}}
+        echo "Configuring connection string for $ENTRY_WEBAPP (Initial Catalog=${ENTRY_DB_NAME})"
+        az webapp config connection-string set \
+          --name "$ENTRY_WEBAPP" \
+          --resource-group ${{ env.RESOURCE_GROUP }} \
+          --connection-string-type SQLAzure \
+          --settings DefaultConnection="$ENTRY_CONN"
 
         echo "✅ Connection strings configured for backends"
 

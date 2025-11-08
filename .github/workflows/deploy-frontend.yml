@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - 'frontend/**'
+      - 'frontend-mobile/**'
       - '.github/workflows/deploy-frontend.yml'
   workflow_dispatch:  # Allow manual trigger
     inputs:
@@ -29,6 +30,8 @@ jobs:
     steps:
     - name: 🔄 Checkout code
       uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
 
     - name: 🎯 Determine Environment
       id: env
@@ -41,32 +44,108 @@ jobs:
         echo "environment=$ENV" >> $GITHUB_OUTPUT
         echo "📌 Deploying to: $ENV"
 
+    - name: � Detect changed projects
+      id: changes
+      run: |
+        echo "Determining changed folders..."
+        # For manual triggers, build both by default
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          echo "frontend_changed=true" >> $GITHUB_OUTPUT
+          echo "mobile_changed=true" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+
+        # Handle initial commit / new branch where before is all zeros
+        if [ "${{ github.event.before }}" = "0000000000000000000000000000000000000000" ]; then
+          echo "frontend_changed=true" >> $GITHUB_OUTPUT
+          echo "mobile_changed=true" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+
+        git fetch --no-tags --prune
+        CHANGED=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} || true)
+        echo "Files changed between ${{ github.event.before }} and ${{ github.sha }}:"
+        echo "$CHANGED"
+
+        if echo "$CHANGED" | grep -qE '^frontend/'; then
+          echo "frontend_changed=true" >> $GITHUB_OUTPUT
+        else
+          echo "frontend_changed=false" >> $GITHUB_OUTPUT
+        fi
+
+        if echo "$CHANGED" | grep -qE '^frontend-mobile/'; then
+          echo "mobile_changed=true" >> $GITHUB_OUTPUT
+        else
+          echo "mobile_changed=false" >> $GITHUB_OUTPUT
+        fi
+
     - name: 🔧 Setup Node.js
       uses: actions/setup-node@v4
       with:
         node-version: ${{ env.NODE_VERSION }}
-        cache: 'npm'
-        # package-lock.json wasn't committed; use package.json as dependency path so cache works
-        cache-dependency-path: frontend/package.json
 
-    - name: 📦 Install dependencies
-      # package-lock.json is not committed; use npm install in CI so dependencies install correctly
+    - name: ⚡ Cache npm (frontend)
+      if: steps.changes.outputs.frontend_changed == 'true'
+      uses: actions/cache@v4
+      with:
+        path: ~/.npm
+        key: npm-${{ runner.os }}-frontend-${{ hashFiles('frontend/package-lock.json', 'frontend/package.json') }}
+        restore-keys: |
+          npm-${{ runner.os }}-frontend-
+
+    - name: ⚡ Cache npm (mobile)
+      if: steps.changes.outputs.mobile_changed == 'true'
+      uses: actions/cache@v4
+      with:
+        path: ~/.npm
+        key: npm-${{ runner.os }}-mobile-${{ hashFiles('frontend-mobile/package-lock.json', 'frontend-mobile/package.json') }}
+        restore-keys: |
+          npm-${{ runner.os }}-mobile-
+
+    - name: ⚡ Cache frontend node_modules
+      if: steps.changes.outputs.frontend_changed == 'true'
+      uses: actions/cache@v4
+      with:
+        path: frontend/node_modules
+        key: frontend-${{ runner.os }}-node-${{ hashFiles('frontend/package-lock.json') }}-${{ hashFiles('frontend/package.json') }}
+        restore-keys: |
+          frontend-${{ runner.os }}-node-
+
+    - name: 📦 Install frontend deps
+      if: steps.changes.outputs.frontend_changed == 'true'
       run: npm install --no-audit --no-fund
       working-directory: frontend
 
-    - name: 🏗️ Build Angular apps
-      run: |
-        # Build main web frontend
-        (cd frontend && npm run build -- --configuration production)
+    - name: ⚡ Cache mobile node_modules
+      if: steps.changes.outputs.mobile_changed == 'true'
+      uses: actions/cache@v4
+      with:
+        path: frontend-mobile/node_modules
+        key: mobile-${{ runner.os }}-node-${{ hashFiles('frontend-mobile/package-lock.json') }}-${{ hashFiles('frontend-mobile/package.json') }}
+        restore-keys: |
+          mobile-${{ runner.os }}-node-
 
-        # If frontend-mobile exists, build mobile app
-        if [ -d "frontend-mobile" ]; then
-          (cd frontend-mobile && npm install --no-audit --no-fund && npm run build -- --configuration production)
-        fi
+    - name: 📦 Install mobile deps
+      if: steps.changes.outputs.mobile_changed == 'true' && runner.os == 'Linux'
+      run: npm install --no-audit --no-fund
+      working-directory: frontend-mobile
+
+    - name: 🏗️ Build Angular apps (web)
+      if: steps.changes.outputs.frontend_changed == 'true'
+      run: |
+        (cd frontend && npm run build -- --configuration production)
       env:
         NODE_OPTIONS: "--max_old_space_size=4096"
 
-    - name: 🔍 Verify build output
+    - name: 🏗️ Build Angular apps (mobile)
+      if: steps.changes.outputs.mobile_changed == 'true' && [ -d "frontend-mobile" ]
+      run: |
+        (cd frontend-mobile && npm run build -- --configuration production)
+      env:
+        NODE_OPTIONS: "--max_old_space_size=4096"
+
+    - name: 🔍 Verify web build output
+      if: steps.changes.outputs.frontend_changed == 'true'
       run: |
         echo "Checking build output location..."
         if [ -d "frontend/dist/frontend/browser" ]; then
@@ -87,29 +166,39 @@ jobs:
           exit 1
         fi
 
-    - name: �🔒 Validate Static Web Apps token
-      run: |
-        if [ -z "${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_WEB_PROD }}" ]; then
-          echo "❌ AZURE_STATIC_WEB_APPS_API_TOKEN_WEB_PROD secret is missing or empty."
-          echo "Please add the token as a repository secret and retry."
-          exit 1
-        fi
-        if [ -z "${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_MOBILE_PROD }}" ]; then
-          echo "❌ AZURE_STATIC_WEB_APPS_API_TOKEN_MOBILE_PROD secret is missing or empty."
-          echo "Please add the token as a repository secret and retry."
-          exit 1
-        fi
-
-    - name: Check mobile build output
-      id: check_mobile
+    - name: 🔍 Verify mobile build output
+      if: steps.changes.outputs.mobile_changed == 'true'
       run: |
         if [ -d "frontend-mobile/dist/frontend-mobile/browser" ]; then
           echo "mobile_present=true" >> $GITHUB_ENV
         else
           echo "mobile_present=false" >> $GITHUB_ENV
+          echo "❌ frontend-mobile build output not found"
+          exit 1
         fi
 
+    - name: �🔒 Validate Static Web Apps token(s)
+      run: |
+        if [ "${FRONTEND_CHANGED}" = "true" ]; then
+          if [ -z "${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_WEB_PROD }}" ]; then
+            echo "❌ AZURE_STATIC_WEB_APPS_API_TOKEN_WEB_PROD secret is missing or empty."
+            exit 1
+          fi
+        fi
+        if [ "${MOBILE_CHANGED}" = "true" ]; then
+          if [ -z "${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_MOBILE_PROD }}" ]; then
+            echo "❌ AZURE_STATIC_WEB_APPS_API_TOKEN_MOBILE_PROD secret is missing or empty."
+            exit 1
+          fi
+        fi
+      env:
+        FRONTEND_CHANGED: ${{ steps.changes.outputs.frontend_changed }}
+        MOBILE_CHANGED: ${{ steps.changes.outputs.mobile_changed }}
+
+    # mobile_present is set by the Verify mobile build output step when mobile is changed
+
     - name: 🚀 Deploy main Static Web App (web)
+      if: steps.changes.outputs.frontend_changed == 'true'
       uses: Azure/static-web-apps-deploy@v1
       with:
         azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_WEB_PROD }}
@@ -119,7 +208,7 @@ jobs:
         skip_app_build: true
 
     - name: 🚀 Deploy mobile Static Web App (mobile)
-      if: env.mobile_present == 'true'
+      if: steps.changes.outputs.mobile_changed == 'true' && env.mobile_present == 'true'
       uses: Azure/static-web-apps-deploy@v1
       with:
         azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_MOBILE_PROD }}
