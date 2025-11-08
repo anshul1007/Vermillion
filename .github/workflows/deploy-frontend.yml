@@ -44,7 +44,7 @@ jobs:
         echo "environment=$ENV" >> $GITHUB_OUTPUT
         echo "📌 Deploying to: $ENV"
 
-    - name: � Detect changed projects
+    - name: Detect changed projects
       id: changes
       run: |
         echo "Determining changed folders..."
@@ -138,9 +138,14 @@ jobs:
         NODE_OPTIONS: "--max_old_space_size=4096"
 
     - name: 🏗️ Build Angular apps (mobile)
-      if: steps.changes.outputs.mobile_changed == 'true' && [ -d "frontend-mobile" ]
+      if: steps.changes.outputs.mobile_changed == 'true'
       run: |
-        (cd frontend-mobile && npm run build -- --configuration production)
+        if [ -d "frontend-mobile" ]; then
+          echo "frontend-mobile directory found, building mobile app..."
+          (cd frontend-mobile && npm run build -- --configuration production)
+        else
+          echo "frontend-mobile directory not present, skipping mobile build."
+        fi
       env:
         NODE_OPTIONS: "--max_old_space_size=4096"
 
@@ -167,12 +172,13 @@ jobs:
         fi
 
     - name: 🔍 Verify mobile build output
+      id: verify_mobile
       if: steps.changes.outputs.mobile_changed == 'true'
       run: |
         if [ -d "frontend-mobile/dist/frontend-mobile/browser" ]; then
-          echo "mobile_present=true" >> $GITHUB_ENV
+          echo "mobile_present=true" >> $GITHUB_OUTPUT
         else
-          echo "mobile_present=false" >> $GITHUB_ENV
+          echo "mobile_present=false" >> $GITHUB_OUTPUT
           echo "❌ frontend-mobile build output not found"
           exit 1
         fi
@@ -208,7 +214,7 @@ jobs:
         skip_app_build: true
 
     - name: 🚀 Deploy mobile Static Web App (mobile)
-      if: steps.changes.outputs.mobile_changed == 'true' && env.mobile_present == 'true'
+      if: steps.changes.outputs.mobile_changed == 'true' && steps.verify_mobile.outputs.mobile_present == 'true'
       uses: Azure/static-web-apps-deploy@v1
       with:
         azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_MOBILE_PROD }}
