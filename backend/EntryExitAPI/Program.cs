@@ -242,25 +242,50 @@ using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
     var logger = services.GetRequiredService<ILogger<Program>>();
-    try
+    var config = services.GetRequiredService<IConfiguration>();
+    var env = services.GetRequiredService<IHostEnvironment>();
+    
+    // Check if migrations should run
+    var runMigrations = config.GetValue("RunMigrations", env.IsDevelopment());
+    var runMigrationsEnv = Environment.GetEnvironmentVariable("RUN_MIGRATIONS");
+    if (!string.IsNullOrEmpty(runMigrationsEnv))
     {
-        var context = services.GetRequiredService<EntryExitDbContext>();
-        logger.LogInformation("Applying pending migrations...");
-        await context.Database.MigrateAsync();
-        logger.LogInformation("Migrations applied successfully.");
-        var env = services.GetRequiredService<IHostEnvironment>();
-        var config = services.GetRequiredService<IConfiguration>();
-        var seedFlag = config.GetValue("SeedOnStartup", false);
-        if (env.IsDevelopment() || seedFlag)
+        runMigrations = bool.Parse(runMigrationsEnv);
+    }
+    
+    if (runMigrations)
+    {
+        try
         {
-            var seeder = services.GetRequiredService<EntryExitSeeder>();
-            await seeder.SeedAsync();
-            logger.LogInformation("EntryExit seeder executed.");
+            var context = services.GetRequiredService<EntryExitDbContext>();
+            logger.LogInformation("Applying pending migrations...");
+            
+            // Use execution strategy for retry on transient failures
+            var strategy = context.Database.CreateExecutionStrategy();
+            await strategy.ExecuteAsync(async () =>
+            {
+                await context.Database.MigrateAsync();
+            });
+            
+            logger.LogInformation("Migrations applied successfully.");
+            
+            var seedFlag = config.GetValue("SeedOnStartup", false);
+            if (env.IsDevelopment() || seedFlag)
+            {
+                var seeder = services.GetRequiredService<EntryExitSeeder>();
+                await seeder.SeedAsync();
+                logger.LogInformation("EntryExit seeder executed.");
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "An error occurred while migrating the database.");
+            throw;
         }
     }
-    catch (Exception ex)
+    else
     {
-        logger.LogError(ex, "An error occurred while migrating the database.");
+        logger.LogInformation("Migrations skipped (RunMigrations=false).");
     }
 }
 

@@ -51,7 +51,7 @@ jobs:
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-    - name: � Detect changed backend projects
+    - name: Detect changed backend projects
       id: changes
       run: |
         echo "Determining changed backend projects..."
@@ -181,6 +181,15 @@ jobs:
           fi
 
           az webapp deploy --resource-group "$RG" --name "$WEBAPP_NAME" --src-path "$ZIP_PATH"
+          
+          # Configure app settings to disable automatic migrations in production
+          if [ "$ENV" = "prod" ]; then
+            echo "Setting RUN_MIGRATIONS=false for production deployment..."
+            az webapp config appsettings set \
+              --name "$WEBAPP_NAME" \
+              --resource-group "$RG" \
+              --settings RUN_MIGRATIONS=false
+          fi
         done
 
     - name: ✅ Deployment Complete

@@ -201,17 +201,42 @@ using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
     var logger = services.GetRequiredService<ILogger<Program>>();
-    try
+    var config = services.GetRequiredService<IConfiguration>();
+    var env = services.GetRequiredService<IHostEnvironment>();
+    
+    // Check if migrations should run
+    var runMigrations = config.GetValue("RunMigrations", env.IsDevelopment());
+    var runMigrationsEnv = Environment.GetEnvironmentVariable("RUN_MIGRATIONS");
+    if (!string.IsNullOrEmpty(runMigrationsEnv))
     {
-        var context = services.GetRequiredService<ApplicationDbContext>();
-        logger.LogInformation("Applying pending migrations...");
-        await context.Database.MigrateAsync();
-        logger.LogInformation("Migrations applied successfully.");
+        runMigrations = bool.Parse(runMigrationsEnv);
     }
-    catch (Exception ex)
+    
+    if (runMigrations)
     {
-        logger.LogError(ex, "An error occurred while migrating the database.");
-        throw;
+        try
+        {
+            var context = services.GetRequiredService<ApplicationDbContext>();
+            logger.LogInformation("Applying pending migrations...");
+            
+            // Use execution strategy for retry on transient failures
+            var strategy = context.Database.CreateExecutionStrategy();
+            await strategy.ExecuteAsync(async () =>
+            {
+                await context.Database.MigrateAsync();
+            });
+            
+            logger.LogInformation("Migrations applied successfully.");
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "An error occurred while migrating the database.");
+            throw;
+        }
+    }
+    else
+    {
+        logger.LogInformation("Migrations skipped (RunMigrations=false).");
     }
 }
 

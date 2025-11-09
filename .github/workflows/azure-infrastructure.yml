@@ -277,9 +277,9 @@ jobs:
         AUTH_DB_NAME="AuthDB_${{ github.event.inputs.environment }}"
         ENTRY_DB_NAME="EntryExitDB_${{ github.event.inputs.environment }}"
 
-        ATT_CONN="Server=tcp:${{ env.SQL_SERVER_NAME }}.database.windows.net,1433;Initial Catalog=${ATT_DB_NAME};User ID=${{ env.SQL_ADMIN_USER }};Password=${{ secrets.SQL_ADMIN_PASSWORD_PROD }};Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;"
-        AUTH_CONN="Server=tcp:${{ env.SQL_SERVER_NAME }}.database.windows.net,1433;Initial Catalog=${AUTH_DB_NAME};User ID=${{ env.SQL_ADMIN_USER }};Password=${{ secrets.SQL_ADMIN_PASSWORD_PROD }};Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;"
-        ENTRY_CONN="Server=tcp:${{ env.SQL_SERVER_NAME }}.database.windows.net,1433;Initial Catalog=${ENTRY_DB_NAME};User ID=${{ env.SQL_ADMIN_USER }};Password=${{ secrets.SQL_ADMIN_PASSWORD_PROD }};Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;"
+        ATT_CONN="Server=tcp:${{ env.SQL_SERVER_NAME }}.database.windows.net,1433;Initial Catalog=${ATT_DB_NAME};User ID=${{ env.SQL_ADMIN_USER }};Password=${{ secrets.SQL_ADMIN_PASSWORD_PROD }};Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;ConnectRetryCount=3;ConnectRetryInterval=10;"
+        AUTH_CONN="Server=tcp:${{ env.SQL_SERVER_NAME }}.database.windows.net,1433;Initial Catalog=${AUTH_DB_NAME};User ID=${{ env.SQL_ADMIN_USER }};Password=${{ secrets.SQL_ADMIN_PASSWORD_PROD }};Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;ConnectRetryCount=3;ConnectRetryInterval=10;"
+        ENTRY_CONN="Server=tcp:${{ env.SQL_SERVER_NAME }}.database.windows.net,1433;Initial Catalog=${ENTRY_DB_NAME};User ID=${{ env.SQL_ADMIN_USER }};Password=${{ secrets.SQL_ADMIN_PASSWORD_PROD }};Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;ConnectRetryCount=3;ConnectRetryInterval=10;"
 
         # Configure the appropriate connection string per web app
         # Attendance API

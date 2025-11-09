@@ -87,26 +87,47 @@ using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
     var logger = services.GetRequiredService<ILogger<Program>>();
-    try
-    {
-        var dbContext = services.GetRequiredService<AuthDbContext>();
-        logger.LogInformation("Applying pending migrations...");
-        await dbContext.Database.MigrateAsync();
-        logger.LogInformation("Migrations applied successfully.");
+    
+    // Decide whether to run migrations at startup.
+    // Default behavior: run migrations in Development, but skip in Production
+    // unless explicitly enabled via configuration or environment variable.
+    var runMigrationsConfig = builder.Configuration.GetValue<bool?>("RunMigrations");
+    var runMigrationsEnv = Environment.GetEnvironmentVariable("RUN_MIGRATIONS");
+    var runMigrations = runMigrationsConfig ?? string.Equals(runMigrationsEnv, "true", StringComparison.OrdinalIgnoreCase);
 
-        // Seed identity data in Development only
-        if (app.Environment.IsDevelopment())
+    if (app.Environment.IsDevelopment() || runMigrations)
+    {
+        try
         {
-            var seeder = services.GetRequiredService<IdentitySeeder>();
-            await seeder.SeedAsync();
-            logger.LogInformation("Identity seeder executed.");
+            var dbContext = services.GetRequiredService<AuthDbContext>();
+            logger.LogInformation("Applying pending migrations...");
+            
+            // Use EF execution strategy to handle transient failures with automatic retry
+            var strategy = dbContext.Database.CreateExecutionStrategy();
+            await strategy.ExecuteAsync(async () =>
+            {
+                await dbContext.Database.MigrateAsync();
+            });
+            
+            logger.LogInformation("Migrations applied successfully.");
+
+            // Seed identity data in Development only
+            if (app.Environment.IsDevelopment())
+            {
+                var seeder = services.GetRequiredService<IdentitySeeder>();
+                await seeder.SeedAsync();
+                logger.LogInformation("Identity seeder executed.");
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "An error occurred while migrating or seeding the database.");
+            throw;
         }
     }
-    catch (Exception ex)
+    else
     {
-        var logger2 = services.GetRequiredService<ILogger<Program>>();
-        logger2.LogError(ex, "An error occurred while migrating or seeding the database.");
-        throw;
+        logger.LogInformation("Skipping automatic database migrations on startup (not Development and RUN_MIGRATIONS not set).");
     }
 }
 

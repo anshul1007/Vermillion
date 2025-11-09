@@ -1,0 +1,144 @@
+name: Run Database Migrations and Seeders
+
+on:
+  workflow_dispatch:  # Manual trigger
+    inputs:
+      environment:
+        description: 'Environment to run migrations on'
+        required: true
+        default: 'prod'
+        type: choice
+        options:
+          - prod
+          - dev
+          - staging
+      run_seeders:
+        description: 'Run seeders after migrations'
+        required: true
+        default: 'false'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+      backends:
+        description: 'Backends to migrate (comma-separated: attendance,auth,entryexit or "all")'
+        required: true
+        default: 'all'
+        type: string
+
+env:
+  DOTNET_VERSION: '8.0.x'
+  SQL_SERVER_NAME: vermillion-sql-${{ github.event.inputs.environment }}
+
+jobs:
+  run-migrations:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 🔄 Checkout code
+      uses: actions/checkout@v4
+
+    - name: ⚙️ Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    - name: 🔐 Azure Login
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    - name: 📦 Install EF Core Tools
+      run: dotnet tool install --global dotnet-ef
+
+    - name: 🔍 Determine backends to migrate
+      id: determine_backends
+      run: |
+        INPUT="${{ github.event.inputs.backends }}"
+        if [ "$INPUT" = "all" ]; then
+          echo "backends=attendance auth entryexit" >> $GITHUB_OUTPUT
+        else
+          # Convert comma-separated to space-separated
+          BACKENDS=$(echo "$INPUT" | tr ',' ' ')
+          echo "backends=$BACKENDS" >> $GITHUB_OUTPUT
+        fi
+
+    - name: 🗄️ Run Migrations for AttendanceAPI
+      if: contains(steps.determine_backends.outputs.backends, 'attendance')
+      working-directory: backend/AttendanceAPI
+      env:
+        ConnectionStrings__DefaultConnection: Server=tcp:${{ env.SQL_SERVER_NAME }}.database.windows.net,1433;Initial Catalog=AttendanceDB_${{ github.event.inputs.environment }};User ID=${{ vars.SQL_ADMIN_USER || 'sqladmin' }};Password=${{ secrets.SQL_ADMIN_PASSWORD_PROD }};Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;ConnectRetryCount=3;ConnectRetryInterval=10;
+      run: |
+        echo "Running migrations for AttendanceAPI on ${{ github.event.inputs.environment }}..."
+        dotnet ef database update --no-build --configuration Release
+        echo "✅ AttendanceAPI migrations completed"
+
+    - name: 🗄️ Run Migrations for AuthAPI
+      if: contains(steps.determine_backends.outputs.backends, 'auth')
+      working-directory: backend/AuthAPI
+      env:
+        ConnectionStrings__DefaultConnection: Server=tcp:${{ env.SQL_SERVER_NAME }}.database.windows.net,1433;Initial Catalog=AuthDB_${{ github.event.inputs.environment }};User ID=${{ vars.SQL_ADMIN_USER || 'sqladmin' }};Password=${{ secrets.SQL_ADMIN_PASSWORD_PROD }};Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;ConnectRetryCount=3;ConnectRetryInterval=10;
+      run: |
+        echo "Running migrations for AuthAPI on ${{ github.event.inputs.environment }}..."
+        dotnet ef database update --no-build --configuration Release
+        echo "✅ AuthAPI migrations completed"
+
+    - name: 🗄️ Run Migrations for EntryExitAPI
+      if: contains(steps.determine_backends.outputs.backends, 'entryexit')
+      working-directory: backend/EntryExitAPI
+      env:
+        ConnectionStrings__DefaultConnection: Server=tcp:${{ env.SQL_SERVER_NAME }}.database.windows.net,1433;Initial Catalog=EntryExitDB_${{ github.event.inputs.environment }};User ID=${{ vars.SQL_ADMIN_USER || 'sqladmin' }};Password=${{ secrets.SQL_ADMIN_PASSWORD_PROD }};Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;ConnectRetryCount=3;ConnectRetryInterval=10;
+      run: |
+        echo "Running migrations for EntryExitAPI on ${{ github.event.inputs.environment }}..."
+        dotnet ef database update --no-build --configuration Release
+        echo "✅ EntryExitAPI migrations completed"
+
+    - name: 🌱 Run Seeder for AuthAPI
+      if: github.event.inputs.run_seeders == 'true' && contains(steps.determine_backends.outputs.backends, 'auth')
+      run: |
+        echo "Running seeder for AuthAPI..."
+        cd backend/AuthAPI
+        
+        # Build the API first
+        dotnet build --configuration Release
+        
+        # Run the API with seeding enabled
+        export ConnectionStrings__DefaultConnection="Server=tcp:${{ env.SQL_SERVER_NAME }}.database.windows.net,1433;Initial Catalog=AuthDB_${{ github.event.inputs.environment }};User ID=${{ vars.SQL_ADMIN_USER || 'sqladmin' }};Password=${{ secrets.SQL_ADMIN_PASSWORD_PROD }};Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;ConnectRetryCount=3;ConnectRetryInterval=10;"
+        export SeedOnStartup=true
+        export RUN_MIGRATIONS=false
+        
+        # Start the API in background, wait for seeding, then stop
+        timeout 60s dotnet run --configuration Release --no-build || true
+        
+        echo "✅ AuthAPI seeder completed"
+
+    - name: 🌱 Run Seeder for EntryExitAPI
+      if: github.event.inputs.run_seeders == 'true' && contains(steps.determine_backends.outputs.backends, 'entryexit')
+      run: |
+        echo "Running seeder for EntryExitAPI..."
+        cd backend/EntryExitAPI
+        
+        # Build the API first
+        dotnet build --configuration Release
+        
+        # Run the API with seeding enabled
+        export ConnectionStrings__DefaultConnection="Server=tcp:${{ env.SQL_SERVER_NAME }}.database.windows.net,1433;Initial Catalog=EntryExitDB_${{ github.event.inputs.environment }};User ID=${{ vars.SQL_ADMIN_USER || 'sqladmin' }};Password=${{ secrets.SQL_ADMIN_PASSWORD_PROD }};Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;ConnectRetryCount=3;ConnectRetryInterval=10;"
+        export SeedOnStartup=true
+        export RUN_MIGRATIONS=false
+        
+        # Start the API in background, wait for seeding, then stop
+        timeout 60s dotnet run --configuration Release --no-build || true
+        
+        echo "✅ EntryExitAPI seeder completed"
+
+    - name: 📝 Summary
+      if: always()
+      run: |
+        echo "## Migration & Seeder Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "- **Environment**: ${{ github.event.inputs.environment }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Backends**: ${{ steps.determine_backends.outputs.backends }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Run Seeders**: ${{ github.event.inputs.run_seeders }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **SQL Server**: ${{ env.SQL_SERVER_NAME }}.database.windows.net" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "Check the logs above for detailed results." >> $GITHUB_STEP_SUMMARY
