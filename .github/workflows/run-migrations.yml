@@ -25,6 +25,14 @@ on:
         required: true
         default: 'all'
         type: string
+      skip_build:
+        description: 'Skip building projects on the runner (assumes deployed artifacts exist)'
+        required: true
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
 
 env:
   DOTNET_VERSION: '8.0.x'
@@ -49,9 +57,20 @@ jobs:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
 
     - name: 📦 Install EF Core Tools
-      run: dotnet tool install --global dotnet-ef
+      run: |
+        dotnet tool install --global dotnet-ef
+        echo "## Ensure dotnet tools are on PATH"
+        export PATH="$HOME/.dotnet/tools:$PATH"
 
-    - name: 🔍 Determine backends to migrate
+    - name: 🔁 Restore backend projects
+      if: ${{ github.event.inputs.skip_build == 'false' }}
+      run: |
+        echo "Restoring backend projects..."
+        dotnet restore backend/AttendanceAPI/AttendanceAPI.csproj --verbosity minimal
+        dotnet restore backend/AuthAPI/AuthAPI.csproj --verbosity minimal
+        dotnet restore backend/EntryExitAPI/EntryExitAPI.csproj --verbosity minimal
+
+    - name: �🔍 Determine backends to migrate
       id: determine_backends
       run: |
         INPUT="${{ github.event.inputs.backends }}"
@@ -70,7 +89,12 @@ jobs:
         ConnectionStrings__DefaultConnection: Server=tcp:${{ env.SQL_SERVER_NAME }}.database.windows.net,1433;Initial Catalog=AttendanceDB_${{ github.event.inputs.environment }};User ID=${{ vars.SQL_ADMIN_USER || 'sqladmin' }};Password=${{ secrets.SQL_ADMIN_PASSWORD_PROD }};Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;ConnectRetryCount=3;ConnectRetryInterval=10;
       run: |
         echo "Running migrations for AttendanceAPI on ${{ github.event.inputs.environment }}..."
-        dotnet ef database update --no-build --configuration Release
+        if [ "${{ github.event.inputs.skip_build }}" = "true" ]; then
+          EF_ARGS="--no-build"
+        else
+          EF_ARGS=""
+        fi
+        dotnet ef database update $EF_ARGS --configuration Release
         echo "✅ AttendanceAPI migrations completed"
 
     - name: 🗄️ Run Migrations for AuthAPI
@@ -80,7 +104,12 @@ jobs:
         ConnectionStrings__DefaultConnection: Server=tcp:${{ env.SQL_SERVER_NAME }}.database.windows.net,1433;Initial Catalog=AuthDB_${{ github.event.inputs.environment }};User ID=${{ vars.SQL_ADMIN_USER || 'sqladmin' }};Password=${{ secrets.SQL_ADMIN_PASSWORD_PROD }};Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;ConnectRetryCount=3;ConnectRetryInterval=10;
       run: |
         echo "Running migrations for AuthAPI on ${{ github.event.inputs.environment }}..."
-        dotnet ef database update --no-build --configuration Release
+        if [ "${{ github.event.inputs.skip_build }}" = "true" ]; then
+          EF_ARGS="--no-build"
+        else
+          EF_ARGS=""
+        fi
+        dotnet ef database update $EF_ARGS --configuration Release
         echo "✅ AuthAPI migrations completed"
 
     - name: 🗄️ Run Migrations for EntryExitAPI
@@ -90,7 +119,12 @@ jobs:
         ConnectionStrings__DefaultConnection: Server=tcp:${{ env.SQL_SERVER_NAME }}.database.windows.net,1433;Initial Catalog=EntryExitDB_${{ github.event.inputs.environment }};User ID=${{ vars.SQL_ADMIN_USER || 'sqladmin' }};Password=${{ secrets.SQL_ADMIN_PASSWORD_PROD }};Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;ConnectRetryCount=3;ConnectRetryInterval=10;
       run: |
         echo "Running migrations for EntryExitAPI on ${{ github.event.inputs.environment }}..."
-        dotnet ef database update --no-build --configuration Release
+        if [ "${{ github.event.inputs.skip_build }}" = "true" ]; then
+          EF_ARGS="--no-build"
+        else
+          EF_ARGS=""
+        fi
+        dotnet ef database update $EF_ARGS --configuration Release
         echo "✅ EntryExitAPI migrations completed"
 
     - name: 🌱 Run Seeder for AuthAPI
