@@ -180,9 +180,7 @@ jobs:
             fi
           fi
 
-          az webapp deploy --resource-group "$RG" --name "$WEBAPP_NAME" --src-path "$ZIP_PATH"
-          
-          # Configure app settings to disable automatic migrations in production
+          # Configure app settings to disable automatic migrations in production BEFORE deployment
           if [ "$ENV" = "prod" ]; then
             echo "Setting RUN_MIGRATIONS=false for production deployment..."
             az webapp config appsettings set \
@@ -190,6 +188,8 @@ jobs:
               --resource-group "$RG" \
               --settings RUN_MIGRATIONS=false
           fi
+          
+          az webapp deploy --resource-group "$RG" --name "$WEBAPP_NAME" --src-path "$ZIP_PATH"
         done
 
     - name: ✅ Deployment Complete
