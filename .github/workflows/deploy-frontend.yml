@@ -183,7 +183,7 @@ jobs:
           exit 1
         fi
 
-    - name: �🔒 Validate Static Web Apps token(s)
+    - name: 🔒 Validate Static Web Apps token(s)
       run: |
         if [ "${FRONTEND_CHANGED}" = "true" ]; then
           if [ -z "${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_WEB_PROD }}" ]; then

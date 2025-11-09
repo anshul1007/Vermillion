@@ -205,11 +205,21 @@ using (var scope = app.Services.CreateScope())
     var env = services.GetRequiredService<IHostEnvironment>();
     
     // Check if migrations should run
-    var runMigrations = config.GetValue("RunMigrations", env.IsDevelopment());
+    // Priority: Environment variable RUN_MIGRATIONS > Config RunMigrations > Default (Development only)
     var runMigrationsEnv = Environment.GetEnvironmentVariable("RUN_MIGRATIONS");
+    bool runMigrations;
+    
     if (!string.IsNullOrEmpty(runMigrationsEnv))
     {
-        runMigrations = bool.Parse(runMigrationsEnv);
+        // Explicit environment variable takes highest priority
+        runMigrations = string.Equals(runMigrationsEnv, "true", StringComparison.OrdinalIgnoreCase);
+        logger.LogInformation($"RUN_MIGRATIONS environment variable detected: {runMigrationsEnv}");
+    }
+    else
+    {
+        // Fall back to config or Development environment
+        var runMigrationsConfig = config.GetValue<bool?>("RunMigrations");
+        runMigrations = runMigrationsConfig ?? env.IsDevelopment();
     }
     
     if (runMigrations)

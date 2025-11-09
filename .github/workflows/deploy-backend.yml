@@ -46,7 +46,7 @@ jobs:
       with:
         dotnet-version: ${{ env.DOTNET_VERSION }}
 
-    - name: � Azure Login
+    - name: 🔐 Azure Login
       uses: azure/login@v1
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
@@ -92,7 +92,7 @@ jobs:
           echo "entryexit_changed=false" >> $GITHUB_OUTPUT
         fi
 
-    - name: �📦 Setup build output dir
+    - name: 📦 Setup build output dir
       run: mkdir -p ${{ env.DOTNET_ROOT }}
 
     - name: 🔁 Build & Publish Backends
@@ -180,13 +180,19 @@ jobs:
             fi
           fi
 
-          # Configure app settings to disable automatic migrations in production BEFORE deployment
+          # Configure app settings BEFORE deployment
           if [ "$ENV" = "prod" ]; then
-            echo "Setting RUN_MIGRATIONS=false for production deployment..."
+            echo "Configuring production environment settings..."
             az webapp config appsettings set \
               --name "$WEBAPP_NAME" \
               --resource-group "$RG" \
-              --settings RUN_MIGRATIONS=false
+              --settings RUN_MIGRATIONS=false ASPNETCORE_ENVIRONMENT=Production
+          else
+            echo "Configuring $ENV environment settings..."
+            az webapp config appsettings set \
+              --name "$WEBAPP_NAME" \
+              --resource-group "$RG" \
+              --settings RUN_MIGRATIONS=true ASPNETCORE_ENVIRONMENT=Development
           fi
           
           az webapp deploy --resource-group "$RG" --name "$WEBAPP_NAME" --src-path "$ZIP_PATH"

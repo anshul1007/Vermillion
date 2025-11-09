@@ -89,13 +89,24 @@ using (var scope = app.Services.CreateScope())
     var logger = services.GetRequiredService<ILogger<Program>>();
     
     // Decide whether to run migrations at startup.
-    // Default behavior: run migrations in Development, but skip in Production
-    // unless explicitly enabled via configuration or environment variable.
-    var runMigrationsConfig = builder.Configuration.GetValue<bool?>("RunMigrations");
+    // Priority: Environment variable RUN_MIGRATIONS > Config RunMigrations > Default (Development only)
     var runMigrationsEnv = Environment.GetEnvironmentVariable("RUN_MIGRATIONS");
-    var runMigrations = runMigrationsConfig ?? string.Equals(runMigrationsEnv, "true", StringComparison.OrdinalIgnoreCase);
+    bool runMigrations;
+    
+    if (!string.IsNullOrEmpty(runMigrationsEnv))
+    {
+        // Explicit environment variable takes highest priority
+        runMigrations = string.Equals(runMigrationsEnv, "true", StringComparison.OrdinalIgnoreCase);
+        logger.LogInformation($"RUN_MIGRATIONS environment variable detected: {runMigrationsEnv}");
+    }
+    else
+    {
+        // Fall back to config or Development environment
+        var runMigrationsConfig = builder.Configuration.GetValue<bool?>("RunMigrations");
+        runMigrations = runMigrationsConfig ?? app.Environment.IsDevelopment();
+    }
 
-    if (app.Environment.IsDevelopment() || runMigrations)
+    if (runMigrations)
     {
         try
         {

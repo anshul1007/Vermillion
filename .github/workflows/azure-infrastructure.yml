@@ -39,7 +39,7 @@ jobs:
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-    - name: � Register Azure Resource Providers
+    - name: Register Azure Resource Providers
       run: |
         echo "Registering required Azure resource providers..."
         
@@ -370,7 +370,7 @@ jobs:
         echo "=========================================="
         echo ""
         echo "🌍 Environment: ${{ github.event.inputs.environment }}"
-        echo "� Resource Group: ${{ env.RESOURCE_GROUP }}"
+        echo "Resource Group: ${{ env.RESOURCE_GROUP }}"
 
         # Print backend URLs
         for name in ATTENDANCE_API_WEBAPP_NAME AUTH_API_WEBAPP_NAME ENTRYEXIT_API_WEBAPP_NAME; do
@@ -391,7 +391,7 @@ jobs:
           SNAME=${!name}
           if [ -n "$SNAME" ]; then
             HOST=$(az staticwebapp show --name "$SNAME" --resource-group ${{ env.RESOURCE_GROUP }} --query defaultHostname -o tsv)
-            echo "�📱 Frontend ($name): https://$HOST"
+            echo "📱 Frontend ($name): https://$HOST"
           fi
         done
 
