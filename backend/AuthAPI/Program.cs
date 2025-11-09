@@ -8,6 +8,9 @@ using AuthAPI.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
+var logger = LoggerFactory.Create(builder => builder.AddConsole()).CreateLogger<Program>();
+logger.LogInformation("Starting Auth Management API...");
+
 // Add DbContext
 builder.Services.AddDbContext<AuthDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
@@ -86,13 +89,13 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
-    var logger = services.GetRequiredService<ILogger<Program>>();
-    
+    // var logger = services.GetRequiredService<ILogger<Program>>();
+
     // Decide whether to run migrations at startup.
     // Priority: Environment variable RUN_MIGRATIONS > Config RunMigrations > Default (Development only)
     var runMigrationsEnv = Environment.GetEnvironmentVariable("RUN_MIGRATIONS");
     bool runMigrations;
-    
+
     if (!string.IsNullOrEmpty(runMigrationsEnv))
     {
         // Explicit environment variable takes highest priority
@@ -111,15 +114,15 @@ using (var scope = app.Services.CreateScope())
         try
         {
             var dbContext = services.GetRequiredService<AuthDbContext>();
-            logger.LogInformation("Applying pending migrations...");
-            
+            logger.LogInformation("Applying pending migrations for auth api...");
+
             // Use EF execution strategy to handle transient failures with automatic retry
             var strategy = dbContext.Database.CreateExecutionStrategy();
             await strategy.ExecuteAsync(async () =>
             {
                 await dbContext.Database.MigrateAsync();
             });
-            
+
             logger.LogInformation("Migrations applied successfully.");
 
             // Seed identity data in Development only

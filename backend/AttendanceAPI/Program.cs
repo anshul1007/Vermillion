@@ -8,6 +8,9 @@ using Microsoft.FeatureManagement;
 
 var builder = WebApplication.CreateBuilder(args);
 
+var logger = LoggerFactory.Create(builder => builder.AddConsole()).CreateLogger<Program>();
+logger.LogInformation("Starting Attendance Management API...");
+
 var defaultConn = builder.Configuration.GetConnectionString("DefaultConnection")
                   ?? throw new InvalidOperationException("DefaultConnection is not configured");
 
@@ -200,7 +203,7 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
-    var logger = services.GetRequiredService<ILogger<Program>>();
+    // var logger = services.GetRequiredService<ILogger<Program>>();
     var config = services.GetRequiredService<IConfiguration>();
     var env = services.GetRequiredService<IHostEnvironment>();
     
@@ -227,7 +230,7 @@ using (var scope = app.Services.CreateScope())
         try
         {
             var context = services.GetRequiredService<ApplicationDbContext>();
-            logger.LogInformation("Applying pending migrations...");
+            logger.LogInformation("Applying pending migrations for attendance api...");
             
             // Use execution strategy for retry on transient failures
             var strategy = context.Database.CreateExecutionStrategy();
