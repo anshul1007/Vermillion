@@ -124,24 +124,54 @@ using (var scope = app.Services.CreateScope())
             });
 
             logger.LogInformation("Migrations applied successfully.");
-
-            // Seed identity data in Development only
-            if (app.Environment.IsDevelopment())
-            {
-                var seeder = services.GetRequiredService<IdentitySeeder>();
-                await seeder.SeedAsync();
-                logger.LogInformation("Identity seeder executed.");
-            }
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "An error occurred while migrating or seeding the database.");
+            logger.LogError(ex, "An error occurred while migrating the database.");
             throw;
         }
     }
     else
     {
         logger.LogInformation("Skipping automatic database migrations on startup (not Development and RUN_MIGRATIONS not set).");
+    }
+    
+    // Seeding logic - independent of migrations
+    var seedOnStartupEnv = Environment.GetEnvironmentVariable("SeedOnStartup");
+    var seedOnStartupConfig = builder.Configuration.GetValue<bool?>("SeedOnStartup");
+    bool shouldSeed = false;
+    
+    if (!string.IsNullOrEmpty(seedOnStartupEnv))
+    {
+        shouldSeed = string.Equals(seedOnStartupEnv, "true", StringComparison.OrdinalIgnoreCase);
+    }
+    else if (seedOnStartupConfig.HasValue)
+    {
+        shouldSeed = seedOnStartupConfig.Value;
+    }
+    else
+    {
+        shouldSeed = app.Environment.IsDevelopment();
+    }
+    
+    if (shouldSeed)
+    {
+        try
+        {
+            var seeder = services.GetRequiredService<IdentitySeeder>();
+            logger.LogInformation("Running identity seeder...");
+            await seeder.SeedAsync();
+            logger.LogInformation("Identity seeder executed successfully.");
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "An error occurred while seeding the database.");
+            throw;
+        }
+    }
+    else
+    {
+        logger.LogInformation("Skipping seeding (SeedOnStartup not enabled).");
     }
 }
 

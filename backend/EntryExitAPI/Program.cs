@@ -281,14 +281,6 @@ using (var scope = app.Services.CreateScope())
             });
             
             logger.LogInformation("Migrations applied successfully.");
-            
-            var seedFlag = config.GetValue("SeedOnStartup", false);
-            if (env.IsDevelopment() || seedFlag)
-            {
-                var seeder = services.GetRequiredService<EntryExitSeeder>();
-                await seeder.SeedAsync();
-                logger.LogInformation("EntryExit seeder executed.");
-            }
         }
         catch (Exception ex)
         {
@@ -299,6 +291,44 @@ using (var scope = app.Services.CreateScope())
     else
     {
         logger.LogInformation("Migrations skipped (RunMigrations=false).");
+    }
+    
+    // Seeding logic - independent of migrations
+    var seedOnStartupEnv = Environment.GetEnvironmentVariable("SeedOnStartup");
+    var seedOnStartupConfig = config.GetValue<bool?>("SeedOnStartup");
+    bool shouldSeed = false;
+    
+    if (!string.IsNullOrEmpty(seedOnStartupEnv))
+    {
+        shouldSeed = string.Equals(seedOnStartupEnv, "true", StringComparison.OrdinalIgnoreCase);
+    }
+    else if (seedOnStartupConfig.HasValue)
+    {
+        shouldSeed = seedOnStartupConfig.Value;
+    }
+    else
+    {
+        shouldSeed = env.IsDevelopment();
+    }
+    
+    if (shouldSeed)
+    {
+        try
+        {
+            var seeder = services.GetRequiredService<EntryExitSeeder>();
+            logger.LogInformation("Running EntryExit seeder...");
+            await seeder.SeedAsync();
+            logger.LogInformation("EntryExit seeder executed successfully.");
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "An error occurred while seeding the database.");
+            throw;
+        }
+    }
+    else
+    {
+        logger.LogInformation("Skipping seeding (SeedOnStartup not enabled).");
     }
 }
 
