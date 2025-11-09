@@ -62,13 +62,21 @@ jobs:
         echo "## Ensure dotnet tools are on PATH"
         export PATH="$HOME/.dotnet/tools:$PATH"
 
-    - name: 🔁 Restore backend projects
-      if: ${{ github.event.inputs.skip_build == 'false' }}
+    - name: 🔁 Restore backend projects (always needed for EF metadata)
       run: |
-        echo "Restoring backend projects..."
+        echo "Restoring backend projects to generate project.assets.json..."
         dotnet restore backend/AttendanceAPI/AttendanceAPI.csproj --verbosity minimal
         dotnet restore backend/AuthAPI/AuthAPI.csproj --verbosity minimal
         dotnet restore backend/EntryExitAPI/EntryExitAPI.csproj --verbosity minimal
+        echo "Restore complete. EF tools can now read project metadata."
+
+    - name: 🏗️ Build backend projects (optional)
+      if: ${{ github.event.inputs.skip_build == 'false' }}
+      run: |
+        echo "Building backend projects..."
+        dotnet build backend/AttendanceAPI/AttendanceAPI.csproj --configuration Release --no-restore
+        dotnet build backend/AuthAPI/AuthAPI.csproj --configuration Release --no-restore
+        dotnet build backend/EntryExitAPI/EntryExitAPI.csproj --configuration Release --no-restore
 
     - name: �🔍 Determine backends to migrate
       id: determine_backends
