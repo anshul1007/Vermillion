@@ -1,6 +1,6 @@
 export const environment = {
   production: true,
-  apiUrl: 'YOUR_PRODUCTION_API_URL/api',
-  apiBaseUrl: 'YOUR_PRODUCTION_API_URL',
-  authApiUrl: 'YOUR_AUTH_API_URL'
+  apiUrl: 'http://localhost:5001/api',
+  apiBaseUrl: 'http://localhost:5001',
+  authApiUrl: 'http://localhost:5275'
 };
