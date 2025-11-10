@@ -177,6 +177,107 @@ namespace AttendanceAPI.Controllers
             return Ok(ApiResponse<List<DepartmentDto>>.SuccessResponse(data.ToList()));
         }
 
+        // Accept weeklyOffDays as either array or comma-separated string
+        public class DepartmentRequest
+        {
+            public string? Name { get; set; }
+            public string? Description { get; set; }
+            public object? WeeklyOffDays { get; set; }
+            public bool? IsActive { get; set; }
+        }
+
+        private List<string>? NormalizeWeeklyOffDays(object? value)
+        {
+            if (value == null) return null;
+            try
+            {
+                // If it's already a simple string
+                if (value is string s)
+                {
+                    if (string.IsNullOrWhiteSpace(s)) return new List<string>();
+                    return s.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+                }
+
+                // Serialize and parse to handle JsonElement/arrays
+                var json = System.Text.Json.JsonSerializer.Serialize(value);
+                using var doc = System.Text.Json.JsonDocument.Parse(json);
+                if (doc.RootElement.ValueKind == System.Text.Json.JsonValueKind.Array)
+                {
+                    var parts = new List<string>();
+                    foreach (var el in doc.RootElement.EnumerateArray())
+                    {
+                        if (el.ValueKind == System.Text.Json.JsonValueKind.String)
+                            parts.Add(el.GetString() ?? string.Empty);
+                        else
+                            parts.Add(el.ToString());
+                    }
+                    return parts.Where(p => !string.IsNullOrWhiteSpace(p)).ToList();
+                }
+            }
+            catch { }
+
+            // Fallback to string conversion
+            var asStr = value.ToString();
+            if (string.IsNullOrWhiteSpace(asStr)) return new List<string>();
+            return asStr.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+        }
+
+        [HttpPost("departments")]
+        [Authorize(Roles = "Admin,SystemAdmin")]
+        public async Task<IActionResult> CreateDepartment([FromBody] DepartmentRequest request)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(ApiResponse<object>.ErrorResponse("Invalid request"));
+
+            var weekly = NormalizeWeeklyOffDays(request.WeeklyOffDays);
+            var dto = new DepartmentDto(
+                string.Empty,
+                request.Name,
+                request.Description,
+                weekly,
+                request.IsActive ?? true
+            );
+
+            var resp = await _authClient.CreateDepartmentAsync(dto);
+            // fallback: typo guard if field name
+            
+            if (!resp.Success)
+                return StatusCode(502, ApiResponse<object>.ErrorResponse("Failed to create department in AuthAPI", resp.Message));
+
+            if (resp.Department == null)
+                return StatusCode(502, ApiResponse<object>.ErrorResponse("AuthAPI returned no department data after create"));
+
+            return Ok(ApiResponse<DepartmentDto>.SuccessResponse(resp.Department, "Department created"));
+        }
+
+        [HttpPut("departments/{id}")]
+        [Authorize(Roles = "Admin,SystemAdmin")]
+        public async Task<IActionResult> UpdateDepartment(string id, [FromBody] DepartmentDto request)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(ApiResponse<object>.ErrorResponse("Invalid request"));
+
+            var resp = await _authClient.UpdateDepartmentAsync(id, request);
+            if (!resp.Success)
+                return StatusCode(502, ApiResponse<object>.ErrorResponse("Failed to update department in AuthAPI", resp.Message));
+
+            if (resp.Department == null)
+                return StatusCode(502, ApiResponse<object>.ErrorResponse("AuthAPI returned no department data after update"));
+
+            return Ok(ApiResponse<DepartmentDto>.SuccessResponse(resp.Department, "Department updated"));
+        }
+
+        [HttpDelete("departments/{id}")]
+        [Authorize(Roles = "Admin,SystemAdmin")]
+        public async Task<IActionResult> DeleteDepartment(string id)
+        {
+            var resp = await _authClient.DeleteDepartmentAsync(id);
+            if (!resp.Success)
+                return StatusCode(502, ApiResponse<object>.ErrorResponse("Failed to delete department in AuthAPI", resp.Message));
+
+            return Ok(new ApiResponse<object> { Success = true, Data = default, Message = "Department deleted" });
+        }
+
         // Public Holiday endpoints
         [HttpGet("holidays")]
         public async Task<IActionResult> GetPublicHolidays([FromQuery] int? year)

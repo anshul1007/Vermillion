@@ -128,6 +128,27 @@ namespace AttendanceAPI.Services
             return null;
         }
 
+        public async Task<(bool Success, string? Message, Models.DTOs.DepartmentDto? Department)> CreateDepartmentAsync(Models.DTOs.DepartmentDto request)
+        {
+            // Invalidate departments cache so next read reflects new item
+            _cache.TryRemove("all_departments", out _);
+            return await _authApiClient.CreateDepartmentAsync(request);
+        }
+
+        public async Task<(bool Success, string? Message, Models.DTOs.DepartmentDto? Department)> UpdateDepartmentAsync(string departmentId, Models.DTOs.DepartmentDto request)
+        {
+            // Invalidate departments cache
+            _cache.TryRemove("all_departments", out _);
+            return await _authApiClient.UpdateDepartmentAsync(departmentId, request);
+        }
+
+        public async Task<(bool Success, string? Message)> DeleteDepartmentAsync(string departmentId)
+        {
+            // Invalidate departments cache
+            _cache.TryRemove("all_departments", out _);
+            return await _authApiClient.DeleteDepartmentAsync(departmentId);
+        }
+
         public async Task<bool> UpdateUserAsync(string userId, Models.DTOs.UpdateUserRequest request)
         {
             // Invalidate relevant caches when updating a user

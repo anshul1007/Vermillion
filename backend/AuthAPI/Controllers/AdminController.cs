@@ -1,3 +1,7 @@
+using System;
+using System.Linq;
+using System.Text.Json;
+using System.Collections.Generic;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -5,7 +9,6 @@ using AuthAPI.Data;
 using AuthAPI.Models.DTOs;
 using AuthAPI.Models.Entities;
 using AuthAPI.Services;
-using System;
 
 namespace AuthAPI.Controllers;
 
@@ -16,12 +19,146 @@ public class AdminController : ControllerBase
 {
     private readonly AuthDbContext _context;
     private readonly IAuthService _authService;
+    private readonly ILogger<AdminController> _logger;
 
-    public AdminController(AuthDbContext context, IAuthService authService)
+    public AdminController(AuthDbContext context, IAuthService authService, ILogger<AdminController> logger)
     {
         _context = context;
         _authService = authService;
+        _logger = logger;
     }
+
+    #region Departments Management
+
+    // Request DTO - accepts weeklyOffDays as string ("0,6") or array ["Sunday","Saturday"]
+    public class DepartmentRequest
+    {
+        public string? Name { get; set; }
+        public string? Description { get; set; }
+        // Accept either comma-separated numbers or an array of strings
+        public object? WeeklyOffDays { get; set; }
+        public bool? IsActive { get; set; }
+    }
+
+    private string NormalizeWeeklyOffDays(object? value)
+    {
+        if (value == null) return string.Empty;
+
+        // If it's already a string, return as-is
+        if (value is string s)
+            return s;
+
+        // If it's an array (JsonElement from body), try to parse
+        try
+        {
+            var json = JsonSerializer.Serialize(value);
+            var doc = JsonDocument.Parse(json);
+            if (doc.RootElement.ValueKind == JsonValueKind.Array)
+            {
+                var parts = new List<string>();
+                foreach (var el in doc.RootElement.EnumerateArray())
+                {
+                    if (el.ValueKind == JsonValueKind.Number)
+                        parts.Add(el.GetInt32().ToString());
+                    else if (el.ValueKind == JsonValueKind.String)
+                        parts.Add(el.GetString() ?? string.Empty);
+                    else
+                        parts.Add(el.ToString());
+                }
+                return string.Join(',', parts.Where(p => !string.IsNullOrWhiteSpace(p)));
+            }
+        }
+        catch { }
+
+        return value.ToString() ?? string.Empty;
+    }
+
+    [HttpPost("departments")]
+    [Authorize(Roles = "Admin,SystemAdmin")]
+    public async Task<IActionResult> CreateDepartment([FromBody] DepartmentRequest req)
+    {
+        if (req == null || string.IsNullOrWhiteSpace(req.Name))
+            return BadRequest(new ApiResponse<object>(false, null, "Name is required"));
+
+        var dept = new Department
+        {
+            Name = req.Name.Trim(),
+            Description = req.Description,
+            WeeklyOffDays = NormalizeWeeklyOffDays(req.WeeklyOffDays),
+            IsActive = req.IsActive ?? true,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        _context.Departments.Add(dept);
+        await _context.SaveChangesAsync();
+
+        var dto = new DepartmentDto(
+            dept.Id.ToString(),
+            dept.Name,
+            dept.Description,
+            string.IsNullOrEmpty(dept.WeeklyOffDays) ? new List<string>() : dept.WeeklyOffDays.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).ToList(),
+            dept.IsActive
+        );
+
+        return Ok(new ApiResponse<DepartmentDto>(true, dto, "Department created"));
+    }
+
+    [HttpPut("departments/{id}")]
+    [Authorize(Roles = "Admin,SystemAdmin")]
+    public async Task<IActionResult> UpdateDepartment(Guid id, [FromBody] DepartmentRequest req)
+    {
+        var dept = await _context.Departments.FindAsync(id);
+        if (dept == null)
+            return NotFound(new ApiResponse<object>(false, null, "Department not found"));
+
+        if (!string.IsNullOrWhiteSpace(req.Name)) dept.Name = req.Name.Trim();
+        if (req.Description != null) dept.Description = req.Description;
+        if (req.WeeklyOffDays != null) dept.WeeklyOffDays = NormalizeWeeklyOffDays(req.WeeklyOffDays);
+        if (req.IsActive.HasValue) dept.IsActive = req.IsActive.Value;
+        dept.UpdatedAt = DateTime.UtcNow;
+
+        _context.Departments.Update(dept);
+        await _context.SaveChangesAsync();
+
+        var dto = new DepartmentDto(
+            dept.Id.ToString(),
+            dept.Name,
+            dept.Description,
+            string.IsNullOrEmpty(dept.WeeklyOffDays) ? new List<string>() : dept.WeeklyOffDays.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).ToList(),
+            dept.IsActive
+        );
+
+        return Ok(new ApiResponse<DepartmentDto>(true, dto, "Department updated"));
+    }
+
+    [HttpDelete("departments/{id}")]
+    [Authorize(Roles = "Admin,SystemAdmin")]
+    public async Task<IActionResult> DeleteDepartment(Guid id)
+    {
+        var dept = await _context.Departments.FindAsync(id);
+        if (dept == null)
+            return NotFound(new ApiResponse<object>(false, null, "Department not found"));
+
+        // Instead of hard delete, mark inactive and optionally unassign employees
+        dept.IsActive = false;
+        dept.UpdatedAt = DateTime.UtcNow;
+        _context.Departments.Update(dept);
+
+        // Unassign employees from this department
+        var employees = await _context.Employees.Where(e => e.DepartmentId == dept.Id).ToListAsync();
+        foreach (var e in employees)
+        {
+            e.DepartmentId = null;
+            _context.Employees.Update(e);
+        }
+
+        await _context.SaveChangesAsync();
+
+    return Ok(new ApiResponse<string>(true, null, "Department deactivated and employees unassigned"));
+    }
+
+    #endregion
 
     #region Users Management
 
@@ -288,13 +425,6 @@ public class AdminController : ControllerBase
         {
             return Forbid();
         }
-
-        // // // Prevent assigning the 'guard' role to the Attendance tenant
-        // // if (role.Name.Equals("guard", StringComparison.OrdinalIgnoreCase) &&
-        // //     tenant.Name.Equals("Attendance", StringComparison.OrdinalIgnoreCase))
-        // // {
-        // //     return Forbid();
-        // // }
 
         // Check if mapping already exists
         var existing = await _context.UserRoles

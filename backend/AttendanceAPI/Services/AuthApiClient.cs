@@ -13,6 +13,9 @@ namespace AttendanceAPI.Services
         Task<int?> GetUserIdByEmailAsync(string email);
         Task<List<Models.DTOs.EmployeeDto>?> GetAllEmployeesAsync();
         Task<List<Models.DTOs.DepartmentDto>?> GetAllDepartmentsAsync();
+        Task<(bool Success, string? Message, Models.DTOs.DepartmentDto? Department)> CreateDepartmentAsync(Models.DTOs.DepartmentDto request);
+        Task<(bool Success, string? Message, Models.DTOs.DepartmentDto? Department)> UpdateDepartmentAsync(string departmentId, Models.DTOs.DepartmentDto request);
+        Task<(bool Success, string? Message)> DeleteDepartmentAsync(string departmentId);
         Task<bool> UpdateUserAsync(string userId, Models.DTOs.UpdateUserRequest request);
     }
 
@@ -362,6 +365,145 @@ namespace AttendanceAPI.Services
             {
                 _logger.LogError(ex, "Error fetching departments from AuthAPI");
                 return null;
+            }
+        }
+
+        public async Task<(bool Success, string? Message, Models.DTOs.DepartmentDto? Department)> CreateDepartmentAsync(Models.DTOs.DepartmentDto request)
+        {
+            try
+            {
+                var json = JsonSerializer.Serialize(new
+                {
+                    name = request.Name,
+                    description = request.Description,
+                    weeklyOffDays = request.WeeklyOffDays != null ? string.Join(',', request.WeeklyOffDays) : null,
+                    isActive = request.IsActive
+                });
+
+                var httpContent = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+
+                var req = new HttpRequestMessage(HttpMethod.Post, "/api/admin/departments") { Content = httpContent };
+                try
+                {
+                    var auth = _httpContextAccessor?.HttpContext?.Request?.Headers["Authorization"].FirstOrDefault();
+                    if (!string.IsNullOrEmpty(auth)) req.Headers.TryAddWithoutValidation("Authorization", auth);
+                }
+                catch { }
+
+                var resp = await _http.SendAsync(req);
+                var content = await resp.Content.ReadAsStringAsync();
+
+                if (!resp.IsSuccessStatusCode)
+                {
+                    _logger.LogWarning("AuthAPI returned {Status} when creating department. Response: {Response}", resp.StatusCode, content);
+                    return (false, content, null);
+                }
+
+                var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                try
+                {
+                    var wrapped = JsonSerializer.Deserialize<Models.DTOs.ApiResponse<Models.DTOs.DepartmentDto>>(content, options);
+                    if (wrapped != null && wrapped.Data != null)
+                        return (true, null, wrapped.Data);
+                }
+                catch { }
+
+                try
+                {
+                    var dept = JsonSerializer.Deserialize<Models.DTOs.DepartmentDto>(content, options);
+                    if (dept != null) return (true, null, dept);
+                }
+                catch { }
+
+                return (true, null, null);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error creating department in AuthAPI");
+                return (false, ex.Message, null);
+            }
+        }
+
+        public async Task<(bool Success, string? Message, Models.DTOs.DepartmentDto? Department)> UpdateDepartmentAsync(string departmentId, Models.DTOs.DepartmentDto request)
+        {
+            try
+            {
+                var json = JsonSerializer.Serialize(new
+                {
+                    name = request.Name,
+                    description = request.Description,
+                    weeklyOffDays = request.WeeklyOffDays != null ? string.Join(',', request.WeeklyOffDays) : null,
+                    isActive = request.IsActive
+                });
+
+                var httpContent = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+                var req = new HttpRequestMessage(HttpMethod.Put, $"/api/admin/departments/{Uri.EscapeDataString(departmentId)}") { Content = httpContent };
+                try
+                {
+                    var auth = _httpContextAccessor?.HttpContext?.Request?.Headers["Authorization"].FirstOrDefault();
+                    if (!string.IsNullOrEmpty(auth)) req.Headers.TryAddWithoutValidation("Authorization", auth);
+                }
+                catch { }
+
+                var resp = await _http.SendAsync(req);
+                var content = await resp.Content.ReadAsStringAsync();
+                if (!resp.IsSuccessStatusCode)
+                {
+                    _logger.LogWarning("AuthAPI returned {Status} when updating department {Id}. Response: {Response}", resp.StatusCode, departmentId, content);
+                    return (false, content, null);
+                }
+
+                var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                try
+                {
+                    var wrapped = JsonSerializer.Deserialize<Models.DTOs.ApiResponse<Models.DTOs.DepartmentDto>>(content, options);
+                    if (wrapped != null && wrapped.Data != null)
+                        return (true, null, wrapped.Data);
+                }
+                catch { }
+
+                try
+                {
+                    var dept = JsonSerializer.Deserialize<Models.DTOs.DepartmentDto>(content, options);
+                    if (dept != null) return (true, null, dept);
+                }
+                catch { }
+
+                return (true, null, null);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error updating department in AuthAPI");
+                return (false, ex.Message, null);
+            }
+        }
+
+        public async Task<(bool Success, string? Message)> DeleteDepartmentAsync(string departmentId)
+        {
+            try
+            {
+                var req = new HttpRequestMessage(HttpMethod.Delete, $"/api/admin/departments/{Uri.EscapeDataString(departmentId)}");
+                try
+                {
+                    var auth = _httpContextAccessor?.HttpContext?.Request?.Headers["Authorization"].FirstOrDefault();
+                    if (!string.IsNullOrEmpty(auth)) req.Headers.TryAddWithoutValidation("Authorization", auth);
+                }
+                catch { }
+
+                var resp = await _http.SendAsync(req);
+                var content = await resp.Content.ReadAsStringAsync();
+                if (!resp.IsSuccessStatusCode)
+                {
+                    _logger.LogWarning("AuthAPI returned {Status} when deleting department {Id}. Response: {Response}", resp.StatusCode, departmentId, content);
+                    return (false, content);
+                }
+
+                return (true, null);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error deleting department in AuthAPI");
+                return (false, ex.Message);
             }
         }
 
