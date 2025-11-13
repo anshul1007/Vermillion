@@ -1,0 +1,14 @@
+// {
+//   "/api": {
+//     "target": "http://10.0.2.2:5001",
+//     "secure": false,
+//     "changeOrigin": true,
+//     "logLevel": "debug"
+//   },
+//   "/auth": {
+//     "target": "http://10.0.2.2:5275",
+//     "secure": false,
+//     "changeOrigin": true,
+//     "logLevel": "debug"
+//   }
+// }

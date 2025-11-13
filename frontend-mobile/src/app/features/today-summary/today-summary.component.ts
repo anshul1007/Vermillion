@@ -9,70 +9,102 @@ import { AuthService } from '../../core/auth/auth.service';
   standalone: true,
   imports: [CommonModule],
   template: `
-    <div class="summary-container">
-      <div class="summary-header">
-        <button class="back-button" (click)="goBack()">← Back</button>
-        <h1>Today's Summary</h1>
+    <div class="container">
+      <div class="row mb-2">
+        <div class="col-12">
+          <div class="row align-center">
+            <h1 class="mb-0">Today's Summary</h1>
+          </div>
+        </div>
       </div>
 
-      @if (loading()) {
-        <div class="loading">Loading records...</div>
-      } @else {
-        <div class="stats-grid">
-          <div class="stat-box">
-            <div class="stat-icon">👷</div>
-            <div class="stat-value">{{ summary().totalLabour }}</div>
-            <div class="stat-label">Labour Entries</div>
+      <ng-container *ngIf="loading(); else loaded">
+        <div class="row">
+          <div class="col-12">
+            <div class="card">
+              <div class="card-body">
+                <p class="text-muted mb-0">Loading records...</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </ng-container>
+
+      <ng-template #loaded>
+        <div class="row mb-2">
+          <div class="col-6">
+            <div class="stat-card">
+              <div class="stat-icon">👷</div>
+              <div class="stat-value">{{ summary().totalLabour }}</div>
+              <div class="stat-label">Labour Entries</div>
+            </div>
           </div>
 
-          <div class="stat-box">
-            <div class="stat-icon">👤</div>
-            <div class="stat-value">{{ summary().totalVisitors }}</div>
-            <div class="stat-label">Visitor Entries</div>
-          </div>
-
-          <div class="stat-box">
-            <div class="stat-icon">✅</div>
-            <div class="stat-value">{{ summary().activeNow }}</div>
-            <div class="stat-label">Currently Active</div>
-          </div>
-
-          <div class="stat-box">
-            <div class="stat-icon">🚪</div>
-            <div class="stat-value">{{ summary().totalExits }}</div>
-            <div class="stat-label">Total Exits</div>
+          <div class="col-6">
+            <div class="stat-card">
+              <div class="stat-icon">👤</div>
+              <div class="stat-value">{{ summary().totalVisitors }}</div>
+              <div class="stat-label">Visitor Entries</div>
+            </div>
           </div>
         </div>
 
-        @if (records().length > 0) {
-          <div class="records-section">
-            <h2>Recent Activity</h2>
-            <div class="records-list">
-              @for (record of records(); track record.id) {
-                <div class="record-item" [class.entry]="record.action === 'Entry'" [class.exit]="record.action === 'Exit'">
-                  <div class="record-icon">
-                    {{ record.action === 'Entry' ? '→' : '←' }}
-                  </div>
-                  <div class="record-details">
-                    <div class="record-name">{{ record.name }}</div>
-                    <div class="record-type">{{ record.personType }}</div>
-                  </div>
-                  <div class="record-time">
-                    {{ formatTime(record.timestamp) }}
-                  </div>
-                </div>
-              }
+        <div class="row mb-2">
+          <div class="col-6">
+            <div class="stat-card">
+              <div class="stat-icon">✅</div>
+              <div class="stat-value">{{ summary().activeNow }}</div>
+              <div class="stat-label">Currently Active</div>
             </div>
           </div>
-        } @else {
-          <div class="no-records">
-            <div class="empty-icon">📋</div>
-            <p>No records for today</p>
+
+          <div class="col-6">
+            <div class="stat-card">
+              <div class="stat-icon">🚪</div>
+              <div class="stat-value">{{ summary().totalExits }}</div>
+              <div class="stat-label">Total Exits</div>
+            </div>
           </div>
-        }
-      }
+        </div>
+
+        <div class="row">
+          <div class="col-12">
+            <div class="card mb-2">
+              <div class="card-body">
+                <h2 class="mb-2">Recent Activity</h2>
+
+                <div *ngIf="records().length > 0">
+                  <div
+                    *ngFor="let record of records()"
+                    [attr.data-id]="record.id"
+                    class="record-item mb-2"
+                    [class.entry]="record.action === 'Entry'"
+                    [class.exit]="record.action === 'Exit'"
+                  >
+                    <div class="row align-center">
+                      <div class="avatar">
+                        {{ record.action === 'Entry' ? '✅' : '🚪' }}
+                      </div>
+                      <div class="flex-1">
+                        <h4 class="mb-0">{{ record.name }}</h4>
+                        <p class="text-muted mb-0">{{ record.personType }}</p>
+                      </div>
+                      <div class="record-time">{{ record.time }}</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div *ngIf="records().length === 0" class="text-center py-3">
+                  <div class="stat-icon mb-1">📋</div>
+                  <p class="text-muted mb-0">No records for today</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </ng-template>
     </div>
-  `
+  `,
 })
 export class TodaySummaryComponent implements OnInit {
   private apiService = inject(ApiService);

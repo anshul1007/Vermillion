@@ -62,7 +62,7 @@ jobs:
         dotnet build backend/EntryExitAPI/EntryExitAPI.csproj --configuration Release
         echo "Build complete."
 
-    - name: �🔍 Determine backends to migrate
+    - name: 🔍 Determine backends to migrate
       id: determine_backends
       run: |
         INPUT="${{ github.event.inputs.backends }}"

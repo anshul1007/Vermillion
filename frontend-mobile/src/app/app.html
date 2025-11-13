@@ -1,1 +1,32 @@
-<router-outlet></router-outlet>
+<div>
+  <header class="app-header">
+    <div class="container">
+      <div class="row align-center justify-between">
+        <div>
+          <h2 class="mb-0">Vermillion</h2>
+          <div class="text-muted" style="font-size: 0.85rem;">Visitor Management</div>
+        </div>
+        <div *ngIf="isGuard()" style="display: flex; align-items: center; gap: 8px;">
+          <button class="btn" routerLink="/profile">
+            <span>Profile</span>
+          </button>
+          <button class="btn" routerLink="/dashboard">
+            <span>Dashboard</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="app-main">
+    <div class="container">
+      <router-outlet></router-outlet>
+    </div>
+  </main>
+
+  <!-- <footer class="fixed-bottom app-footer">
+		<div class="row footer-row">
+			<div class="muted">© Vermillion</div>
+		</div>
+	</footer> -->
+</div>

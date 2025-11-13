@@ -12,88 +12,96 @@ import { AuthService } from '../core/auth/auth.service';
   standalone: true,
   imports: [CommonModule, FormsModule],
   template: `
-    <div class="entry-exit-container">
-      <div class="entry-exit-header">
-        <button class="back-button" (click)="goBack()">← Back</button>
-        <h1>Entry/Exit Recording</h1>
+    <div class="container">
+      <div class="row mb-2">
+        <div class="col-12">
+          <div class="row align-center">
+            <h1 class="mb-0">Entry/Exit Recording</h1>
+          </div>
+        </div>
       </div>
 
-      <div class="form-card">
-        <div class="guard-project-info">
-          <div class="info-label">Recording for:</div>
-          <div class="info-value">{{ guardProfile()?.projectName }}</div>
-        </div>
-
-        <div class="search-section">
-          <div class="search-group">
-            <input 
-              [(ngModel)]="searchTerm" 
-              placeholder="Search by name or phone"
-              class="search-input"
-              (keyup.enter)="search()"
-            >
-            <button class="search-button" (click)="search()">
-              🔍 Search
-            </button>
-          </div>
-
-          <div class="divider">
-            <span>OR</span>
-          </div>
-
-          <button class="scan-button-large" (click)="scan()">
-            📷 Scan Barcode
-          </button>
-        </div>
-
-        @if (errorMessage()) {
-          <div class="error-message">{{ errorMessage() }}</div>
-        }
-
-        @if (successMessage()) {
-          <div class="success-message">{{ successMessage() }}</div>
-        }
-
-        @if (result()) {
-          <div class="result-card">
-            <div class="person-header">
-              <div class="person-icon">
-                {{ result()!.personType === 'Labour' ? '👷' : '👤' }}
+      <div class="row">
+        <div class="col-12">
+          <div class="card mb-2">
+            <div class="card-body">
+              <div class="mb-2">
+                <input
+                  [(ngModel)]="searchTerm"
+                  placeholder="Search by name or phone"
+                  (keyup.enter)="search()"
+                />
               </div>
-              <div class="person-info">
-                <h3>{{ result()!.name }}</h3>
-                <p class="person-type">{{ result()!.personType }}</p>
-                <p class="person-phone">📞 {{ result()!.phoneNumber }}</p>
-              </div>
-            </div>
+              <button class="btn mb-2" (click)="search()">🔍 Search</button>
 
-            <div class="action-buttons">
-              @if (result()!.hasOpenEntry) {
-                <button class="exit-button" (click)="logExit()" [disabled]="submitting()">
-                  @if (submitting()) {
-                    Logging Exit...
-                  } @else {
-                    🚪 Log Exit
-                  }
-                </button>
-              } @else {
-                <button class="entry-button" (click)="logEntry()" [disabled]="submitting()">
-                  @if (submitting()) {
-                    Logging Entry...
-                  } @else {
-                    ✅ Log Entry
-                  }
-                </button>
-              }
-              <button class="cancel-button" (click)="clearResult()">Cancel</button>
+              <div class="text-center mb-2">
+                <p class="text-muted mb-0">OR</p>
+              </div>
+
+              <button class="btn btn-outline" (click)="scan()">📷 Scan Barcode</button>
             </div>
           </div>
-        }
-
-        @if (loading()) {
-          <div class="loading">Searching...</div>
-        }
+        </div>
       </div>
+
+      <div class="row" *ngIf="errorMessage()">
+        <div class="col-12">
+          <div class="text-danger mb-2">{{ errorMessage() }}</div>
+        </div>
+      </div>
+
+      <div class="row" *ngIf="successMessage()">
+        <div class="col-12">
+          <div class="text-success mb-2">{{ successMessage() }}</div>
+        </div>
+      </div>
+
+      <ng-container *ngIf="result(); else noResult">
+        <div class="row">
+          <div class="col-12">
+            <div class="card mb-2">
+              <div class="card-body">
+                <div class="row align-center mb-2">
+                  <div class="avatar">
+                    {{ result()!.personType === 'Labour' ? '👷' : '👤' }}
+                  </div>
+                  <div class="flex-1">
+                    <h3 class="mb-1">{{ result()!.name }}</h3>
+                    <p class="text-muted mb-1">{{ result()!.personType }}</p>
+                    <p class="mb-0">📞 {{ result()!.phoneNumber }}</p>
+                  </div>
+                </div>
+
+                <ng-container *ngIf="result()!.hasOpenEntry; else entryBtn">
+                  <button class="btn mb-1" (click)="logExit()" [disabled]="submitting()">
+                    <span *ngIf="submitting(); else exitText">Logging Exit...</span>
+                    <ng-template #exitText>🚪 Log Exit</ng-template>
+                  </button>
+                </ng-container>
+                <ng-template #entryBtn>
+                  <button class="btn mb-1" (click)="logEntry()" [disabled]="submitting()">
+                    <span *ngIf="submitting(); else entryText">Logging Entry...</span>
+                    <ng-template #entryText>✅ Log Entry</ng-template>
+                  </button>
+                </ng-template>
+                <button class="btn btn-outline" (click)="clearResult()">Cancel</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </ng-container>
+
+      <ng-template #noResult>
+        <div class="row" *ngIf="loading()">
+          <div class="col-12">
+            <div class="card">
+              <div class="card-body">
+                <p class="text-muted mb-0">Searching...</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </ng-template>
     </div>
   `
 })

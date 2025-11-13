@@ -9,89 +9,129 @@ import { ApiService } from '../../core/services/api.service';
   standalone: true,
   imports: [CommonModule],
   template: `
-    <div class="profile-container">
-      <div class="profile-header">
-        <button class="back-button" (click)="goBack()">← Back</button>
-        <h1>My Profile</h1>
+    <div class="container">
+      <div class="row mb-2">
+        <div class="col-12">
+          <div class="row align-center">
+            <h1 class="mb-0">My Profile</h1>
+          </div>
+        </div>
       </div>
 
-      @if (loading()) {
-        <div class="loading">Loading profile...</div>
-      } @else if (profile()) {
-        <div class="profile-card">
-          <div class="profile-avatar">
-            <div class="avatar-icon">🛡️</div>
-          </div>
-
-          <div class="profile-info">
-            <div class="info-row">
-              <span class="label">Guard ID</span>
-              <span class="value">{{ profile()!.guardId }}</span>
-            </div>
-
-            <div class="info-row">
-              <span class="label">Name</span>
-              <span class="value">{{ profile()!.firstName }} {{ profile()!.lastName }}</span>
-            </div>
-
-            <div class="info-row">
-              <span class="label">Phone</span>
-              <span class="value">{{ profile()!.phoneNumber }}</span>
-            </div>
-
-            <div class="info-row">
-              <span class="label">Status</span>
-              <span class="value status-active">
-                @if (profile()!.isActive) {
-                  <span class="status-badge active">● Active</span>
-                } @else {
-                  <span class="status-badge inactive">● Inactive</span>
-                }
-              </span>
+      <ng-container *ngIf="loading(); else profileLoaded">
+        <div class="row">
+          <div class="col-12">
+            <div class="card">
+              <div class="card-body">
+                <p class="text-muted mb-0">Loading profile...</p>
+              </div>
             </div>
           </div>
         </div>
+      </ng-container>
 
-        <div class="assignment-card">
-          <h2>Assigned Project</h2>
-          <div class="project-info">
-            <div class="project-icon">🏗️</div>
-            <div class="project-details">
-              <h3>{{ profile()!.projectName }}</h3>
-              <p class="project-id">Project ID: {{ profile()!.projectId }}</p>
-            </div>
-          </div>
-        </div>
+      <ng-template #profileLoaded>
+        <ng-container *ngIf="profile(); else profileError">
+          <div class="row">
+            <div class="col-12">
+              <div class="card mb-2">
+                <div class="card-body text-center">
+                  <div class="profile-icon mb-2">🛡️</div>
+                  <h2 class="mb-2">{{ profile()!.firstName }} {{ profile()!.lastName }}</h2>
 
-        @if (contractors().length > 0) {
-          <div class="contractors-card">
-            <h2>Site Contractors</h2>
-            <div class="contractor-list">
-              @for (contractor of contractors(); track contractor.id) {
-                <div class="contractor-item">
-                  <div class="contractor-icon">👷</div>
-                  <div class="contractor-details">
-                    <h4>{{ contractor.name }}</h4>
-                    <p>Contact: {{ contractor.contactPerson }}</p>
-                    <p class="phone">📞 {{ contractor.phoneNumber }}</p>
+                  <div class="profile-details">
+                    <div class="profile-item mb-2">
+                      <div class="profile-label">Guard ID</div>
+                      <div class="profile-value">{{ profile()!.guardId }}</div>
+                    </div>
+
+                    <div class="profile-item mb-2">
+                      <div class="profile-label">Phone</div>
+                      <div class="profile-value">{{ profile()!.phoneNumber }}</div>
+                    </div>
+
+                    <div class="profile-item mb-2">
+                      <div class="profile-label">Status</div>
+                      <div class="profile-value">
+                        <span class="status-active" *ngIf="profile()!.isActive; else inactiveStatus">
+                          ● Active
+                        </span>
+                        <ng-template #inactiveStatus>
+                          <span class="status-inactive">● Inactive</span>
+                        </ng-template>
+                      </div>
+                    </div>
                   </div>
                 </div>
-              }
+              </div>
             </div>
           </div>
-        }
 
-        <div class="actions">
-          <button class="action-button" (click)="logout()">
-            <span>🚪</span>
-            Logout
-          </button>
-        </div>
-      } @else {
-        <div class="error">Failed to load profile</div>
-      }
+          <div class="row">
+            <div class="col-12">
+              <div class="card mb-2">
+                <div class="card-body">
+                  <h2 class="mb-2">Assigned Project</h2>
+                  <div class="row align-center">
+                    <div class="avatar">🏗️</div>
+                    <div class="flex-1">
+                      <h3 class="mb-1">{{ profile()!.projectName }}</h3>
+                      <p class="text-muted mb-0">Project ID: {{ profile()!.projectId }}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="row" *ngIf="contractors().length > 0">
+            <div class="col-12">
+              <div class="card mb-2">
+                <div class="card-body">
+                  <h2 class="mb-2">Site Contractors</h2>
+                  <div
+                    *ngFor="let contractor of contractors()"
+                    [attr.data-id]="contractor.id"
+                    class="contractor-item mb-2"
+                  >
+                    <div class="row align-center">
+                      <div class="avatar">👷</div>
+                      <div class="flex-1">
+                        <h4 class="mb-1">{{ contractor.name }}</h4>
+                        <p class="text-muted mb-0">Contact: {{ contractor.contactPerson }}</p>
+                        <p class="mb-0">📞 {{ contractor.phoneNumber }}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="col-12">
+              <button class="btn btn-outline" (click)="logout()">
+                <span>🚪</span>
+                Logout
+              </button>
+            </div>
+          </div>
+        </ng-container>
+
+        <ng-template #profileError>
+          <div class="row">
+            <div class="col-12">
+              <div class="card">
+                <div class="card-body">
+                  <p class="text-danger mb-0">Failed to load profile</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </ng-template>
+      </ng-template>
     </div>
-  `
+  `,
 })
 export class GuardProfileComponent implements OnInit {
   private authService = inject(AuthService);
@@ -117,7 +157,7 @@ export class GuardProfileComponent implements OnInit {
       error: (err) => {
         this.loading.set(false);
         console.error('Failed to load profile:', err);
-      }
+      },
     });
   }
 
@@ -128,7 +168,7 @@ export class GuardProfileComponent implements OnInit {
       },
       error: (err) => {
         console.error('Failed to load contractors:', err);
-      }
+      },
     });
   }
 

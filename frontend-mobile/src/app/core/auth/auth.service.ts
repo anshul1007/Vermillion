@@ -65,7 +65,7 @@ export class AuthService {
 
   login(credentials: LoginRequest): Observable<LoginResponse> {
     return this.http.post<ApiResponse<LoginResponse>>(
-      `${environment.authApiUrl}/api/auth/login`,
+      `${environment.authApiUrl}/auth/login`,
       credentials
     ).pipe(
       map(apiResponse => {

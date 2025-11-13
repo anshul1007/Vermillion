@@ -13,105 +13,94 @@ import { AuthService } from '../core/auth/auth.service';
   standalone: true,
   imports: [CommonModule, FormsModule],
   template: `
-    <div class="registration-container">
-      <div class="registration-header">
-        <button class="back-button" (click)="goBack()">← Back</button>
-        <h1>Register Labour</h1>
+    <div class="container">
+      <div class="row mb-2">
+        <div class="col-12">
+          <div class="row align-center">
+            <h1 class="mb-0">Register Labour</h1>
+          </div>
+        </div>
       </div>
 
-      @if (loading()) {
-        <div class="loading">Loading...</div>
-      } @else {
-        <div class="form-card">
-          <div class="guard-project-info">
-            <div class="info-label">Registering for:</div>
-            <div class="info-value">{{ guardProfile()?.projectName }}</div>
-          </div>
-
-          <div class="form-group">
-            <label>Contractor *</label>
-            <select [(ngModel)]="contractorId" class="form-select">
-              <option [value]="0">Select Contractor</option>
-              @for (c of contractors(); track c.id) {
-                <option [value]="c.id">{{ c.name }}</option>
-              }
-            </select>
-          </div>
-
-          <div class="form-group">
-            <label>Worker Name *</label>
-            <input 
-              [(ngModel)]="name" 
-              placeholder="Enter worker name" 
-              class="form-input"
-              required
-            >
-          </div>
-
-          <div class="form-group">
-            <label>Phone Number *</label>
-            <input 
-              [(ngModel)]="phone" 
-              placeholder="Enter phone number"
-              type="tel"
-              class="form-input"
-              required
-            >
-          </div>
-
-          <div class="form-group">
-            <label>Barcode ID</label>
-            <div class="barcode-group">
-              <input 
-                [(ngModel)]="barcode" 
-                placeholder="Scan or enter barcode"
-                class="form-input"
-              >
-              <button class="scan-button" (click)="scanBarcode()">
-                📷 Scan
-              </button>
+      <ng-container *ngIf="loading(); else formTemplate">
+        <div class="row">
+          <div class="col-12">
+            <div class="card">
+              <div class="card-body">
+                <p class="text-muted mb-0">Loading...</p>
+              </div>
             </div>
           </div>
-
-          <div class="form-group">
-            <label>Photo *</label>
-            <button class="photo-button" (click)="takePhoto()">
-              @if (photo()) {
-                📸 Retake Photo
-              } @else {
-                📸 Take Photo
-              }
-            </button>
-            @if (photo()) {
-              <div class="photo-preview">
-                <img [src]="photo()" alt="Worker photo">
-              </div>
-            }
-          </div>
-
-          @if (errorMessage()) {
-            <div class="error-message">{{ errorMessage() }}</div>
-          }
-
-          @if (successMessage()) {
-            <div class="success-message">{{ successMessage() }}</div>
-          }
-
-          <button 
-            class="submit-button" 
-            (click)="submit()" 
-            [disabled]="!isValid() || submitting()"
-          >
-            @if (submitting()) {
-              Registering...
-            } @else {
-              Register Labour Worker
-            }
-          </button>
         </div>
-      }
+      </ng-container>
+
+      <ng-template #formTemplate>
+        <div class="row">
+          <div class="col-12">
+            <div class="card mb-2">
+              <div class="card-body">
+                <p class="text-muted mb-1">Registering for:</p>
+                <h3 class="mb-0">{{ guardProfile()?.projectName }}</h3>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="col-12">
+            <div class="card mb-2">
+              <div class="card-body">
+                <div class="mb-2">
+                  <label>Contractor *</label>
+                  <select [(ngModel)]="contractorId">
+                    <option [ngValue]="0">Select Contractor</option>
+                    <option *ngFor="let c of contractors()" [ngValue]="c.id">{{ c.name }}</option>
+                  </select>
+                </div>
+
+                <div class="mb-2">
+                  <label>Worker Name *</label>
+                  <input [(ngModel)]="name" placeholder="Enter worker name" required />
+                </div>
+
+                <div class="mb-2">
+                  <label>Phone Number *</label>
+                  <input [(ngModel)]="phone" placeholder="Enter phone number" type="tel" required />
+                </div>
+
+                <div class="mb-2">
+                  <label>Barcode ID</label>
+                  <div class="row align-center mb-1">
+                    <input [(ngModel)]="barcode" placeholder="Scan or enter barcode" class="flex-1" />
+                  </div>
+                  <button class="btn btn-outline" (click)="scanBarcode()">📷 Scan Barcode</button>
+                </div>
+
+                <div class="mb-2">
+                  <label>Photo *</label>
+                  <button class="btn mb-1" (click)="takePhoto()">
+                    <span *ngIf="photo(); else takePhotoTpl">📸 Retake Photo</span>
+                    <ng-template #takePhotoTpl>📸 Take Photo</ng-template>
+                  </button>
+                  <div *ngIf="photo()" class="photo-preview">
+                    <img [src]="photo()" alt="Worker photo" />
+                  </div>
+                </div>
+
+                <div *ngIf="errorMessage()" class="text-danger mb-2">{{ errorMessage() }}</div>
+                <div *ngIf="successMessage()" class="text-success mb-2">{{ successMessage() }}</div>
+
+                <button class="btn" (click)="submit()" [disabled]="!isValid() || submitting()">
+                  <span *ngIf="submitting(); else notSubmitting">Registering...</span>
+                  <ng-template #notSubmitting>Register Labour Worker</ng-template>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </ng-template>
     </div>
-  `
+  `,
 })
 export class LabourRegistrationComponent implements OnInit {
   private sync = inject(SyncService);

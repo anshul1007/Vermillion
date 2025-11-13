@@ -1,1 +1,470 @@
-/* You can add global styles to this file, and also import other style files */
+/* Bootstrap-like utility stylesheet for frontend-mobile
+   - Generic classes: container, row, col, btn, text-muted, spacing helpers
+   - Compatibility aliases map older app-specific classes to generic ones
+   - Mobile-first, small and focused
+*/
+
+@use './styles/_variables.scss' as *;
+@use 'sass:color';
+
+:root {
+  --text: #{$text};
+}
+
+/* Reset */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+html,
+body,
+app-root {
+  height: 100%;
+  min-width: 375px;
+  margin: 0;
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  background: #f5f7fa; /* subtle page background to avoid flat white */
+}
+
+/* Containers */
+.container {
+  width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: $container-padding;
+  padding-right: $container-padding;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  margin-left: calc(-1 * #{$container-padding});
+  margin-right: calc(-1 * #{$container-padding});
+}
+.col {
+  padding-left: $container-padding;
+  padding-right: $container-padding;
+  flex: 1 1 0%;
+}
+.col-6 {
+  padding-left: $container-padding;
+  padding-right: $container-padding;
+  flex: 0 0 50%;
+  max-width: 50%;
+}
+.col-4 {
+  padding-left: $container-padding;
+  padding-right: $container-padding;
+  flex: 0 0 33.3333%;
+  max-width: 33.3333%;
+}
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 16px;
+  min-height: 44px;
+  border-radius: 6px;
+  border: none;
+  background: $primary;
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.btn:active {
+  background: color.adjust($primary, $lightness: -10%);
+}
+
+.btn-outline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 16px;
+  min-height: 44px;
+  border-radius: 6px;
+  border: 1px solid $primary;
+  background: transparent;
+  color: $primary;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.btn-outline:active {
+  background: rgba($primary, 0.05);
+}
+
+/* Spacing helpers using variables from _variables.scss */
+.mt-0 {
+  margin-top: 0 !important;
+}
+.mt-1 {
+  margin-top: $space-1 !important;
+}
+.mt-2 {
+  margin-top: $space-2 !important;
+}
+.mt-3 {
+  margin-top: $space-3 !important;
+}
+.mb-0 {
+  margin-bottom: 0 !important;
+}
+.mb-1 {
+  margin-bottom: $space-1 !important;
+}
+.mb-2 {
+  margin-bottom: $space-2 !important;
+}
+.mb-3 {
+  margin-bottom: $space-3 !important;
+}
+.mr-1 {
+  margin-right: $space-1 !important;
+}
+.mr-2 {
+  margin-right: $space-2 !important;
+}
+
+/* Text */
+.text-muted {
+  color: $muted;
+}
+
+/* Alignment helpers */
+.align-center {
+  align-items: center;
+}
+
+/* Generic utilities */
+.text-danger {
+  color: #b91c1c;
+}
+.justify-between {
+  justify-content: space-between;
+}
+
+/* end of spacing helpers */
+
+.card {
+  background: linear-gradient(180deg, $card-bg 0%, color.mix($primary, $card-bg, 3%) 100%);
+  border-radius: 12px;
+  border: 1px solid rgba(16, 24, 40, 0.08);
+  padding: $space-2; /* inner gap */
+  display: block;
+  box-sizing: border-box;
+  box-shadow: 0 2px 8px rgba(16, 24, 40, 0.04); /* subtle depth */
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  margin-bottom: 0; /* spacing controlled by row .mb-* classes */
+}
+
+.card h2 {
+  margin: 0 0 6px 0;
+  font-size: 1.05rem;
+}
+.card p {
+  margin: 0;
+  font-size: 0.9rem;
+  color: $muted;
+}
+
+/* Interactive cards (links/buttons) get hover effect */
+a.card:hover,
+button.card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(16, 24, 40, 0.08);
+  text-decoration: none;
+}
+
+/* Accent card variant for highlighted sections */
+.card-accent {
+  background: linear-gradient(135deg, color.mix($primary, $card-bg, 8%) 0%, $card-bg 100%);
+  border-color: color.mix($primary, $card-bg, 15%);
+}
+
+.card-body {
+  padding: $space-2;
+}
+
+/* Simple header/main layout using generic classes */
+/* Header spans full width; inner .container provides horizontal gutters */
+header.app-header {
+  background: $header-blue;
+  color: #fff;
+  padding: $space-2 $container-padding;
+  display: flex;
+  align-items: center;
+  min-height: 64px;
+}
+
+header.app-header h2 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+header.app-header .text-muted {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+header.app-header .btn {
+  font-size: 0.875rem;
+  padding: 6px 12px;
+}
+
+.app-main {
+  padding: $space-2 0;
+  min-height: calc(100vh - 64px); /* ensure main area fills screen */
+}
+
+/* Mobile optimizations for small screens (375px min-width) */
+@media (max-width: 479px) {
+  header.app-header {
+    padding: $space-1 $container-padding;
+  }
+
+  header.app-header h2 {
+    font-size: 1.1rem;
+  }
+
+  header.app-header .btn {
+    font-size: 0.8rem;
+    padding: 5px 10px;
+  }
+
+  .col-6 {
+    flex: 0 0 100%;
+    max-width: 100%;
+  }
+}
+
+/* Compatibility aliases removed per user request. Use generic classes like
+  .container, .row and .col instead of app-specific classes. */
+
+/* Form Elements */
+input,
+select,
+textarea {
+  width: 100%;
+  padding: 12px 16px;
+  font-size: 16px;
+  border: 1px solid rgba(16, 24, 40, 0.18);
+  border-radius: 8px;
+  background: $card-bg;
+  color: $text;
+  box-sizing: border-box;
+  min-height: 44px;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: 2px solid $primary;
+  outline-offset: 2px;
+  border-color: $primary;
+}
+
+label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 500;
+  color: $text;
+  font-size: 0.9rem;
+}
+
+textarea {
+  resize: vertical;
+  min-height: 88px;
+}
+
+/* Accessibility */
+button,
+.btn,
+input {
+  -webkit-tap-highlight-color: rgba(0, 0, 0, 0);
+}
+
+/* Additional utility classes for new components */
+.text-center {
+  text-align: center;
+}
+
+.text-success {
+  color: #16a34a;
+}
+
+.flex-1 {
+  flex: 1 1 auto;
+}
+
+.py-3 {
+  padding-top: $space-3 !important;
+  padding-bottom: $space-3 !important;
+}
+
+/* Full-width column (mobile-first) */
+.col-12 {
+  padding-left: $container-padding;
+  padding-right: $container-padding;
+  flex: 0 0 100%;
+  max-width: 100%;
+}
+
+/* Stat Card - used for dashboard and today-summary statistics */
+.stat-card {
+  background: linear-gradient(180deg, $card-bg 0%, color.mix($primary, $card-bg, 3%) 100%);
+  border-radius: 12px;
+  border: 1px solid rgba(16, 24, 40, 0.08);
+  padding: $space-2;
+  text-align: center;
+  box-shadow: 0 2px 8px rgba(16, 24, 40, 0.04);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.stat-icon {
+  font-size: 2.5rem;
+  margin-bottom: $space-1;
+}
+
+.stat-value {
+  font-size: 2rem;
+  font-weight: 700;
+  color: $primary;
+  margin-bottom: $space-1;
+}
+
+.stat-label {
+  font-size: 0.85rem;
+  color: $muted;
+  margin: 0;
+}
+
+/* Avatar - for person icons in lists and details */
+.avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, color.mix($primary, $card-bg, 10%) 0%, color.mix($primary, $card-bg, 5%) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  margin-right: $space-2;
+  flex-shrink: 0;
+}
+
+/* Photo Preview - for captured photos in registration forms */
+.photo-preview {
+  margin-top: $space-1;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid rgba(16, 24, 40, 0.12);
+}
+
+.photo-preview img {
+  width: 100%;
+  height: auto;
+  max-height: 300px;
+  object-fit: cover;
+  display: block;
+}
+
+/* Profile Components */
+.profile-icon {
+  font-size: 4rem;
+  margin: $space-2 auto;
+}
+
+.profile-details {
+  text-align: left;
+  margin-top: $space-2;
+}
+
+.profile-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: $space-1 0;
+  border-bottom: 1px solid rgba(16, 24, 40, 0.08);
+}
+
+.profile-item:last-child {
+  border-bottom: none;
+}
+
+.profile-label {
+  font-size: 0.9rem;
+  color: $muted;
+  font-weight: 500;
+}
+
+.profile-value {
+  font-size: 1rem;
+  color: $text;
+  font-weight: 600;
+}
+
+.status-active {
+  color: #16a34a;
+}
+
+.status-inactive {
+  color: #dc2626;
+}
+
+/* Record Item - for today-summary records list */
+.record-item {
+  padding: $space-1 0;
+  border-bottom: 1px solid rgba(16, 24, 40, 0.08);
+}
+
+.record-item:last-child {
+  border-bottom: none;
+}
+
+.record-item.entry {
+  border-left: 3px solid #16a34a;
+  padding-left: $space-2;
+}
+
+.record-item.exit {
+  border-left: 3px solid #dc2626;
+  padding-left: $space-2;
+}
+
+.record-time {
+  font-size: 0.85rem;
+  color: $muted;
+  white-space: nowrap;
+  margin-left: $space-2;
+}
+
+/* Contractor Item - for guard-profile contractors list */
+.contractor-item {
+  padding: $space-1 0;
+  border-bottom: 1px solid rgba(16, 24, 40, 0.08);
+}
+
+.contractor-item:last-child {
+  border-bottom: none;
+}
+
+/* Button Disabled State */
+.btn:disabled,
+.btn-outline:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}

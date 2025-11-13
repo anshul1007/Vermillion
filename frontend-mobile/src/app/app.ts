@@ -1,12 +1,15 @@
-import { Component } from '@angular/core';
-import { RouterOutlet } from '@angular/router';
+import { Component, inject } from '@angular/core';
+import { RouterOutlet, RouterLink } from '@angular/router';
+import { NgIf } from '@angular/common';
+import { AuthService } from './core/auth/auth.service';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet],
+  imports: [RouterOutlet, NgIf, RouterLink],
   templateUrl: './app.html',
-  styleUrl: './app.scss',
   standalone: true
 })
 export class App {
+  private auth = inject(AuthService);
+  isGuard = () => this.auth.hasRole('Guard');
 }

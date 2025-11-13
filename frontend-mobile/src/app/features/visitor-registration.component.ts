@@ -11,97 +11,93 @@ import { AuthService } from '../core/auth/auth.service';
   standalone: true,
   imports: [CommonModule, FormsModule],
   template: `
-    <div class="registration-container">
-      <div class="registration-header">
-        <button class="back-button" (click)="goBack()">← Back</button>
-        <h1>Register Visitor</h1>
+    <div class="container">
+      <div class="row mb-2">
+        <div class="col-12">
+          <div class="row align-center">
+            <h1 class="mb-0">Register Visitor</h1>
+          </div>
+        </div>
       </div>
 
-      <div class="form-card">
-        <div class="guard-project-info">
-          <div class="info-label">Registering for:</div>
-          <div class="info-value">{{ guardProfile()?.projectName }}</div>
-        </div>
-
-        <div class="form-group">
-          <label>Visitor Name *</label>
-          <input 
-            [(ngModel)]="name" 
-            placeholder="Enter visitor name"
-            class="form-input"
-            required
-          >
-        </div>
-
-        <div class="form-group">
-          <label>Phone Number *</label>
-          <input 
-            [(ngModel)]="phoneNumber" 
-            placeholder="Enter phone number"
-            type="tel"
-            class="form-input"
-            required
-          >
-        </div>
-
-        <div class="form-group">
-          <label>Company Name</label>
-          <input 
-            [(ngModel)]="companyName" 
-            placeholder="Company name (optional)"
-            class="form-input"
-          >
-        </div>
-
-        <div class="form-group">
-          <label>Purpose of Visit *</label>
-          <textarea 
-            [(ngModel)]="purpose" 
-            placeholder="What is the purpose of this visit?"
-            class="form-textarea"
-            rows="3"
-            required
-          ></textarea>
-        </div>
-
-        <div class="form-group">
-          <label>Photo *</label>
-          <button class="photo-button" (click)="takePhoto()">
-            @if (photo()) {
-              📸 Retake Photo
-            } @else {
-              📸 Take Photo
-            }
-          </button>
-          @if (photo()) {
-            <div class="photo-preview">
-              <img [src]="photo()" alt="Visitor photo">
+      <div class="row">
+        <div class="col-12">
+          <div class="card mb-2">
+            <div class="card-body">
+              <p class="text-muted mb-1">Registering for:</p>
+              <h3 class="mb-0">{{ guardProfile()?.projectName }}</h3>
             </div>
-          }
+          </div>
         </div>
+      </div>
 
-        @if (errorMessage()) {
-          <div class="error-message">{{ errorMessage() }}</div>
-        }
+      <div class="row">
+        <div class="col-12">
+          <div class="card mb-2">
+            <div class="card-body">
+              <div class="mb-2">
+                <label for="name">Full Name *</label>
+                <input
+                  id="name"
+                  [(ngModel)]="name"
+                  name="name"
+                  placeholder="Enter full name"
+                  required
+                />
+              </div>
 
-        @if (successMessage()) {
-          <div class="success-message">{{ successMessage() }}</div>
-        }
+              <div class="mb-2">
+                <label>Phone Number *</label>
+                <input
+                  [(ngModel)]="phoneNumber"
+                  placeholder="Enter phone number"
+                  type="tel"
+                  required
+                />
+              </div>
 
-        <button 
-          class="submit-button" 
-          (click)="submit()" 
-          [disabled]="!isValid() || submitting()"
-        >
-          @if (submitting()) {
-            Registering...
-          } @else {
-            Register Visitor
-          }
-        </button>
+              <div class="mb-2">
+                <label>Company Name</label>
+                <input
+                  [(ngModel)]="companyName"
+                  placeholder="Company name (optional)"
+                />
+              </div>
+
+              <div class="mb-2">
+                <label>Purpose of Visit *</label>
+                <textarea
+                  [(ngModel)]="purpose"
+                  rows="3"
+                  placeholder="Enter purpose of visit"
+                  required
+                ></textarea>
+              </div>
+
+              <div class="mb-2">
+                <label>Photo *</label>
+                <button class="btn mb-1" (click)="takePhoto()">
+                  <span *ngIf="photo(); else takePhotoLabel">📸 Retake Photo</span>
+                  <ng-template #takePhotoLabel>📸 Take Photo</ng-template>
+                </button>
+                <div *ngIf="photo()" class="photo-preview">
+                  <img [src]="photo()" alt="Visitor photo" />
+                </div>
+              </div>
+
+              <div *ngIf="errorMessage()" class="text-danger mb-2">{{ errorMessage() }}</div>
+              <div *ngIf="successMessage()" class="text-success mb-2">{{ successMessage() }}</div>
+
+              <button class="btn" (click)="submit()" [disabled]="!isValid() || submitting()">
+                <span *ngIf="submitting(); else registerLabel">Registering...</span>
+                <ng-template #registerLabel>Register Visitor</ng-template>
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
-  `
+  `,
 })
 export class VisitorRegistrationComponent implements OnInit {
   private sync = inject(SyncService);
@@ -137,9 +133,9 @@ export class VisitorRegistrationComponent implements OnInit {
 
   isValid(): boolean {
     return !!(
-      this.name.trim() && 
-      this.phoneNumber.trim() && 
-      this.purpose.trim() && 
+      this.name.trim() &&
+      this.phoneNumber.trim() &&
+      this.purpose.trim() &&
       this.photo()
     );
   }
@@ -166,13 +162,13 @@ export class VisitorRegistrationComponent implements OnInit {
       phoneNumber: this.phoneNumber.trim(),
       companyName: this.companyName.trim() || undefined,
       purpose: this.purpose.trim(),
-      photoPath: this.photo()
+      photoPath: this.photo(),
     };
 
     try {
       await this.sync.queueOperation('VisitorRegistration', visitorData);
       this.successMessage.set('Visitor registered successfully!');
-      
+
       // Reset form after 2 seconds
       setTimeout(() => {
         this.resetForm();
@@ -197,3 +193,4 @@ export class VisitorRegistrationComponent implements OnInit {
     this.router.navigate(['/dashboard']);
   }
 }
+

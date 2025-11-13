@@ -9,62 +9,56 @@ import { AuthService } from '../../core/auth/auth.service';
   standalone: true,
   imports: [CommonModule, FormsModule],
   template: `
-    <div class="login-container">
-      <div class="login-card">
-        <div class="login-header">
-          <div class="logo">🛡️</div>
-          <h1>Security Guard</h1>
-          <p class="subtitle">Entry/Exit Management System</p>
-        </div>
+    <div class="container">
+      <div class="row">
+        <div class="col-12">
+          <div class="card">
+            <div class="card-body">
+              <h1 class="mb-1">Security Guard</h1>
+              <p class="text-muted mb-3">Entry/Exit Management System</p>
 
-        <form (ngSubmit)="login()" class="login-form">
-          <div class="form-group">
-            <label for="email">Email</label>
-            <input
-              id="email"
-              type="email"
-              [(ngModel)]="email"
-              name="email"
-              placeholder="Enter your email"
-              required
-              autocomplete="email"
-            >
-          </div>
+              <form (ngSubmit)="login()">
+                <div class="mb-2">
+                  <label for="email">Email</label>
+                  <input
+                    id="email"
+                    type="email"
+                    [(ngModel)]="email"
+                    name="email"
+                    placeholder="Enter your email"
+                    required
+                    autocomplete="email"
+                  />
+                </div>
 
-          <div class="form-group">
-            <label for="password">Password</label>
-            <input
-              id="password"
-              type="password"
-              [(ngModel)]="password"
-              name="password"
-              placeholder="Enter your password"
-              required
-              autocomplete="current-password"
-            >
-          </div>
+                <div class="mb-2">
+                  <label for="password">Password</label>
+                  <input
+                    id="password"
+                    type="password"
+                    [(ngModel)]="password"
+                    name="password"
+                    placeholder="Enter your password"
+                    required
+                    autocomplete="current-password"
+                  />
+                </div>
 
-          @if (errorMessage()) {
-            <div class="error-message">
-              {{ errorMessage() }}
+                <div *ngIf="errorMessage()" class="text-danger mb-2">
+                  {{ errorMessage() }}
+                </div>
+
+                <button type="submit" class="btn mb-2" [disabled]="loading()">
+                  <span *ngIf="loading(); else notLoading">Logging in...</span>
+                  <ng-template #notLoading><span>Login</span></ng-template>
+                </button>
+
+                <div class="text-center">
+                  <p class="text-muted mb-0">🔒 Secure authentication required</p>
+                </div>
+              </form>
             </div>
-          }
-
-          <button 
-            type="submit" 
-            class="login-button"
-            [disabled]="loading()"
-          >
-            @if (loading()) {
-              <span>Logging in...</span>
-            } @else {
-              <span>Login</span>
-            }
-          </button>
-        </form>
-
-        <div class="login-footer">
-          <p class="info-text">🔒 Secure authentication required</p>
+          </div>
         </div>
       </div>
     </div>
@@ -73,6 +67,14 @@ import { AuthService } from '../../core/auth/auth.service';
 export class LoginComponent {
   private authService = inject(AuthService);
   private router = inject(Router);
+
+  constructor() {
+    // If user is already authenticated and has Guard role, redirect to dashboard
+    const user = this.authService.currentUser();
+    if (user && this.authService.hasRole('Guard')) {
+      this.router.navigate(['/dashboard']);
+    }
+  }
 
   email = '';
   password = '';

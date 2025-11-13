@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Observable } from 'rxjs';
+import { environment } from '../../../environments/environment';
 
 export interface ApiResponse<T> {
   success: boolean;
@@ -75,8 +76,8 @@ export interface GuardProfile {
   providedIn: 'root'
 })
 export class ApiService {
-  private authApiUrl = 'http://localhost:5275/api';
-  private entryExitApiUrl = 'http://localhost:5001/api';
+  private authApiUrl = environment.authApiUrl;
+  private entryExitApiUrl = environment.apiUrl;
 
   constructor(private http: HttpClient) { }
 

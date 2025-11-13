@@ -8,70 +8,89 @@ import { AuthService } from '../../core/auth/auth.service';
   standalone: true,
   imports: [CommonModule, RouterModule],
   template: `
-    <div class="dashboard-container">
-      <header class="dashboard-header">
-        <div class="header-content">
-          <div>
-            <h1>Entry/Exit Management</h1>
-            <p class="subtitle">Site Worker & Visitor Tracking</p>
+    <div class="container">
+      <div class="row mb-2">
+        <div class="col-12">
+          <div class="card card-accent">
+            <div class="card-body">
+              <h3 class="mb-1">
+                {{ guardProfile()!.firstName }} {{ guardProfile()!.lastName }} ({{
+                  guardProfile()!.guardId
+                }})
+              </h3>
+              <div class="text-muted">Project: {{ guardProfile()!.projectName }}</div>
+            </div>
           </div>
-          <button class="profile-button" routerLink="/profile">
-            <span>🛡️</span>
-            <span class="profile-text">Profile</span>
-          </button>
-        </div>
-        
-        @if (guardProfile()) {
-          <div class="guard-info">
-            <div class="guard-name">{{ guardProfile()!.firstName }} {{ guardProfile()!.lastName }}</div>
-            <div class="guard-site">📍 {{ guardProfile()!.projectName }}</div>
-            <div class="guard-id">ID: {{ guardProfile()!.guardId }}</div>
-          </div>
-        }
-      </header>
-
-      <div class="menu-grid">
-        <div class="menu-card" routerLink="/labour-registration">
-          <div class="icon">👷</div>
-          <h2>Register Labour</h2>
-          <p>Add new labour with barcode</p>
-        </div>
-
-        <div class="menu-card" routerLink="/visitor-registration">
-          <div class="icon">👤</div>
-          <h2>Register Visitor</h2>
-          <p>Add new visitor</p>
-        </div>
-
-        <div class="menu-card" routerLink="/entry-exit">
-          <div class="icon">🚪</div>
-          <h2>Entry/Exit</h2>
-          <p>Log entry or exit for labour/visitor</p>
-        </div>
-
-        <div class="menu-card" routerLink="/today-summary">
-          <div class="icon">📊</div>
-          <h2>Today's Summary</h2>
-          <p>View today's records</p>
         </div>
       </div>
 
-      <div class="stats-section">
-        <div class="stat-card">
-          <h3>Active Workers</h3>
-          <p class="stat-value">{{ stats().activeWorkers }}</p>
+      <div class="row mb-2">
+        <div class="col-6">
+          <a class="card" routerLink="/labour-registration">
+            <h2>Register Labour</h2>
+            <p class="text-muted">Add new labour with barcode</p>
+          </a>
         </div>
-        <div class="stat-card">
-          <h3>Active Visitors</h3>
-          <p class="stat-value">{{ stats().activeVisitors }}</p>
+        <div class="col-6">
+          <a class="card" routerLink="/visitor-registration">
+            <h2>Register Visitor</h2>
+            <p class="text-muted">Add new visitor</p>
+          </a>
         </div>
-        <div class="stat-card">
-          <h3>Today's Total</h3>
-          <p class="stat-value">{{ stats().todayTotal }}</p>
+      </div>
+
+      <div class="row mb-2">
+        <div class="col-6">
+          <a class="card" routerLink="/entry-exit">
+            <h2>Entry/Exit</h2>
+            <p class="text-muted">Log entry or exit for labour/visitor</p>
+          </a>
+        </div>
+        <div class="col-6">
+          <a class="card" routerLink="/today-summary">
+            <h2>Today's Summary</h2>
+            <p class="text-muted">View today's records</p>
+          </a>
+        </div>
+      </div>
+
+      <div class="row mb-2">
+        <div class="col-6">
+          <div class="stat-card">
+            <div class="stat-icon">👷</div>
+            <div class="stat-value">{{ stats().activeWorkers }}</div>
+            <div class="stat-label">Active Workers</div>
+          </div>
+        </div>
+
+        <div class="col-6">
+          <div class="stat-card">
+            <div class="stat-icon">👤</div>
+            <div class="stat-value">{{ stats().activeVisitors }}</div>
+            <div class="stat-label">Active Visitors</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="col-6">
+          <div class="stat-card">
+            <div class="stat-icon">📊</div>
+            <div class="stat-value">{{ stats().todayTotal }}</div>
+            <div class="stat-label">Today's Total</div>
+          </div>
+        </div>
+
+        <div class="col-6">
+          <div class="stat-card">
+            <div class="stat-icon">✅</div>
+            <div class="stat-value">{{ stats().activeTotal }}</div>
+            <div class="stat-label">Currently Active</div>
+          </div>
         </div>
       </div>
     </div>
-  `
+  `,
 })
 export class DashboardComponent implements OnInit {
   private authService = inject(AuthService);
@@ -80,7 +99,8 @@ export class DashboardComponent implements OnInit {
   stats = signal({
     activeWorkers: 0,
     activeVisitors: 0,
-    todayTotal: 0
+    todayTotal: 0,
+    activeTotal: 0,
   });
 
   ngOnInit(): void {
@@ -97,7 +117,8 @@ export class DashboardComponent implements OnInit {
     this.stats.set({
       activeWorkers: 0,
       activeVisitors: 0,
-      todayTotal: 0
+      todayTotal: 0,
+      activeTotal: 0,
     });
   }
 }
