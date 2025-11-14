@@ -11,16 +11,27 @@ import { AuthService } from '../../core/auth/auth.service';
     <div class="container">
       <div class="row mb-2">
         <div class="col-12">
-          <div class="card card-accent">
+          <div *ngIf="guardProfile(); else noProfile" class="card card-accent">
             <div class="card-body">
               <h3 class="mb-1">
-                {{ guardProfile()!.firstName }} {{ guardProfile()!.lastName }} ({{
-                  guardProfile()!.guardId
-                }})
+                {{ guardProfile()!.firstName }} {{ guardProfile()!.lastName }} ({{ guardProfile()!.guardId }})
               </h3>
               <div class="text-muted">Project: {{ guardProfile()!.projectName }}</div>
             </div>
           </div>
+          <ng-template #noProfile>
+            <div class="card">
+              <div class="card-body">
+                <h3>No guard profile</h3>
+                <p class="text-muted">Guard profile is not loaded. Click below to fetch your profile.</p>
+                <div *ngIf="profileError()" class="text-danger">{{ profileError() }}</div>
+                <button class="btn" (click)="loadGuardProfile()" [disabled]="loadingProfile()">
+                  <span *ngIf="loadingProfile(); else loadLabel">Loading...</span>
+                  <ng-template #loadLabel><span>Load Guard Profile</span></ng-template>
+                </button>
+              </div>
+            </div>
+          </ng-template>
         </div>
       </div>
 
@@ -96,6 +107,8 @@ export class DashboardComponent implements OnInit {
   private authService = inject(AuthService);
 
   guardProfile = this.authService.guardProfile;
+  loadingProfile = signal(false);
+  profileError = signal('');
   stats = signal({
     activeWorkers: 0,
     activeVisitors: 0,
@@ -106,9 +119,23 @@ export class DashboardComponent implements OnInit {
   ngOnInit(): void {
     // Load guard profile if not already loaded
     if (!this.guardProfile()) {
-      this.authService.loadGuardProfile().subscribe();
+      this.loadGuardProfile();
     }
     this.loadTodaysStats();
+  }
+
+  loadGuardProfile(): void {
+    this.loadingProfile.set(true);
+    this.profileError.set('');
+    this.authService.loadGuardProfile().subscribe({
+      next: (profile) => {
+        this.loadingProfile.set(false);
+      },
+      error: (err) => {
+        this.loadingProfile.set(false);
+        this.profileError.set(err?.message || 'Failed to load guard profile');
+      }
+    });
   }
 
   loadTodaysStats(): void {

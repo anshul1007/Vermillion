@@ -1,7 +1,7 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
-import { Observable, tap, map } from 'rxjs';
+import { Observable, tap, map, forkJoin, throwError } from 'rxjs';
 import { environment } from '../../../environments/environment';
 
 export interface LoginRequest {
@@ -89,12 +89,47 @@ export class AuthService {
   }
 
   loadGuardProfile(): Observable<GuardProfile> {
-    return this.http.get<GuardProfile>(
-      `${environment.apiUrl}/admin/guards/profile`
-    ).pipe(
-      tap(profile => {
+    const user = this.currentUser();
+    if (!user) {
+      return throwError(() => new Error('User not authenticated'));
+    }
+
+    const userId = user.user.id;
+
+    // Call AuthAPI to get employee details, and EntryExitAPI to get guard assignments
+    const employee$ = this.http.get<ApiResponse<any>>(`${environment.authApiUrl}/Users/${userId}/employee`);
+    const assignments$ = this.http.get<ApiResponse<any[]>>(`${environment.apiUrl}/admin/guards/my-assignments`);
+
+    return forkJoin({ employee: employee$, assignments: assignments$ }).pipe(
+      map(({ employee, assignments }) => {
+        if (!employee || !employee.success || !employee.data) {
+          throw new Error('Failed to load employee details');
+        }
+
+        const emp = employee.data;
+        const assigns = assignments && assignments.success ? assignments.data : [];
+        const firstAssign = assigns && assigns.length ? assigns[0] : null;
+
+        const profile: GuardProfile = {
+          id: emp.id ?? 0,
+          authUserId: emp.userId ?? userId,
+          firstName: emp.firstName ?? emp.FirstName ?? '',
+          lastName: emp.lastName ?? emp.LastName ?? '',
+          guardId: emp.employeeId?.toString?.() ?? emp.EmployeeId?.toString?.() ?? '',
+          phoneNumber: emp.phoneNumber ?? emp.PhoneNumber ?? '',
+          projectId: firstAssign?.projectId ?? firstAssign?.ProjectId ?? 0,
+          projectName: firstAssign?.projectName ?? firstAssign?.ProjectName ?? '',
+          isActive: emp.isActive ?? emp.IsActive ?? true
+        };
+
+        // persist and update signal
         this.guardProfile.set(profile);
         localStorage.setItem('guard_profile', JSON.stringify(profile));
+
+        return profile;
+      }),
+      tap(() => {
+        // no-op; tap kept for symmetry
       })
     );
   }
