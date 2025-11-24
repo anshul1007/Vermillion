@@ -107,8 +107,33 @@ jobs:
 
         az webapp deploy --resource-group "$RG" --name "$WEBAPP_NAME" --src-path "$ZIP_PATH"
 
+    - name: 🔎 Health check API
+      run: |
+        set -e
+        ENV="${{ steps.env.outputs.environment }}"
+        WEBAPP_NAME="vermillion-api-${ENV}"
+        URL="https://${WEBAPP_NAME}.azurewebsites.net/health"
+
+        echo "Checking API health at: $URL"
+
+        ATTEMPTS=12
+        SLEEP_SECONDS=5
+        for i in $(seq 1 $ATTEMPTS); do
+          if curl -s -f -S "$URL" >/dev/null 2>&1; then
+            echo "✅ Health check passed on attempt $i"
+            exit 0
+          fi
+          echo "Attempt $i/$ATTEMPTS failed — waiting $SLEEP_SECONDS seconds before retrying..."
+          sleep $SLEEP_SECONDS
+        done
+
+        echo "❌ Health check failed after $ATTEMPTS attempts; aborting workflow."
+        exit 1
+
     - name: ✅ Deployment Complete
       run: |
+        ENV="${{ steps.env.outputs.environment }}"
+        WEBAPP_NAME="vermillion-api-${ENV}"
         echo "✅ Backend deployed successfully!"
-        echo "🎯 Environment: ${{ steps.env.outputs.environment }}"
-        echo "Deployed web apps: attendance-api, auth-api, entryexit-api (names suffixed with environment)"
+        echo "🎯 Environment: $ENV"
+        echo "🔧 Deployed API: https://${WEBAPP_NAME}.azurewebsites.net"

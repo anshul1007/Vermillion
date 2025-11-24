@@ -36,4 +36,7 @@ logger.LogInformation("Auth API endpoints available at: /api/auth/*");
 logger.LogInformation("Attendance API endpoints available at: /api/attendance/*");
 logger.LogInformation("EntryExit API endpoints available at: /api/entryexit/*");
 
+// Lightweight health endpoint for orchestration checks
+app.MapGet("/health", () => Results.Ok(new { status = "Healthy", time = DateTime.UtcNow }));
+
 app.Run();
