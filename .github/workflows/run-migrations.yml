@@ -94,16 +94,16 @@ jobs:
         STARTUP_PROJECT="backend/Vermillion.API"
 
         echo "-- Applying Auth domain migrations"
-        dotnet ef database update --project backend/Vermillion.Auth.Domain --startup-project $STARTUP_PROJECT
+        dotnet ef database update --project backend/Vermillion.Auth.Domain --startup-project $STARTUP_PROJECT --context AuthDbContext
 
         echo "-- Applying Attendance domain migrations"
-        dotnet ef database update --project backend/Vermillion.Attendance.Domain --startup-project $STARTUP_PROJECT
+        dotnet ef database update --project backend/Vermillion.Attendance.Domain --startup-project $STARTUP_PROJECT --context AttendanceDbContext
 
         echo "-- Applying EntryExit domain migrations"
-        dotnet ef database update --project backend/Vermillion.EntryExit.Domain --startup-project $STARTUP_PROJECT
+        dotnet ef database update --project backend/Vermillion.EntryExit.Domain --startup-project $STARTUP_PROJECT --context EntryExitDbContext
 
         echo "-- Applying Shared domain migrations"
-        dotnet ef database update --project backend/Vermillion.Shared.Domain --startup-project $STARTUP_PROJECT
+        dotnet ef database update --project backend/Vermillion.Shared.Domain --startup-project $STARTUP_PROJECT --context SharedDbContext
 
         echo "✅ All domain migrations applied"
 
