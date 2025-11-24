@@ -1,6 +1,5 @@
 name: Deploy Backend to Azure
 
-
 on:
   push:
     branches:
@@ -31,17 +30,6 @@ jobs:
     - name: 🔄 Checkout code
       uses: actions/checkout@v4
     
-    - name: 🎯 Determine Environment
-      id: env
-      run: |
-        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-          ENV="${{ github.event.inputs.environment }}"
-        else
-          ENV="prod"
-        fi
-        echo "environment=$ENV" >> $GITHUB_OUTPUT
-        echo "📌 Deploying to: $ENV"
-
     - name: 🔧 Setup .NET
       uses: actions/setup-dotnet@v4
       with:
