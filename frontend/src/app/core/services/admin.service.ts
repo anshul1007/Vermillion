@@ -76,7 +76,7 @@ export interface LogPastAttendanceRequest {
 })
 export class AdminService {
   private http = inject(HttpClient);
-  private readonly apiUrl = `${environment.attendanceApiUrl}/admin`;
+  private readonly apiUrl = `${environment.apiUrl}/attendance/admin`;
 
   // User Management
   getAllUsers(): Observable<User[]> {
@@ -96,7 +96,7 @@ export class AdminService {
   }
 
   createUser(request: CreateUserRequest): Observable<User> {
-    const authApiUrl = `${environment.apiUrl}/Admin/users`;
+    const authApiUrl = `${environment.apiUrl}/auth/admin/users`;
     const body = {
       username: request.email,
       email: request.email,
@@ -339,7 +339,8 @@ export class AdminService {
   }
 
   assignCompensatoryOff(request: AssignCompOffRequest): Observable<void> {
-    return this.http.post<ApiResponse<void>>(`${this.apiUrl}/assign-comp-off`, request)
+    // endpoint moved to approval controller
+    return this.http.post<ApiResponse<void>>(`${environment.apiUrl}/attendance/approval/assign-comp-off`, request)
       .pipe(
         map(response => {
           if (!response.success) {
@@ -354,7 +355,8 @@ export class AdminService {
   }
 
   logPastAttendance(request: LogPastAttendanceRequest): Observable<void> {
-    return this.http.post<ApiResponse<void>>(`${this.apiUrl}/log-past-attendance`, request)
+    // endpoint moved to approval controller
+    return this.http.post<ApiResponse<void>>(`${environment.apiUrl}/attendance/approval/log-past-attendance`, request)
       .pipe(
         map(response => {
           if (!response.success) {

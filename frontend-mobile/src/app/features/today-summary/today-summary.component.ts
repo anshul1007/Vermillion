@@ -2,6 +2,7 @@ import { Component, inject, signal, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { ApiService } from '../../core/services/api.service';
+import { RawEntryExitRecordDto } from '../../core/models/entry-exit.model';
 import { AuthService } from '../../core/auth/auth.service';
 
 @Component({
@@ -89,7 +90,7 @@ import { AuthService } from '../../core/auth/auth.service';
                         <h4 class="mb-0">{{ record.name }}</h4>
                         <p class="text-muted mb-0">{{ record.personType }}</p>
                       </div>
-                      <div class="record-time">{{ record.time }}</div>
+                      <div class="record-time">{{ formatTime(record.timestamp ?? record.Timestamp ?? record.entryTime ?? '') }}</div>
                     </div>
                   </div>
                 </div>
@@ -118,7 +119,7 @@ export class TodaySummaryComponent implements OnInit {
     activeNow: 0,
     totalExits: 0
   });
-  records = signal<any[]>([]);
+  records = signal<RawEntryExitRecordDto[]>([]);
 
   ngOnInit(): void {
     this.loadTodaySummary();
@@ -141,14 +142,14 @@ export class TodaySummaryComponent implements OnInit {
     });
   }
 
-  processRecords(data: any): void {
-    const records = data.records || [];
-    this.records.set(records);
+  processRecords(data: { records?: RawEntryExitRecordDto[] } | RawEntryExitRecordDto[]): void {
+    const recordsArray: RawEntryExitRecordDto[] = Array.isArray(data) ? data : (data.records ?? []);
+    this.records.set(recordsArray);
 
-    const labourEntries = records.filter((r: any) => r.personType === 'Labour' && r.action === 'Entry').length;
-    const visitorEntries = records.filter((r: any) => r.personType === 'Visitor' && r.action === 'Entry').length;
-    const exits = records.filter((r: any) => r.action === 'Exit').length;
-    const entries = records.filter((r: any) => r.action === 'Entry').length;
+    const labourEntries = recordsArray.filter((r) => (r.personType ?? r.PersonType) === 'Labour' || (r.personType ?? r.PersonType) === 1 && (r.action ?? r.Action) === 'Entry').length;
+    const visitorEntries = recordsArray.filter((r) => (r.personType ?? r.PersonType) === 'Visitor' || (r.personType ?? r.PersonType) === 2 && (r.action ?? r.Action) === 'Entry').length;
+    const exits = recordsArray.filter((r) => (r.action ?? r.Action) === 'Exit' || (r.action ?? r.Action) === 2).length;
+    const entries = recordsArray.filter((r) => (r.action ?? r.Action) === 'Entry' || (r.action ?? r.Action) === 1).length;
 
     this.summary.set({
       totalLabour: labourEntries,

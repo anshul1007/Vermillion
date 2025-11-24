@@ -31,12 +31,6 @@ export const routes: Routes = [
     data: { roles: ['SystemAdmin'] },
     loadChildren: () => import('./features/system-admin/system-admin.routes').then(m => m.SYSTEM_ADMIN_ROUTES)
   },
-  {
-    path: 'system',
-    canActivate: [authGuard, roleGuard],
-    data: { roles: ['SystemUser'] },
-    loadComponent: () => import('./features/system/feature-toggles/feature-toggles.component').then(m => m.FeatureTogglesComponent)
-  },
   { 
     path: '', 
     redirectTo: '/login', 

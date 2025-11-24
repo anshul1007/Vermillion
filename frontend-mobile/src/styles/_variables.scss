@@ -1,14 +1,108 @@
 /* Theme variables for frontend-mobile */
-$bg: #ffffff;
-$page-bg: #85b899;
 $text: #111827;
 $muted: #6b7280;
 $primary: #0ea5a4;
 $primary-dark: #0a8989;
 $header-blue: #1f6feb;
+$secondary: $muted; // neutral/secondary tone - reuse $muted to avoid duplication
 $card-bg: #ffffff;
 $card-shadow: rgba(16,24,40,0.04);
 $container-padding: 16px;
+
+/* Additional common colors to avoid hard-coded values in styles */
+$app-bg: #f5f7fa; /* page background */
+$danger: #b91c1c;
+$danger-strong: #dc2626;
+$success: #16a34a;
+$active-session-fill: #10b981;
+$active-session-stroke: #059669;
+$active-session-glow: rgba(16,185,129,0.6);
+$name-column-padding: 16px;
+$checked-out-fill: #94a3b8; /* gray-blue */
+$checked-out-stroke: #64748b;
+$muted-border: rgba(16,24,40,0.08);
+$muted-border-strong: rgba(16,24,40,0.12);
+$header-text-muted: rgba(255,255,255,0.8);
+
+/* Gray scale palette */
+$gray-50: #f9fafb;
+$gray-100: #f3f4f6;
+$gray-200: #e5e7eb;
+$gray-300: #d1d5db;
+$gray-400: #a0aec0;
+$gray-500: #6b7280;
+$gray-600: #4b5563;
+$gray-700: #374151;
+$gray-800: #1f2937;
+$gray-900: #111827;
+
+/* Slate scale (blue-tinted grays) */
+$slate-50: #f8fafc;
+$slate-100: #f1f5f9;
+$slate-200: #e2e8f0;
+$slate-300: #cbd5e0;
+$slate-400: #94a3b8;
+$slate-500: #64748b;
+$slate-600: #475569;
+$slate-700: #334155;
+$slate-800: #1e293b;
+
+/* Additional gray tones */
+$gray-text: #4a5568;
+$gray-text-light: #718096;
+$gray-dark: #2d3748;
+$gray-bg-light: #f7fafc;
+$gray-bg-medium: #edf2f7;
+
+/* Red/danger scale */
+$red-100: #fed7d7;
+$red-200: #fecaca;
+$red-300: #fca5a5;
+$red-400: #fc8181;
+$red-500: #f56565;
+$red-600: #e53e3e;
+$red-700: #c53030;
+$red-800: #9b2c2c;
+$red-900: #742a2a;
+
+/* Green/success scale */
+$green-100: #d1fae5;
+$green-200: #c6f6d5;
+$green-300: #86efac;
+$green-400: #4ade80;
+$green-500: #48bb78;
+$green-600: #38a169;
+$green-700: #2f855a;
+$green-800: #22543d;
+$green-900: #065f46;
+
+/* Blue scale */
+$blue-400: #4299e1;
+$blue-500: #3b82f6;
+$blue-600: #2563eb;
+
+/* Purple scale */
+$purple-500: #667eea;
+$purple-600: #764ba2;
+$pink-500: #b83280;
+
+/* Gradient colors for stat cards */
+$gradient-purple-start: #667eea;
+$gradient-purple-end: #764ba2;
+$gradient-pink-start: #f093fb;
+$gradient-pink-end: #f5576c;
+$gradient-blue-start: #4facfe;
+$gradient-blue-end: #00f2fe;
+$gradient-green-start: #43e97b;
+$gradient-green-end: #38f9d7;
+$gradient-yellow-start: #fa709a;
+$gradient-yellow-end: #fee140;
+
+/* Common shadows */
+$shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.1);
+$shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+$shadow-lg: 0 20px 60px rgba(0, 0, 0, 0.3);
+$shadow-overlay: rgba(0, 0, 0, 0.5);
 
 /* Spacing scale */
 $space-1: 8px;

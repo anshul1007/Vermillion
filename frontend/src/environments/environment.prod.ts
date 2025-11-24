@@ -1,8 +1,7 @@
 export const environment = {
   production: true,
-  apiUrl: 'https://vermillion-auth-api-prod.azurewebsites.net/api',  // AuthAPI
-  attendanceApiUrl: 'https://vermillion-attendance-api-prod.azurewebsites.net/api',  // AttendanceAPI
-  entryExitApiUrl: 'https://vermillion-entryexit-api-prod.azurewebsites.net/api',  // EntryExitAPI
+  apiUrl: 'https://vermillion-api-prod.azurewebsites.net/api',  // Unified API
+  baseUrl: 'https://vermillion-api-prod.azurewebsites.net',  // Base URL for static files
   appName: 'Attendance Management System',
   tokenKey: 'auth_token',
   refreshTokenKey: 'refresh_token'

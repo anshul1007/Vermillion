@@ -2195,3 +2195,124 @@ form > .btn:last-child:not(.form-actions .btn) {
 .p-8 {
   padding: var(--spacing-xl) !important;
 }
+
+// =============================================================================
+// REPORTS COMPONENTS
+// =============================================================================
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-lg);
+}
+
+.stat-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-lg);
+  text-align: center;
+  
+  h3 {
+    margin: 0 0 var(--spacing-sm) 0;
+    font-size: var(--font-size-sm);
+    color: var(--color-muted);
+    text-transform: uppercase;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+  }
+  
+  .stat-value {
+    margin: 0;
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--color-primary-1);
+  }
+}
+
+.quick-filters {
+  display: flex;
+  gap: var(--spacing-sm);
+  flex-wrap: wrap;
+}
+
+.records-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+  
+  thead {
+    background: var(--color-surface-light);
+    
+    th {
+      padding: var(--spacing-sm) var(--spacing-md);
+      text-align: left;
+      font-weight: 600;
+      color: var(--color-text-secondary);
+      border-bottom: 2px solid var(--color-border);
+      white-space: nowrap;
+    }
+  }
+  
+  tbody {
+    tr {
+      border-bottom: 1px solid var(--color-border);
+      transition: background-color 0.2s ease;
+      
+      &:hover {
+        background: var(--color-surface-light);
+      }
+    }
+    
+    td {
+      padding: var(--spacing-sm) var(--spacing-md);
+      color: var(--color-text);
+    }
+  }
+}
+
+.table-responsive {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+// Session status indicators
+.status-dot {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  position: relative;
+  
+  &.active {
+    background: var(--color-success);
+    box-shadow: 0 0 0 2px rgba(40, 167, 69, 0.3);
+    animation: pulse 2s infinite;
+  }
+  
+  &.completed {
+    background: var(--color-text-secondary);
+    opacity: 0.5;
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 2px rgba(40, 167, 69, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(40, 167, 69, 0.15);
+  }
+}
+
+// Active session row highlighting
+.sessions-table {
+  tbody tr.active-session {
+    background: rgba(40, 167, 69, 0.05);
+    border-left: 3px solid var(--color-success);
+    
+    &:hover {
+      background: rgba(40, 167, 69, 0.1);
+    }
+  }
+}

@@ -66,7 +66,7 @@ export class AuthService {
   login(credentials: LoginRequest): Observable<LoginResponse> {
     return this.http.post<ApiResponse<LoginResponse>>(
       `${environment.authApiUrl}/auth/login`,
-      credentials
+      { ...credentials, tenantDomain: 'entryexit' }
     ).pipe(
       map(apiResponse => {
         if (!apiResponse.success || !apiResponse.data) {

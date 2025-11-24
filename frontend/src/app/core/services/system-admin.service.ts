@@ -97,7 +97,8 @@ export interface UpdateTenantRequest {
 })
 export class SystemAdminService {
   private http = inject(HttpClient);
-  private apiUrl = `${environment.apiUrl}/Admin`; // Using apiUrl which points to AuthAPI
+  private apiUrl = `${environment.apiUrl}/auth/admin`;
+  private tenantApiUrl = `${environment.apiUrl}/auth/tenant`;
 
   // Users Management
   getAllUsers(tenantId?: number): Observable<SystemUser[]> {
@@ -150,7 +151,7 @@ export class SystemAdminService {
 
   // Roles Management
   getAllRoles(): Observable<Role[]> {
-    return this.http.get<ApiResponse<Role[]>>(`${this.apiUrl}/roles`)
+    return this.http.get<ApiResponse<Role[]>>(`${this.apiUrl}/role`)
       .pipe(map(response => response.data || []));
   }
 
@@ -218,12 +219,12 @@ export class SystemAdminService {
 
   // Tenants Management
   getAllTenants(): Observable<Tenant[]> {
-    return this.http.get<ApiResponse<Tenant[]>>(`${this.apiUrl}/tenants`)
+    return this.http.get<ApiResponse<Tenant[]>>(`${this.tenantApiUrl}`)
       .pipe(map(response => response.data || []));
   }
 
   updateTenant(id: number, request: UpdateTenantRequest): Observable<void> {
-    return this.http.put<ApiResponse<void>>(`${this.apiUrl}/tenants/${id}`, request)
+    return this.http.put<ApiResponse<void>>(`${this.tenantApiUrl}/${id}`, request)
       .pipe(map(() => undefined));
   }
 }

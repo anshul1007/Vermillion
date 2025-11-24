@@ -40,10 +40,12 @@ Comprehensive system administration interface for managing users, roles, permiss
 
 ## Architecture
 
-### Backend API (`AuthAPI`)
+### Backend API (Vermillion.API)
 
-#### SystemAdmin Controller
-**Base URL**: `http://localhost:5275/api/SystemAdmin`
+#### AuthAdminController (Auth Domain)
+**Base URL**: `http://localhost:5000/api/admin`
+
+**Location**: `backend/Vermillion.API/Controllers/AuthAdminController.cs`
 
 **Authentication**: Bearer token with `SystemAdmin` role required for all endpoints
 

@@ -4,7 +4,6 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { PhotoService } from '../core/services/photo.service';
 import { BarcodeService } from '../core/services/barcode.service';
-import { SyncService } from '../core/services/sync.service';
 import { ApiService } from '../core/services/api.service';
 import { AuthService } from '../core/auth/auth.service';
 
@@ -69,6 +68,11 @@ import { AuthService } from '../core/auth/auth.service';
                 </div>
 
                 <div class="mb-2">
+                  <label>Aadhar Number</label>
+                  <input [(ngModel)]="aadharNumber" placeholder="Enter Aadhar number (optional)" type="text" maxlength="12" />
+                </div>
+
+                <div class="mb-2">
                   <label>Barcode ID</label>
                   <div class="row align-center mb-1">
                     <input [(ngModel)]="barcode" placeholder="Scan or enter barcode" class="flex-1" />
@@ -103,7 +107,6 @@ import { AuthService } from '../core/auth/auth.service';
   `,
 })
 export class LabourRegistrationComponent implements OnInit {
-  private sync = inject(SyncService);
   private photoSvc = inject(PhotoService);
   private barcodeSvc = inject(BarcodeService);
   private api = inject(ApiService);
@@ -111,9 +114,10 @@ export class LabourRegistrationComponent implements OnInit {
   private router = inject(Router);
   
   guardProfile = this.authService.guardProfile;
-  barcode = ''; 
-  name = ''; 
+  barcode = '';
+  name = '';
   phone = '';
+  aadharNumber = '';
   contractorId = 0;
   photo = signal('');
   errorMessage = signal('');
@@ -134,8 +138,8 @@ export class LabourRegistrationComponent implements OnInit {
   loadContractors(projectId: number): void {
     this.loading.set(true);
     this.api.getContractorsByProject(projectId).subscribe({
-      next: (contractors) => {
-        this.contractors.set(contractors);
+      next: (response) => {
+        this.contractors.set(response.data || []);
         this.loading.set(false);
       },
       error: (err) => {
@@ -167,7 +171,7 @@ export class LabourRegistrationComponent implements OnInit {
     return !!(this.name && this.phone && this.photo() && this.contractorId > 0); 
   }
 
-  async submit(): Promise<void> {
+  submit(): void {
     const profile = this.guardProfile();
     if (!profile) {
       this.errorMessage.set('Guard profile not loaded');
@@ -179,34 +183,42 @@ export class LabourRegistrationComponent implements OnInit {
     this.successMessage.set('');
 
     const labourData = {
+      name: this.name,
+      phoneNumber: this.phone,
+      aadharNumber: this.aadharNumber || undefined,
+      photoBase64: this.photo(),
       projectId: profile.projectId,
       contractorId: this.contractorId,
-      barcode: this.barcode || `LAB-${Date.now()}`,
-      photoPath: this.photo(),
-      name: this.name,
-      phoneNumber: this.phone
+      barcode: this.barcode || `LAB-${Date.now()}`
     };
-    
-    try {
-      await this.sync.queueOperation('LabourRegistration', labourData);
-      this.successMessage.set('Labour registered successfully!');
-      
-      // Reset form after 2 seconds
-      setTimeout(() => {
-        this.resetForm();
-        this.successMessage.set('');
-      }, 2000);
-    } catch (err) {
-      this.errorMessage.set('Failed to register labour. Please try again.');
-    } finally {
-      this.submitting.set(false);
-    }
+
+    this.api.registerLabour(labourData).subscribe({
+      next: (response) => {
+        this.submitting.set(false);
+        if (response.success) {
+          this.successMessage.set('Labour registered successfully!');
+
+          // Navigate back to entry-exit after 1.5 seconds
+          setTimeout(() => {
+            this.router.navigate(['/entry-exit']);
+          }, 1000);
+        } else {
+          this.errorMessage.set(response.message || 'Failed to register labour');
+        }
+      },
+      error: (err) => {
+        this.submitting.set(false);
+        this.errorMessage.set('Failed to register labour. Please try again.');
+        console.error('Labour registration error:', err);
+      }
+    });
   }
 
   resetForm(): void {
     this.barcode = '';
     this.name = '';
     this.phone = '';
+    this.aadharNumber = '';
     this.contractorId = 0;
     this.photo.set('');
   }

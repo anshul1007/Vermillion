@@ -1,8 +1,7 @@
 export const environment = {
   production: false,
-  apiUrl: 'http://localhost:5275/api',  // AuthAPI
-  attendanceApiUrl: 'http://localhost:5000/api',  // AttendanceAPI
-  entryExitApiUrl: 'http://localhost:5001/api',  // EntryExitAPI
+  apiUrl: 'https://localhost:5000/api',  // AuthAPI
+  baseUrl: 'https://localhost:5000',  // Base URL for static files
   appName: 'Attendance Management System',
   tokenKey: 'auth_token',
   refreshTokenKey: 'refresh_token'

@@ -8,7 +8,7 @@ export interface Worker {
   company?: string;
   department?: string;
   designation?: string;
-  photoUrl?: string;
+  photoBase64?: string;
   isActive: boolean;
   createdAt?: Date;
   updatedAt?: Date;
@@ -24,7 +24,7 @@ export interface Visitor {
   personToMeet?: string;
   idProofType?: string;
   idProofNumber?: string;
-  photoUrl?: string;
+  photoBase64?: string;
   createdAt?: Date;
 }
 
@@ -38,7 +38,7 @@ export interface EntryExit {
   gateNumber?: string;
   recordedBy?: string;
   notes?: string;
-  photoUrl?: string;
+  photoBase64?: string;
   temperature?: string;
   healthCheckPassed?: boolean;
   worker?: Worker;

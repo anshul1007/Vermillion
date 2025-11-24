@@ -1,6 +1,6 @@
 # Database Migrations and Seeders CI/CD
 
-This document explains how to manage database migrations and seeders separately from application deployments.
+This document explains how to manage database migrations and seeders for the Vermillion unified API.
 
 ## Overview
 
@@ -10,7 +10,18 @@ Starting from November 2024, database migrations are **disabled by default in pr
 
 - **Backend Deployment** (`deploy-backend.yml`): Deploys application code with `RUN_MIGRATIONS=false` in production
 - **Migrations Workflow** (`run-migrations.yml`): Runs EF Core migrations and seeders on-demand
-- **Application Startup**: APIs check `RUN_MIGRATIONS` environment variable or `RunMigrations` config
+- **Application Startup**: Vermillion.API checks `RUN_MIGRATIONS` environment variable or `RunMigrations` config
+
+## Unified API Structure
+
+The Vermillion.API hosts four separate database contexts, each with its own schema:
+
+1. **AuthDbContext** - `auth` schema (authentication, users, roles, tenants)
+2. **AttendanceDbContext** - `attendance` schema (attendance tracking, leave management)
+3. **EntryExitDbContext** - `entryexit` schema (construction site entry/exit)
+4. **SharedDbContext** - `shared` schema (audit logs, feature toggles)
+
+All contexts use the same database connection string to `VermillionDB_Dev` (dev) or `VermillionDB_Prod` (production).
 
 ## Running Migrations
 
@@ -21,7 +32,7 @@ Starting from November 2024, database migrations are **disabled by default in pr
 3. Configure:
    - **Environment**: `prod`, `dev`, or `staging`
    - **Run seeders**: `true` or `false`
-   - **Backends**: `all` or comma-separated list (e.g., `attendance,auth`)
+   - **Contexts**: `all` or comma-separated list (e.g., `AuthDbContext,AttendanceDbContext`)
 4. Click **Run workflow**
 
 ### What It Does
@@ -29,30 +40,37 @@ Starting from November 2024, database migrations are **disabled by default in pr
 The workflow will:
 1. Install .NET SDK and EF Core tools
 2. Connect to Azure SQL using service principal
-3. Run `dotnet ef database update` for each selected backend
+3. Run `dotnet ef database update --context [Context]` for each selected context
 4. Optionally run seeders if enabled
 
 ### Example Scenarios
 
-**Deploy new migration to production:**
+**Deploy new migration to production (all contexts):**
 ```
 Environment: prod
 Run seeders: false
-Backends: all
+Contexts: all
 ```
 
 **Seed data in development:**
 ```
 Environment: dev
 Run seeders: true
-Backends: all
+Contexts: all
 ```
 
-**Update only AttendanceAPI schema:**
+**Update only Auth schema:**
 ```
 Environment: prod
 Run seeders: false
-Backends: attendance
+Contexts: AuthDbContext
+```
+
+**Update Attendance and EntryExit schemas:**
+```
+Environment: prod
+Run seeders: false
+Contexts: AttendanceDbContext,EntryExitDbContext
 ```
 
 ## Manual Migration (Local or Azure CLI)
@@ -71,13 +89,16 @@ az login
 
 ```bash
 # Set connection string
-export ConnectionStrings__DefaultConnection="Server=tcp:vermillion-sql-prod.database.windows.net,1433;Initial Catalog=AttendanceDB_prod;User ID=sqladmin;Password=YOUR_PASSWORD;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;ConnectRetryCount=3;ConnectRetryInterval=10;"
+export ConnectionStrings__DefaultConnection="Server=tcp:vermillion-sql-prod.database.windows.net,1433;Initial Catalog=VermillionDB_prod;User ID=sqladmin;Password=YOUR_PASSWORD;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;ConnectRetryCount=3;ConnectRetryInterval=10;"
 
-# Navigate to backend project
-cd backend/AttendanceAPI
+# Navigate to unified API project
+cd backend/Vermillion.API
 
-# Run migrations
-dotnet ef database update --configuration Release
+# Run migrations for specific context
+dotnet ef database update --context AuthDbContext --configuration Release
+dotnet ef database update --context AttendanceDbContext --configuration Release
+dotnet ef database update --context EntryExitDbContext --configuration Release
+dotnet ef database update --context SharedDbContext --configuration Release
 ```
 
 ### Run Seeders Manually
@@ -88,8 +109,8 @@ export ConnectionStrings__DefaultConnection="YOUR_CONNECTION_STRING"
 export SeedOnStartup=true
 export RUN_MIGRATIONS=false
 
-# Run the API (seeders execute on startup)
-cd backend/AuthAPI
+# Run the unified API (seeders execute on startup)
+cd backend/Vermillion.API
 dotnet run --configuration Release
 ```
 
@@ -101,21 +122,48 @@ Migrations run automatically on startup in Development environment:
 ```json
 // appsettings.Development.json
 {
-  "RunMigrations": true  // Default for Development
+  "RunMigrations": true,  // Default for Development
+  "SeedOnStartup": true
 }
+```
+
+All four contexts are migrated automatically when you run:
+```bash
+cd backend/Vermillion.API
+dotnet run
 ```
 
 ### Creating New Migrations
 
 ```bash
-cd backend/AttendanceAPI
-dotnet ef migrations add YourMigrationName
+cd backend/Vermillion.API
+
+# Create migration for specific domain
+dotnet ef migrations add MigrationName --context AuthDbContext --output-dir Migrations/Auth
+dotnet ef migrations add MigrationName --context AttendanceDbContext --output-dir Migrations/Attendance
+dotnet ef migrations add MigrationName --context EntryExitDbContext --output-dir Migrations/EntryExit
+dotnet ef migrations add MigrationName --context SharedDbContext --output-dir Migrations/Shared
+
+# Apply migration locally
+dotnet ef database update --context AuthDbContext
+```
+
+### Migration Files Organization
+
+Migrations are organized by domain in the unified API project:
+```
+backend/Vermillion.API/
+├── Migrations/
+│   ├── Auth/               # AuthDbContext migrations
+│   ├── Attendance/         # AttendanceDbContext migrations
+│   ├── EntryExit/          # EntryExitDbContext migrations
+│   └── Shared/             # SharedDbContext migrations
 ```
 
 ### Testing Migrations Before Production
 
 1. Deploy to `dev` or `staging` environment
-2. Run migrations workflow with `environment: dev`
+2. Run migrations workflow with `environment: dev` and appropriate context(s)
 3. Verify schema changes
 4. Deploy to `prod` and run migrations
 
@@ -124,16 +172,16 @@ dotnet ef migrations add YourMigrationName
 ### Option 1: Migrations Before Deployment (Recommended)
 ```
 1. Merge code to main branch
-2. Run "Run Database Migrations and Seeders" workflow (environment: prod)
+2. Run "Run Database Migrations and Seeders" workflow (environment: prod, contexts: all)
 3. Wait for migrations to complete
 4. "Deploy Backend to Azure" workflow runs automatically
-5. Apps start without running migrations (RUN_MIGRATIONS=false)
+5. App starts without running migrations (RUN_MIGRATIONS=false)
 ```
 
 ### Option 2: Migrations After Deployment
 ```
 1. Ensure new code is backward-compatible with old schema
-2. "Deploy Backend to Azure" workflow runs (apps start without migrations)
+2. "Deploy Backend to Azure" workflow runs (app starts without migrations)
 3. Run "Run Database Migrations and Seeders" workflow (environment: prod)
 4. Schema updates without app restart
 ```
@@ -143,7 +191,7 @@ dotnet ef migrations add YourMigrationName
 Override `RUN_MIGRATIONS` setting in Azure Portal:
 ```bash
 az webapp config appsettings set \
-  --name vermillion-attendance-api-prod \
+  --name vermillion-api-prod \
   --resource-group vermillion-rg \
   --settings RUN_MIGRATIONS=true
 ```
@@ -160,18 +208,26 @@ EF Core execution strategy also provides automatic retry with exponential backof
 
 ## Seeding Strategy
 
-### AuthAPI Seeder
-- Seeds default admin user and roles
+### IdentitySeeder (Auth Domain)
+- Seeds default admin users, roles, and tenants
 - Controlled by `SeedOnStartup` config flag
 - Safe to run multiple times (idempotent)
+- Runs first (other seeders may depend on users)
 
-### EntryExitAPI Seeder
-- Seeds initial entry/exit data if needed
+### SharedSeeder (Shared Domain)
+- Seeds sample audit logs and feature toggles
 - Controlled by `SeedOnStartup` config flag
 - Safe to run multiple times (idempotent)
+- Runs after IdentitySeeder (audit logs reference user IDs)
 
-### AttendanceAPI
-- No seeder currently implemented
+### EntryExitSeeder (EntryExit Domain)
+- Seeds sample projects, contractors, and guards
+- Controlled by `SeedOnStartup` config flag
+- Safe to run multiple times (idempotent)
+- Runs after IdentitySeeder and SharedSeeder
+
+### Attendance Domain
+- No dedicated seeder currently implemented
 - Add seeder if needed following the same pattern
 
 ## Troubleshooting
@@ -189,7 +245,7 @@ EF Core execution strategy also provides automatic retry with exponential backof
 
 **Cause**: Seeder runs via `timeout 60s dotnet run` to prevent hanging
 
-**Solution**: 
+**Solution**:
 1. Increase timeout if seeding large datasets
 2. Check seeder logs for errors
 3. Run seeder manually for better diagnostics
@@ -199,6 +255,16 @@ EF Core execution strategy also provides automatic retry with exponential backof
 **Cause**: Schema is already up to date
 
 **Solution**: This is normal. No action needed.
+
+### Context Not Found Error
+
+**Cause**: Specified context name doesn't exist or is misspelled
+
+**Solution**: Use exact context names:
+- `AuthDbContext`
+- `AttendanceDbContext`
+- `EntryExitDbContext`
+- `SharedDbContext`
 
 ## Configuration Reference
 
@@ -226,9 +292,24 @@ EF Core execution strategy also provides automatic retry with exponential backof
 4. **Run seeders only when needed** (not on every deployment)
 5. **Monitor migration logs** in GitHub Actions for errors
 6. **Coordinate migrations with deployments** to avoid schema version mismatches
+7. **Use context-specific migrations** when only one domain schema changes
+8. **Maintain schema separation** - never reference tables across schemas
+
+## Schema Dependencies
+
+Be aware of these cross-schema dependencies:
+- **Shared.AuditLogs** references **Auth.Users** (UserId)
+- **Attendance domain** may reference **Auth.Users** via UserId claims
+- **EntryExit domain** references **Auth.Users** for Guard assignments
+
+When creating migrations that affect these relationships, ensure:
+1. Auth schema is migrated first
+2. Dependent schemas are migrated after
+3. Foreign keys are properly configured (or avoided for cross-schema refs)
 
 ## See Also
 
 - [Azure Infrastructure Setup](./CLAUDE_SETUP.md)
 - [GitHub Actions Workflows](../.github/workflows/)
 - [EF Core Migrations Documentation](https://learn.microsoft.com/en-us/ef/core/managing-schemas/migrations/)
+- [CLAUDE.md](../CLAUDE.md) - Complete project reference

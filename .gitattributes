@@ -11,6 +11,11 @@
 *.scss text
 *.sql text
 
+# Force CRLF on checkout for C# and solution/project files on Windows
+*.cs eol=crlf
+*.csproj eol=crlf
+*.sln eol=crlf
+
 # Documentation
 *.md text
 *.txt text

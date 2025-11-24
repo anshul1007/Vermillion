@@ -2,8 +2,8 @@ import { Component, inject, signal, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
+import { ApiService } from '../core/services/api.service';
 import { PhotoService } from '../core/services/photo.service';
-import { SyncService } from '../core/services/sync.service';
 import { AuthService } from '../core/auth/auth.service';
 
 @Component({
@@ -100,9 +100,9 @@ import { AuthService } from '../core/auth/auth.service';
   `,
 })
 export class VisitorRegistrationComponent implements OnInit {
-  private sync = inject(SyncService);
   private photoSvc = inject(PhotoService);
   private authService = inject(AuthService);
+  private api = inject(ApiService);
   private router = inject(Router);
 
   guardProfile = this.authService.guardProfile;
@@ -118,6 +118,18 @@ export class VisitorRegistrationComponent implements OnInit {
   ngOnInit(): void {
     if (!this.guardProfile()) {
       this.errorMessage.set('No project assigned. Please contact admin.');
+    }
+    // Prefill support: read navigation state for quick prefill (e.g., phone number)
+    try {
+      const navState = (history && history.state) ? (history.state as { prefill?: { phoneNumber?: string; name?: string } }) : { prefill: {} } as { prefill?: { phoneNumber?: string; name?: string } };
+      if (navState?.prefill?.phoneNumber) {
+        this.phoneNumber = navState.prefill.phoneNumber;
+      }
+      if (navState?.prefill?.name) {
+        this.name = navState.prefill.name;
+      }
+    } catch (e) {
+      // ignore malformed state
     }
   }
 
@@ -140,7 +152,11 @@ export class VisitorRegistrationComponent implements OnInit {
     );
   }
 
-  async submit(): Promise<void> {
+  /**
+   * Submit visitor registration form.
+   * Calls API directly for immediate registration.
+   */
+  submit(): void {
     const profile = this.guardProfile();
     if (!profile) {
       this.errorMessage.set('Guard profile not loaded');
@@ -157,28 +173,40 @@ export class VisitorRegistrationComponent implements OnInit {
     this.successMessage.set('');
 
     const visitorData = {
-      projectId: profile.projectId,
       name: this.name.trim(),
       phoneNumber: this.phoneNumber.trim(),
       companyName: this.companyName.trim() || undefined,
       purpose: this.purpose.trim(),
-      photoPath: this.photo(),
+      photoBase64: this.photo(),
+      projectId: profile.projectId
     };
 
-    try {
-      await this.sync.queueOperation('VisitorRegistration', visitorData);
-      this.successMessage.set('Visitor registered successfully!');
+    console.log('Registering visitor with data:', visitorData);
 
-      // Reset form after 2 seconds
-      setTimeout(() => {
-        this.resetForm();
-        this.successMessage.set('');
-      }, 2000);
-    } catch (err) {
-      this.errorMessage.set('Failed to register visitor. Please try again.');
-    } finally {
-      this.submitting.set(false);
-    }
+    this.api.registerVisitor(visitorData).subscribe({
+      next: (res) => {
+        console.log('Visitor registration response:', res);
+        this.submitting.set(false);
+        
+        if (res?.success) {
+          this.successMessage.set('Visitor registered successfully!');
+          setTimeout(() => {
+            this.resetForm();
+            this.router.navigate(['/entry-exit']);
+          }, 2000);
+        } else {
+          this.errorMessage.set(res?.message || 'Failed to register visitor');
+        }
+      },
+      error: (err) => {
+        console.error('Register visitor API error:', err);
+        console.error('Error details:', err.error);
+        this.submitting.set(false);
+        
+        const errorMsg = err.error?.message || err.error?.Message || err.message || 'Failed to register visitor. Please try again.';
+        this.errorMessage.set(errorMsg);
+      }
+    });
   }
 
   resetForm(): void {

@@ -9,12 +9,40 @@ export interface ApiResponse<T> {
   message?: string;
 }
 
-export interface LabourRegistrationDto {
-  labourId: number;
+export interface CreateLabourDto {
+  name: string;
+  phoneNumber: string;
+  aadharNumber?: string;
+}
+
+export interface CreateLabourRegistrationDto {
+  // Flattened to match backend CreateLabourDto (expected top-level fields)
+  name: string;
+  phoneNumber: string;
+  aadharNumber?: string;
+  photoBase64?: string;
   projectId: number;
   contractorId: number;
   barcode: string;
-  photoPath?: string;
+  labourId?: number;
+}
+
+export interface LabourRegistrationDto {
+  id: number;
+  labourId: number;
+  labourName: string;
+  phoneNumber: string;
+  aadharNumber?: string;
+  photoBase64?: string;
+  projectId: number;
+  projectName: string;
+  contractorId: number;
+  contractorName: string;
+  barcode: string;
+  isActive: boolean;
+  registeredBy?: string;
+  registeredAt: string;
+  updatedAt?: string;
 }
 
 export interface VisitorRegistrationDto {
@@ -22,12 +50,14 @@ export interface VisitorRegistrationDto {
   phoneNumber: string;
   companyName?: string;
   purpose: string;
-  photoPath: string;
+  photoBase64: string;
+  projectId: number;
 }
 
 export interface CreateRecordDto {
   personType: 'Labour' | 'Visitor';
-  personId: number;
+  labourId?: number;
+  visitorId?: number;
   action: 'Entry' | 'Exit';
   photoPath?: string;
   clientId?: string;
@@ -41,7 +71,7 @@ export interface SyncOperation {
   id: number;
   operationType: string;
   entityType: string;
-  data: any;
+  data: unknown;
   clientId: string;
   timestamp: string;
 }
@@ -105,7 +135,7 @@ export class ApiService {
   }
 
   // Labour endpoints
-  registerLabour(data: LabourRegistrationDto): Observable<ApiResponse<any>> {
+  registerLabour(data: CreateLabourRegistrationDto): Observable<ApiResponse<any>> {
     return this.http.post<ApiResponse<any>>(`${this.entryExitApiUrl}/labour/register`, data, {
       headers: this.getHeaders()
     });
@@ -163,15 +193,68 @@ export class ApiService {
     });
   }
 
-  getContractorsByProject(projectId: number): Observable<Contractor[]> {
-    return this.http.get<Contractor[]>(`${this.entryExitApiUrl}/admin/contractors?projectId=${projectId}`, {
+  getContractorsByProject(projectId: number): Observable<ApiResponse<Contractor[]>> {
+    return this.http.get<ApiResponse<Contractor[]>>(`${this.entryExitApiUrl}/admin/contractors?projectId=${projectId}`, {
       headers: this.getHeaders()
     });
   }
 
-  // Search method for general use
+  // Search method for general use (searches both labour and visitors)
   search(query: string): Observable<ApiResponse<any>> {
-    // Search both labour and visitors
-    return this.searchLabour(query);
+    return this.http.get<ApiResponse<any>>(`${this.entryExitApiUrl}/records/search-person?query=${encodeURIComponent(query)}`, {
+      headers: this.getHeaders()
+    });
+  }
+
+  // Reports and statistics endpoints
+  getRecords(fromDate?: string, toDate?: string, labourId?: number, visitorId?: number): Observable<ApiResponse<any>> {
+    let url = `${this.entryExitApiUrl}/records?`;
+    const params: string[] = [];
+
+    if (fromDate) params.push(`fromDate=${encodeURIComponent(fromDate)}`);
+    if (toDate) params.push(`toDate=${encodeURIComponent(toDate)}`);
+    if (labourId) params.push(`labourId=${labourId}`);
+    if (visitorId) params.push(`visitorId=${visitorId}`);
+
+    url += params.join('&');
+
+    return this.http.get<ApiResponse<any>>(url, {
+      headers: this.getHeaders()
+    });
+  }
+
+  getOpenSessions(projectId?: number): Observable<ApiResponse<any>> {
+    let url = `${this.entryExitApiUrl}/records/open-sessions`;
+    if (projectId) {
+      url += `?projectId=${projectId}`;
+    }
+    return this.http.get<ApiResponse<any>>(url, {
+      headers: this.getHeaders()
+    });
+  }
+
+  getDashboardStats(): Observable<any> {
+    return this.http.get<any>(`${this.entryExitApiUrl}/admin/dashboard-stats`, {
+      headers: this.getHeaders()
+    });
+  }
+
+  // Contractor-based search
+  searchByContractor(contractorName: string): Observable<ApiResponse<any>> {
+    return this.http.get<ApiResponse<any>>(`${this.entryExitApiUrl}/records/search-by-contractor?contractorName=${encodeURIComponent(contractorName)}`, {
+      headers: this.getHeaders()
+    });
+  }
+
+  // Bulk check-in/check-out
+  bulkCheckIn(labourIds: number[], action: number, gate?: string, notes?: string): Observable<ApiResponse<any>> {
+    return this.http.post<ApiResponse<any>>(`${this.entryExitApiUrl}/records/bulk-checkin`, {
+      labourIds,
+      action,
+      gate,
+      notes
+    }, {
+      headers: this.getHeaders()
+    });
   }
 }

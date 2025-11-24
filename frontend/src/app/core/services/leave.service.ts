@@ -17,7 +17,7 @@ import { ApiResponse } from '../../shared/models/api-response.model';
 export class LeaveService {
   private http = inject(HttpClient);
   // Leave endpoints are hosted in the Attendance API
-  private readonly apiUrl = `${environment.attendanceApiUrl}/leave`;
+  private readonly apiUrl = `${environment.apiUrl}/attendance/leave`;
 
   createLeaveRequest(request: LeaveRequest): Observable<LeaveRequestResponse> {
     return this.http.post<ApiResponse<LeaveRequestResponse>>(`${this.apiUrl}/request`, request)

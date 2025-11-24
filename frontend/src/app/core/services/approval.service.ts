@@ -50,7 +50,7 @@ export interface AttendanceRecord {
 export class ApprovalService {
   private http = inject(HttpClient);
   // Approval endpoints are served by the AttendanceAPI service
-  private readonly apiUrl = `${environment.attendanceApiUrl}/approval`;
+  private readonly apiUrl = `${environment.apiUrl}/attendance/approval`;
 
   getPendingAttendance(date?: string): Observable<AttendanceRecord[]> {
     let params = new HttpParams();

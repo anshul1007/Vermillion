@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
@@ -87,12 +87,43 @@ export interface UpdateContractorDto {
   isActive?: boolean;
 }
 
+export interface LabourRegistration {
+  id: number;
+  labourId: number;
+  labourName: string;
+  phoneNumber: string;
+  aadharNumber?: string;
+  photoBase64?: string;
+  projectId: number;
+  projectName: string;
+  contractorId: number;
+  contractorName: string;
+  barcode: string;
+  isActive: boolean;
+  registeredBy?: string;
+  registeredAt: string;
+  updatedAt?: string;
+}
+
+export interface VisitorRegistration {
+  id: number;
+  name: string;
+  phoneNumber: string;
+  photoBase64: string;
+  projectId: number;
+  projectName?: string;
+  companyName?: string;
+  purpose?: string;
+  registeredBy?: string;
+  registeredAt: string;
+}
+
 @Injectable({
   providedIn: 'root'
 })
 export class EntryExitService {
   private http = inject(HttpClient);
-  private readonly apiUrl = environment.entryExitApiUrl;
+  private readonly apiUrl = `${environment.apiUrl}/entryexit`;
 
   // Projects
   getProjects(): Observable<Project[]> {
@@ -183,6 +214,64 @@ export class EntryExitService {
 
   getMyAssignments(): Observable<GuardProjectInfo[]> {
     return this.http.get<ApiResponse<GuardProjectInfo[]>>(`${this.apiUrl}/admin/guards/my-assignments`)
+      .pipe(map(response => response.data));
+  }
+
+  // Labour
+  getLabourByProject(projectId: number): Observable<LabourRegistration[]> {
+    return this.http.get<ApiResponse<LabourRegistration[]>>(`${this.apiUrl}/labour/by-project/${projectId}`)
+      .pipe(map(response => response.data));
+  }
+
+  getLabourByContractor(contractorId: number): Observable<LabourRegistration[]> {
+    return this.http.get<ApiResponse<LabourRegistration[]>>(`${this.apiUrl}/labour/by-contractor/${contractorId}`)
+      .pipe(map(response => response.data));
+  }
+
+  searchLabour(query: string): Observable<LabourRegistration[]> {
+    return this.http.get<ApiResponse<LabourRegistration[]>>(`${this.apiUrl}/labour/search?query=${encodeURIComponent(query)}`)
+      .pipe(map(response => response.data));
+  }
+
+  getLabourRegistration(id: number): Observable<LabourRegistration> {
+    return this.http.get<ApiResponse<LabourRegistration>>(`${this.apiUrl}/labour/${id}`)
+      .pipe(map(response => response.data));
+  }
+
+  // Visitors
+  getVisitorsByProject(projectId: number): Observable<VisitorRegistration[]> {
+    return this.http.get<ApiResponse<VisitorRegistration[]>>(`${this.apiUrl}/visitor/by-project/${projectId}`)
+      .pipe(map(response => response.data));
+  }
+
+  getVisitorsByQuery(query: string): Observable<VisitorRegistration[]> {
+    return this.http.get<ApiResponse<VisitorRegistration[]>>(`${this.apiUrl}/visitor/search?query=${encodeURIComponent(query)}`)
+      .pipe(map(response => response.data));
+  }
+
+  getVisitorRegistration(id: number): Observable<VisitorRegistration> {
+    return this.http.get<ApiResponse<VisitorRegistration>>(`${this.apiUrl}/visitor/${id}`)
+      .pipe(map(response => response.data));
+  }
+
+  // Reports
+  getRecords(labourId?: number | null, visitorId?: number | null, fromDate?: Date, toDate?: Date): Observable<any[]> {
+    let params = new HttpParams();
+    
+    if (labourId) {
+      params = params.set('labourRegistrationId', labourId.toString());
+    }
+    if (visitorId) {
+      params = params.set('visitorId', visitorId.toString());
+    }
+    if (fromDate) {
+      params = params.set('fromDate', fromDate.toISOString());
+    }
+    if (toDate) {
+      params = params.set('toDate', toDate.toISOString());
+    }
+    
+    return this.http.get<ApiResponse<any[]>>(`${this.apiUrl}/records`, { params })
       .pipe(map(response => response.data));
   }
 }

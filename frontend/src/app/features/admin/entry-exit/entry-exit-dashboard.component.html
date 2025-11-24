@@ -31,6 +31,18 @@
       <i class="icon">🛡️</i>
       Security Guards
     </button>
+    <button class="tab" [class.active]="activeTab() === 'labour'" (click)="setActiveTab('labour')">
+      <i class="icon">👷</i>
+      Labour
+    </button>
+    <button class="tab" [class.active]="activeTab() === 'visitors'" (click)="setActiveTab('visitors')">
+      <i class="icon">🧑‍🤝‍🧑</i>
+      Visitors
+    </button>
+    <button class="tab" [class.active]="activeTab() === 'reports'" (click)="activeTab.set('reports'); initReports()">
+      <i class="icon">📊</i>
+      Reports
+    </button>
   </div>
 
   <!-- Projects Tab -->
@@ -514,6 +526,424 @@
       </div>
       }
     </div>
+  </div>
+  }
+
+  <!-- Labour Tab -->
+  @if (activeTab() === 'labour') {
+  <div class="tab-content">
+    <div class="section-header">
+      <h2>Labour Workers</h2>
+    </div>
+
+    <!-- Filters -->
+    <div class="form-card">
+      <h3>Filter Labour</h3>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="filterProject">Filter by Project</label>
+          <select
+            id="filterProject"
+            class="form-control"
+            [ngModel]="labourFilterProjectId()"
+            (ngModelChange)="labourFilterProjectId.set($event); labourFilterContractorId.set(0); onLabourFilterChange()"
+          >
+            <option [ngValue]="0">Select a project</option>
+            @for (project of projects(); track project.id) {
+            <option [ngValue]="project.id">{{ project.name }}</option>
+            }
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="filterContractor">Filter by Contractor</label>
+          <select
+            id="filterContractor"
+            class="form-control"
+            [ngModel]="labourFilterContractorId()"
+            (ngModelChange)="labourFilterContractorId.set($event); labourFilterProjectId.set(0); onLabourFilterChange()"
+          >
+            <option [ngValue]="0">Select a contractor</option>
+            @for (contractor of contractors(); track contractor.id) {
+            <option [ngValue]="contractor.id">{{ contractor.name }}</option>
+            }
+          </select>
+        </div>
+
+        <!-- <div class="form-group">
+          <label for="searchLabour">Search</label>
+          <input
+            type="text"
+            id="searchLabour"
+            class="form-control"
+            placeholder="Name, phone, barcode, or Aadhar"
+            [ngModel]="labourSearchQuery()"
+            (ngModelChange)="labourSearchQuery.set($event); onLabourSearchChange()"
+          />
+        </div> -->
+      </div>
+    </div>
+
+    @if (loading()) {
+    <div class="loading">Loading labour...</div>
+    }
+
+    <div class="data-grid">
+      @for (labour of filteredLabour(); track labour.id) {
+      <div class="data-card">
+        <div class="card-header">
+          <div>
+            <h3>{{ labour.labourName }}</h3>
+            <p class="description">Barcode: {{ labour.barcode }}</p>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="info-row">
+            <span class="label">Phone:</span>
+            <span>{{ labour.phoneNumber }}</span>
+          </div>
+          @if (labour.aadharNumber) {
+          <div class="info-row">
+            <span class="label">Aadhar:</span>
+            <span>{{ labour.aadharNumber }}</span>
+          </div>
+          }
+          <div class="info-row">
+            <span class="label">Project:</span>
+            <span class="badge badge-info">{{ labour.projectName }}</span>
+          </div>
+          <div class="info-row">
+            <span class="label">Contractor:</span>
+            <span class="badge badge-info">{{ labour.contractorName }}</span>
+          </div>
+          <div class="info-row">
+            <span class="label">Status:</span>
+            <span
+              class="badge"
+              [class.badge-success]="labour.isActive"
+              [class.badge-inactive]="!labour.isActive"
+            >
+              {{ labour.isActive ? 'Active' : 'Inactive' }}
+            </span>
+          </div>
+          <div class="info-row">
+            <span class="label">Registered:</span>
+            <span>{{ labour.registeredAt | date: 'short' }}</span>
+          </div>
+          @if (labour.registeredBy) {
+          <div class="info-row">
+            <span class="label">Registered By:</span>
+            <span>{{ labour.registeredBy }}</span>
+          </div>
+          }
+          @if (labour.photoBase64) {
+          <div class="info-row">
+            <span class="label">Photo:</span>
+            <img [src]="'data:image/jpeg;base64,' + labour.photoBase64" alt="Labour photo" style="max-width: 100px; border-radius: 4px;" />
+          </div>
+          }
+        </div>
+      </div>
+      } @empty {
+      <div class="empty-state">
+        <p>
+          @if (labourFilterProjectId() === 0 && labourFilterContractorId() === 0) {
+            Please select a project or contractor to view labour workers.
+          } @else {
+            No labour workers found for the selected filter.
+          }
+        </p>
+      </div>
+      }
+    </div>
+  </div>
+  }
+  
+  <!-- Visitors Tab -->
+  @if (activeTab() === 'visitors') {
+  <div class="tab-content">
+    <div class="section-header">
+      <h2>Visitors</h2>
+    </div>
+
+    <!-- Filters -->
+    <div class="form-card">
+      <h3>Filter / Search Visitors</h3>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="visitorProject">Filter by Project</label>
+          <select
+            id="visitorProject"
+            class="form-control"
+            [ngModel]="visitorFilterProjectId()"
+            (ngModelChange)="visitorFilterProjectId.set($event); onVisitorFilterChange()"
+          >
+            <option [ngValue]="0">Select a project</option>
+            @for (project of projects(); track project.id) {
+            <option [ngValue]="project.id">{{ project.name }}</option>
+            }
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="searchVisitor">Search</label>
+          <input
+            type="text"
+            id="searchVisitor"
+            class="form-control"
+            placeholder="Name, phone or barcode"
+            [ngModel]="visitorSearchQuery()"
+            (ngModelChange)="visitorSearchQuery.set($event); onVisitorSearchChange()"
+          />
+        </div>
+      </div>
+    </div>
+
+    @if (loading()) {
+    <div class="loading">Loading visitors...</div>
+    }
+
+    <div class="data-grid">
+      @for (visitor of filteredVisitors(); track visitor.id) {
+      <div class="data-card">
+        <div class="card-header">
+          <div>
+            <h3>{{ visitor.name }}</h3>
+            @if (visitor.phoneNumber) {
+            <p class="description">Phone: {{ visitor.phoneNumber }}</p>
+            }
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="info-row">
+            <span class="label">Project:</span>
+            <span class="badge badge-info">{{ visitor.projectName || 'N/A' }}</span>
+          </div>
+          @if (visitor.companyName) {
+          <div class="info-row">
+            <span class="label">Company:</span>
+            <span>{{ visitor.companyName }}</span>
+          </div>
+          }
+          <div class="info-row">
+            <span class="label">Purpose:</span>
+            <span>{{ visitor.purpose || '-' }}</span>
+          </div>
+          <div class="info-row">
+            <span class="label">Registered:</span>
+            <span>{{ visitor.registeredAt | date: 'short' }}</span>
+          </div>
+          @if (visitor.registeredBy) {
+          <div class="info-row">
+            <span class="label">Registered By:</span>
+            <span>{{ visitor.registeredBy }}</span>
+          </div>
+          }
+          @if (visitor.photoBase64) {
+          <div class="info-row">
+            <span class="label">Photo:</span>
+            <img [src]="'data:image/jpeg;base64,' + visitor.photoBase64" alt="Visitor photo" style="max-width: 100px; border-radius: 4px;" />
+          </div>
+          }
+        </div>
+      </div>
+      } @empty {
+      <div class="empty-state">
+        <p>
+          No visitors found for the selected filter.
+        </p>
+      </div>
+      }
+    </div>
+  </div>
+  }
+
+  <!-- Reports Tab -->
+  @if (activeTab() === 'reports') {
+  <div class="tab-content">
+    <div class="section-header">
+      <h2>Entry/Exit Reports</h2>
+    </div>
+
+    <!-- Filters -->
+    <div class="form-card">
+      <h3>Report Filters</h3>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="reportFromDate">From Date</label>
+          <input
+            type="date"
+            id="reportFromDate"
+            class="form-control"
+            [ngModel]="reportFromDate()"
+            (ngModelChange)="reportFromDate.set($event); loadReports()"
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="reportToDate">To Date</label>
+          <input
+            type="date"
+            id="reportToDate"
+            class="form-control"
+            [ngModel]="reportToDate()"
+            (ngModelChange)="reportToDate.set($event); loadReports()"
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="reportProject">Project</label>
+          <select
+            id="reportProject"
+            class="form-control"
+            [ngModel]="reportProjectId()"
+            (ngModelChange)="reportProjectId.set($event); onReportProjectChange()"
+          >
+            <option [ngValue]="0">All Projects</option>
+            @for (project of projects(); track project.id) {
+            <option [ngValue]="project.id">{{ project.name }}</option>
+            }
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="reportPersonType">Person Type</label>
+          <select
+            id="reportPersonType"
+            class="form-control"
+            [ngModel]="reportPersonType()"
+            (ngModelChange)="reportPersonType.set($event); onReportPersonTypeChange()"
+          >
+            <option value="All">All</option>
+            <option value="Labour">Labour</option>
+            <option value="Visitor">Visitor</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="quick-filters" style="margin-top: 1rem;">
+        <button class="btn btn-sm" (click)="setReportDateRange('today')">Today</button>
+        <button class="btn btn-sm" (click)="setReportDateRange('week')">This Week</button>
+        <button class="btn btn-sm" (click)="setReportDateRange('month')">This Month</button>
+      </div>
+    </div>
+
+    @if (loading()) {
+    <div class="loading">Loading reports...</div>
+    }
+
+    <!-- Statistics -->
+    @if (reportStatistics()) {
+    <div class="stats-grid">
+      <div class="stat-card">
+        <h3>Total Entries</h3>
+        <p class="stat-value">{{ reportStatistics()!.totalEntries }}</p>
+      </div>
+      <div class="stat-card">
+        <h3>Total Exits</h3>
+        <p class="stat-value">{{ reportStatistics()!.totalExits }}</p>
+      </div>
+      <div class="stat-card">
+        <h3>Open Sessions</h3>
+        <p class="stat-value">{{ reportStatistics()!.openSessions }}</p>
+      </div>
+    </div>
+    }
+
+    <!-- Sessions Table -->
+    @if (reportSessions().length > 0) {
+    <div class="form-card">
+      <h3>Entry/Exit Sessions ({{ reportSessions().length }})</h3>
+      <div class="table-responsive">
+        <table class="records-table sessions-table">
+          <thead>
+            <tr>
+              <th>Status</th>
+              <th>Person</th>
+              <th>Type</th>
+              <th>Project</th>
+              <th>Company/Purpose</th>
+              <th>Entry Time</th>
+              <th>Entry Gate</th>
+              <th>Exit Time</th>
+              <th>Exit Gate</th>
+              <th>Duration</th>
+              <th>Guard</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (session of reportSessions(); track session.personKey + session.entry.timestamp) {
+            <tr [class.active-session]="session.isActive">
+              <td>
+                @if (session.isActive) {
+                  <span class="status-dot active" title="Active Session"></span>
+                } @else {
+                  <span class="status-dot completed" title="Completed"></span>
+                }
+              </td>
+              <td>{{ session.personName || 'Unknown' }}</td>
+              <td>
+                <span class="badge" [class.badge-primary]="session.personType === 'Labour'" [class.badge-info]="session.personType === 'Visitor'">
+                  {{ session.personType }}
+                </span>
+              </td>
+              <td>
+                {{ session.projectName || '-' }}
+                @if (session.contractorName) {
+                  <br><small class="text-muted">{{ session.contractorName }}</small>
+                }
+              </td>
+              <td>
+                @if (session.personType === 'Visitor') {
+                  @if (session.companyName) {
+                    <span>{{ session.companyName }}</span>
+                    @if (session.purpose) {
+                      <br><small class="text-muted">{{ session.purpose }}</small>
+                    }
+                  } @else if (session.purpose) {
+                    <span>{{ session.purpose }}</span>
+                  } @else {
+                    <span class="text-muted">-</span>
+                  }
+                } @else {
+                  <span class="text-muted">-</span>
+                }
+              </td>
+              <td>{{ session.entry.timestamp | date: 'short' }}</td>
+              <td>{{ session.entry.gate || '-' }}</td>
+              <td>
+                @if (session.exit) {
+                  {{ session.exit.timestamp | date: 'short' }}
+                } @else {
+                  <span class="text-muted">-</span>
+                }
+              </td>
+              <td>
+                @if (session.exit) {
+                  {{ session.exit.gate || '-' }}
+                } @else {
+                  <span class="text-muted">-</span>
+                }
+              </td>
+              <td>
+                @if (session.duration) {
+                  <span class="badge badge-secondary">{{ session.duration }}</span>
+                } @else {
+                  <span class="badge badge-warning">Ongoing</span>
+                }
+              </td>
+              <td>{{ session.entry.guardName || '-' }}</td>
+            </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+    } @else if (!loading()) {
+    <div class="empty-state">
+      <p>No sessions found for the selected filters.</p>
+    </div>
+    }
   </div>
   }
 </div>

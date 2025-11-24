@@ -96,10 +96,10 @@ export class LoginComponent {
     }).subscribe({
       next: (response) => {
         this.loading.set(false);
-        
+
         // Check if user has Guard role in any tenant
         const hasGuardRole = response.user.tenants.some(t => t.roleName === 'Guard');
-        
+
         if (hasGuardRole) {
           this.router.navigate(['/dashboard']);
         } else {

@@ -16,11 +16,11 @@ export const routes: Routes = [
     canActivate: [authGuard],
     loadComponent: () => import('./features/dashboard/dashboard.component').then(m => m.DashboardComponent)
   },
-  {
-    path: 'profile',
-    canActivate: [authGuard],
-    loadComponent: () => import('./features/guard-profile/guard-profile.component').then(m => m.GuardProfileComponent)
-  },
+  // {
+  //   path: 'profile',
+  //   canActivate: [authGuard],
+  //   loadComponent: () => import('./features/guard-profile/guard-profile.component').then(m => m.GuardProfileComponent)
+  // },
   {
     path: 'labour-registration',
     canActivate: [authGuard],
@@ -40,6 +40,16 @@ export const routes: Routes = [
     path: 'today-summary',
     canActivate: [authGuard],
     loadComponent: () => import('./features/today-summary/today-summary.component').then(m => m.TodaySummaryComponent)
+  },
+  {
+    path: 'search',
+    canActivate: [authGuard],
+    loadComponent: () => import('./features/search/search.component').then(m => m.SearchComponent)
+  },
+  {
+    path: 'reports',
+    canActivate: [authGuard],
+    loadComponent: () => import('./features/reports/reports.component').then(m => m.ReportsComponent)
   },
   {
     path: '**',

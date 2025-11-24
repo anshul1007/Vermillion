@@ -4,12 +4,15 @@
       <div class="row align-center justify-between">
         <div>
           <h2 class="mb-0">Vermillion</h2>
-          <div class="text-muted" style="font-size: 0.85rem;">Visitor Management</div>
+          <div class="text-muted app-subtitle">Visitor Management</div>
         </div>
-        <div *ngIf="isGuard()" style="display: flex; align-items: center; gap: 8px;">
-          <button class="btn" routerLink="/profile">
-            <span>Profile</span>
+        <div *ngIf="isGuard()" class="header-actions">
+          <button class="btn btn-secondary" (click)="logout()">
+            <span>Logout</span>
           </button>
+          <!-- <button class="btn" routerLink="/profile">
+            <span>Profile</span>
+          </button> -->
           <button class="btn" routerLink="/dashboard">
             <span>Dashboard</span>
           </button>

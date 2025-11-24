@@ -123,9 +123,22 @@ export class LoginComponent {
 
         const isAdmin = mappedRole === 'Admin' || mappedRole === 'SystemAdmin' || tenantRoles.some(r => r === 'SystemAdmin' || r === 'Admin');
         const isManager = mappedRole === 'Manager' || tenantRoles.some(r => r === 'Manager');
+        // Decide destination based on tenant domains when user is an Admin for specific modules
+        const tenantDomains: string[] = (response.user?.tenants ?? []).map((t: any) => (t.domain ?? t.tenantName ?? '').toString().toLowerCase());
+        const isEntryExitTenant = tenantDomains.some(d => d.includes('entry') || d.includes('entryexit') || d.includes('entry-exit'));
+        const isAttendanceTenant = tenantDomains.some(d => d.includes('attendance'));
 
         if (isAdmin) {
-          this.router.navigate(['/admin']);
+          if (isEntryExitTenant) {
+            // Entry/Exit tenant admins go straight to entry-exit management
+            this.router.navigate(['/admin/entry-exit']);
+          } else if (isAttendanceTenant) {
+            // Attendance tenant admins go to the generic admin dashboard
+            this.router.navigate(['/admin']);
+          } else {
+            // Default admin landing
+            this.router.navigate(['/admin']);
+          }
         } else if (isManager) {
           this.router.navigate(['/manager']);
         } else {

@@ -1,11 +1,12 @@
 import { Component, inject, signal, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
-import { EntryExitService, Project, Contractor, Guard, CreateProjectDto, CreateContractorDto, AssignGuardToProjectDto } from '../../../shared/services/entry-exit.service';
+import { EntryExitService, Project, Contractor, Guard, LabourRegistration, CreateProjectDto, CreateContractorDto, AssignGuardToProjectDto } from '../../../shared/services/entry-exit.service';
 import { Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import { AdminService, Department } from '../../../core/services/admin.service';
 import { User } from '../../../shared/models/admin.model';
+import { environment } from '../../../../environments/environment';
 
 interface GuardWithAssignments extends Guard {
   assignedProjectNames?: string[];
@@ -24,16 +25,37 @@ export class EntryExitDashboardComponent implements OnInit, OnDestroy {
   private adminService = inject(AdminService);
   private fb = inject(FormBuilder);
 
-  activeTab = signal<'projects' | 'contractors' | 'guards'>('projects');
-  
+  activeTab = signal<'projects' | 'contractors' | 'guards' | 'labour' | 'visitors' | 'reports'>('projects');
+
   projects = signal<Project[]>([]);
   contractors = signal<Contractor[]>([]);
   guards = signal<GuardWithAssignments[]>([]);
   departments = signal<Department[]>([]);
-  
+  labourRegistrations = signal<LabourRegistration[]>([]);
+  filteredLabour = signal<LabourRegistration[]>([]);
+  // Visitors
+  visitorRegistrations = signal<any[]>([]);
+  filteredVisitors = signal<any[]>([]);
+  visitorFilterProjectId = signal<number>(0);
+  visitorSearchQuery = signal<string>('');
+
+  // Reports
+  reportRecords = signal<any[]>([]);
+  reportSessions = signal<any[]>([]);
+  reportFromDate = signal<string>('');
+  reportToDate = signal<string>('');
+  reportProjectId = signal<number>(0);
+  reportPersonType = signal<'All' | 'Labour' | 'Visitor'>('All');
+  reportStatistics = signal<{ totalEntries: number; totalExits: number; openSessions: number } | null>(null);
+
   loading = signal(false);
   message = signal('');
   error = signal(false);
+
+  // Labour filters
+  labourFilterProjectId = signal<number>(0);
+  labourFilterContractorId = signal<number>(0);
+  labourSearchQuery = signal<string>('');
   
   showProjectForm = signal(false);
   showContractorForm = signal(false);
@@ -108,9 +130,84 @@ export class EntryExitDashboardComponent implements OnInit, OnDestroy {
     });
   }
 
-  setActiveTab(tab: 'projects' | 'contractors' | 'guards'): void {
+  setActiveTab(tab: 'projects' | 'contractors' | 'guards' | 'labour' | 'visitors'): void {
     this.activeTab.set(tab);
     this.message.set('');
+    if (tab === 'labour') {
+      this.loadLabour();
+    } else if (tab === 'visitors') {
+      this.loadVisitors();
+    }
+  }
+
+  // Visitors
+  loadVisitors(): void {
+    const projectId = this.visitorFilterProjectId();
+
+    if (projectId > 0) {
+      this.loadVisitorsByProject(projectId);
+    } else if (this.visitorSearchQuery()) {
+      this.searchVisitors(this.visitorSearchQuery());
+    } else {
+      this.loading.set(true);
+      this.visitorRegistrations.set([]);
+      this.filteredVisitors.set([]);
+      this.loading.set(false);
+      this.showError('Please select a project or run a visitor search');
+    }
+  }
+
+  loadVisitorsByProject(projectId: number): void {
+    this.loading.set(true);
+    this.entryExitService.getVisitorsByProject(projectId).pipe(takeUntil(this.destroy$)).subscribe({
+      next: (visitors) => {
+        this.visitorRegistrations.set(visitors);
+        this.applyVisitorSearch();
+        this.loading.set(false);
+      },
+      error: () => {
+        this.showError('Failed to load visitors');
+        this.loading.set(false);
+      }
+    });
+  }
+
+  searchVisitors(query: string): void {
+    this.loading.set(true);
+    this.entryExitService.getVisitorsByQuery(query).pipe(takeUntil(this.destroy$)).subscribe({
+      next: (visitors) => {
+        this.visitorRegistrations.set(visitors);
+        this.applyVisitorSearch();
+        this.loading.set(false);
+      },
+      error: () => {
+        this.showError('Failed to search visitors');
+        this.loading.set(false);
+      }
+    });
+  }
+
+  onVisitorFilterChange(): void {
+    this.loadVisitors();
+  }
+
+  onVisitorSearchChange(): void {
+    this.applyVisitorSearch();
+  }
+
+  applyVisitorSearch(): void {
+    const query = this.visitorSearchQuery().toLowerCase();
+    if (!query) {
+      this.filteredVisitors.set(this.visitorRegistrations());
+      return;
+    }
+
+    const filtered = this.visitorRegistrations().filter(v =>
+      (v.name && v.name.toLowerCase().includes(query)) ||
+      (v.phoneNumber && v.phoneNumber.includes(query)) ||
+      (v.barcode && v.barcode.toLowerCase().includes(query))
+    );
+    this.filteredVisitors.set(filtered);
   }
 
   // Projects
@@ -484,9 +581,252 @@ export class EntryExitDashboardComponent implements OnInit, OnDestroy {
     });
   }
 
+  // Labour
+  loadLabour(): void {
+    const projectId = this.labourFilterProjectId();
+    const contractorId = this.labourFilterContractorId();
+
+    if (projectId > 0) {
+      this.loadLabourByProject(projectId);
+    } else if (contractorId > 0) {
+      this.loadLabourByContractor(contractorId);
+    } else {
+      // Load all labour from all projects
+      this.loading.set(true);
+      this.labourRegistrations.set([]);
+      this.filteredLabour.set([]);
+      this.loading.set(false);
+      this.showError('Please select a project or contractor to view labour');
+    }
+  }
+
+  loadLabourByProject(projectId: number): void {
+    this.loading.set(true);
+    this.entryExitService.getLabourByProject(projectId).pipe(takeUntil(this.destroy$)).subscribe({
+      next: (labour) => {
+        this.labourRegistrations.set(labour);
+        this.applyLabourSearch();
+        this.loading.set(false);
+      },
+      error: () => {
+        this.showError('Failed to load labour');
+        this.loading.set(false);
+      }
+    });
+  }
+
+  loadLabourByContractor(contractorId: number): void {
+    this.loading.set(true);
+    this.entryExitService.getLabourByContractor(contractorId).pipe(takeUntil(this.destroy$)).subscribe({
+      next: (labour) => {
+        this.labourRegistrations.set(labour);
+        this.applyLabourSearch();
+        this.loading.set(false);
+      },
+      error: () => {
+        this.showError('Failed to load labour');
+        this.loading.set(false);
+      }
+    });
+  }
+
+  onLabourFilterChange(): void {
+    this.loadLabour();
+  }
+
+  onLabourSearchChange(): void {
+    this.applyLabourSearch();
+  }
+
+  applyLabourSearch(): void {
+    const query = this.labourSearchQuery().toLowerCase();
+    if (!query) {
+      this.filteredLabour.set(this.labourRegistrations());
+      return;
+    }
+
+    const filtered = this.labourRegistrations().filter(labour =>
+      labour.labourName.toLowerCase().includes(query) ||
+      labour.phoneNumber.includes(query) ||
+      labour.barcode.toLowerCase().includes(query) ||
+      (labour.aadharNumber && labour.aadharNumber.includes(query))
+    );
+    this.filteredLabour.set(filtered);
+  }
+
   ngOnDestroy(): void {
     this.destroy$.next();
     this.destroy$.complete();
+  }
+
+  // Reports
+  initReports(): void {
+    const today = new Date();
+    this.reportToDate.set(today.toISOString().split('T')[0]);
+    this.reportFromDate.set(today.toISOString().split('T')[0]);
+    this.loadReports();
+  }
+
+  setReportDateRange(range: 'today' | 'week' | 'month'): void {
+    const today = new Date();
+    const toDate = new Date(today);
+    let fromDate = new Date(today);
+
+    switch (range) {
+      case 'today':
+        break;
+      case 'week':
+        fromDate.setDate(today.getDate() - 7);
+        break;
+      case 'month':
+        fromDate.setMonth(today.getMonth() - 1);
+        break;
+    }
+
+    this.reportFromDate.set(fromDate.toISOString().split('T')[0]);
+    this.reportToDate.set(toDate.toISOString().split('T')[0]);
+    this.loadReports();
+  }
+
+  loadReports(): void {
+    this.loading.set(true);
+    
+    // Build query parameters
+    const fromDate = this.reportFromDate() ? new Date(this.reportFromDate()) : undefined;
+    const toDate = this.reportToDate() ? new Date(this.reportToDate()) : undefined;
+    
+    this.entryExitService.getRecords(null, null, fromDate, toDate).pipe(takeUntil(this.destroy$)).subscribe({
+      next: (records: any[]) => {
+        let filtered = records;
+        
+        // Filter by project if selected
+        if (this.reportProjectId() > 0) {
+          filtered = records.filter(r => {
+            if (r.personType === 'Labour') {
+              return r.labour?.projectId === this.reportProjectId();
+            }
+            // For visitors, check projectId directly
+            return r.visitor?.projectId === this.reportProjectId();
+          });
+        }
+        
+        // Filter by person type if not 'All'
+        if (this.reportPersonType() !== 'All') {
+          filtered = filtered.filter(r => r.personType === this.reportPersonType());
+        }
+        
+        this.reportRecords.set(filtered);
+        this.pairSessions(filtered);
+        this.calculateStatistics(filtered);
+        this.loading.set(false);
+      },
+      error: () => {
+        this.showError('Failed to load reports');
+        this.loading.set(false);
+      }
+    });
+  }
+
+  pairSessions(records: any[]): void {
+    const sessions: any[] = [];
+    const usedExitIds = new Set<number>();
+    
+    // Sort entries by timestamp (most recent first)
+    const entries = records.filter(r => r.action === 'Entry').sort((a, b) => 
+      new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    );
+    
+    for (const entry of entries) {
+      const personKey = `${entry.personType}-${entry.labourId || entry.visitorId}`;
+      
+      // Find matching exit: same person, after this entry, and not already used
+      const matchingExits = records.filter(r => {
+        if (r.action !== 'Exit') return false;
+        if (r.personType !== entry.personType) return false;
+        if (usedExitIds.has(r.id)) return false;
+        if (new Date(r.timestamp) <= new Date(entry.timestamp)) return false;
+        
+        // Match by specific ID based on person type
+        if (entry.personType === 'Labour') {
+          return r.labourId === entry.labourId;
+        } else if (entry.personType === 'Visitor') {
+          return r.visitorId === entry.visitorId;
+        }
+        return false;
+      }).sort((a, b) => 
+        // Sort by timestamp ascending to get the nearest exit
+        new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+      );
+      
+      // Take the first (nearest) matching exit
+      const matchingExit = matchingExits.length > 0 ? matchingExits[0] : null;
+      
+      if (matchingExit) {
+        usedExitIds.add(matchingExit.id);
+      }
+      
+      sessions.push({
+        personKey,
+        personName: entry.personName,
+        personType: entry.personType,
+        projectName: entry.projectName,
+        contractorName: entry.contractorName,
+        companyName: entry.companyName,
+        purpose: entry.purpose,
+        entry: {
+          timestamp: entry.timestamp,
+          gate: entry.gate,
+          guardName: entry.guardName || entry.recordedBy
+        },
+        exit: matchingExit ? {
+          timestamp: matchingExit.timestamp,
+          gate: matchingExit.gate,
+          guardName: matchingExit.guardName || matchingExit.recordedBy
+        } : null,
+        isActive: !matchingExit,
+        duration: matchingExit ? this.calculateDuration(entry.timestamp, matchingExit.timestamp) : null
+      });
+    }
+    
+    this.reportSessions.set(sessions);
+  }
+
+  calculateDuration(entryTime: string, exitTime: string): string {
+    const entry = new Date(entryTime);
+    const exit = new Date(exitTime);
+    const diffMs = exit.getTime() - entry.getTime();
+    
+    const hours = Math.floor(diffMs / (1000 * 60 * 60));
+    const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+    
+    if (hours > 0) {
+      return `${hours}h ${minutes}m`;
+    }
+    return `${minutes}m`;
+  }
+
+  calculateStatistics(records: any[]): void {
+    const stats = {
+      totalEntries: records.filter(r => r.action === 'Entry').length,
+      totalExits: records.filter(r => r.action === 'Exit').length,
+      openSessions: 0
+    };
+    
+    // Calculate open sessions (entries without matching exits)
+    const entryIds = new Set(records.filter(r => r.action === 'Entry').map(r => `${r.personType}-${r.labourId || r.visitorId}`));
+    const exitIds = new Set(records.filter(r => r.action === 'Exit').map(r => `${r.personType}-${r.labourId || r.visitorId}`));
+    
+    stats.openSessions = [...entryIds].filter(id => !exitIds.has(id)).length;
+    
+    this.reportStatistics.set(stats);
+  }
+
+  onReportProjectChange(): void {
+    this.loadReports();
+  }
+
+  onReportPersonTypeChange(): void {
+    this.loadReports();
   }
 
   // Utility
@@ -504,5 +844,15 @@ export class EntryExitDashboardComponent implements OnInit, OnDestroy {
 
   getProjectName(projectId: number): string {
     return this.projects().find(p => p.id === projectId)?.name || 'Unknown';
+  }
+
+  getPhotoUrl(photoPath: string | undefined): string {
+    if (!photoPath) return '';
+    // If it's already a full URL, return as is
+    if (photoPath.startsWith('http://') || photoPath.startsWith('https://')) {
+      return photoPath;
+    }
+    // Otherwise, prepend the base URL
+    return `${environment.baseUrl}${photoPath}`;
   }
 }

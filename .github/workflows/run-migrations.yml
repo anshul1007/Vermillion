@@ -54,93 +54,44 @@ jobs:
         echo "## Ensure dotnet tools are on PATH"
         export PATH="$HOME/.dotnet/tools:$PATH"
 
-    - name: 🔁 Restore & Build backend projects
+    - name: 🔁 Restore & Build unified API project
       run: |
-        echo "Restoring and building backend projects for EF migrations..."
-        dotnet build backend/AttendanceAPI/AttendanceAPI.csproj --configuration Release
-        dotnet build backend/AuthAPI/AuthAPI.csproj --configuration Release
-        dotnet build backend/EntryExitAPI/EntryExitAPI.csproj --configuration Release
+        echo "Restoring and building Vermillion.API for EF migrations..."
+        dotnet build backend/Vermillion.API/Vermillion.API.csproj --configuration Release
         echo "Build complete."
 
-    - name: 🔍 Determine backends to migrate
+    - name: 🔍 Determine migration target
       id: determine_backends
       run: |
-        INPUT="${{ github.event.inputs.backends }}"
-        if [ "$INPUT" = "all" ]; then
-          echo "backends=attendance auth entryexit" >> $GITHUB_OUTPUT
-        else
-          # Convert comma-separated to space-separated
-          BACKENDS=$(echo "$INPUT" | tr ',' ' ')
-          echo "backends=$BACKENDS" >> $GITHUB_OUTPUT
-        fi
+        echo "backends=vermillion" >> $GITHUB_OUTPUT
 
-    - name: 🗄️ Run Migrations for AttendanceAPI
-      if: contains(steps.determine_backends.outputs.backends, 'attendance')
-      working-directory: backend/AttendanceAPI
+    - name: 🗄️ Run Migrations for Unified API
+      working-directory: backend/Vermillion.API
       env:
-        ConnectionStrings__DefaultConnection: Server=tcp:${{ env.SQL_SERVER_NAME }}.database.windows.net,1433;Initial Catalog=AttendanceDB_${{ github.event.inputs.environment }};User ID=${{ vars.SQL_ADMIN_USER || 'sqladmin' }};Password=${{ secrets.SQL_ADMIN_PASSWORD_PROD }};Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;ConnectRetryCount=3;ConnectRetryInterval=10;
+        ConnectionStrings__DefaultConnection: Server=tcp:${{ env.SQL_SERVER_NAME }}.database.windows.net,1433;Initial Catalog=VermillionDB_${{ github.event.inputs.environment }};User ID=${{ vars.SQL_ADMIN_USER || 'sqladmin' }};Password=${{ secrets.SQL_ADMIN_PASSWORD_PROD }};Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;ConnectRetryCount=3;ConnectRetryInterval=10;
       run: |
-        echo "Running migrations for AttendanceAPI on ${{ github.event.inputs.environment }}..."
+        echo "Running migrations for Vermillion.API on ${{ github.event.inputs.environment }}..."
         dotnet ef database update --no-build --configuration Release
-        echo "✅ AttendanceAPI migrations completed"
+        echo "✅ Vermillion.API migrations completed"
 
-    - name: 🗄️ Run Migrations for AuthAPI
-      if: contains(steps.determine_backends.outputs.backends, 'auth')
-      working-directory: backend/AuthAPI
-      env:
-        ConnectionStrings__DefaultConnection: Server=tcp:${{ env.SQL_SERVER_NAME }}.database.windows.net,1433;Initial Catalog=AuthDB_${{ github.event.inputs.environment }};User ID=${{ vars.SQL_ADMIN_USER || 'sqladmin' }};Password=${{ secrets.SQL_ADMIN_PASSWORD_PROD }};Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;ConnectRetryCount=3;ConnectRetryInterval=10;
+    - name: 🌱 Run Seeder for Unified API
+      if: github.event.inputs.run_seeders == 'true'
       run: |
-        echo "Running migrations for AuthAPI on ${{ github.event.inputs.environment }}..."
-        dotnet ef database update --no-build --configuration Release
-        echo "✅ AuthAPI migrations completed"
-
-    - name: 🗄️ Run Migrations for EntryExitAPI
-      if: contains(steps.determine_backends.outputs.backends, 'entryexit')
-      working-directory: backend/EntryExitAPI
-      env:
-        ConnectionStrings__DefaultConnection: Server=tcp:${{ env.SQL_SERVER_NAME }}.database.windows.net,1433;Initial Catalog=EntryExitDB_${{ github.event.inputs.environment }};User ID=${{ vars.SQL_ADMIN_USER || 'sqladmin' }};Password=${{ secrets.SQL_ADMIN_PASSWORD_PROD }};Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;ConnectRetryCount=3;ConnectRetryInterval=10;
-      run: |
-        echo "Running migrations for EntryExitAPI on ${{ github.event.inputs.environment }}..."
-        dotnet ef database update --no-build --configuration Release
-        echo "✅ EntryExitAPI migrations completed"
-
-    - name: 🌱 Run Seeder for AuthAPI
-      if: github.event.inputs.run_seeders == 'true' && contains(steps.determine_backends.outputs.backends, 'auth')
-      run: |
-        echo "Running seeder for AuthAPI..."
-        cd backend/AuthAPI
+        echo "Running seeder for Vermillion.API..."
+        cd backend/Vermillion.API
         
         # Build the API first
         dotnet build --configuration Release
         
         # Run the API with seeding enabled
-        export ConnectionStrings__DefaultConnection="Server=tcp:${{ env.SQL_SERVER_NAME }}.database.windows.net,1433;Initial Catalog=AuthDB_${{ github.event.inputs.environment }};User ID=${{ vars.SQL_ADMIN_USER || 'sqladmin' }};Password=${{ secrets.SQL_ADMIN_PASSWORD_PROD }};Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;ConnectRetryCount=3;ConnectRetryInterval=10;"
+        export ConnectionStrings__DefaultConnection="Server=tcp:${{ env.SQL_SERVER_NAME }}.database.windows.net,1433;Initial Catalog=VermillionDB_${{ github.event.inputs.environment }};User ID=${{ vars.SQL_ADMIN_USER || 'sqladmin' }};Password=${{ secrets.SQL_ADMIN_PASSWORD_PROD }};Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;ConnectRetryCount=3;ConnectRetryInterval=10;"
         export SeedOnStartup=true
         export RUN_MIGRATIONS=false
         
         # Start the API in background, wait for seeding, then stop
         timeout 60s dotnet run --configuration Release --no-build || true
         
-        echo "✅ AuthAPI seeder completed"
-
-    - name: 🌱 Run Seeder for EntryExitAPI
-      if: github.event.inputs.run_seeders == 'true' && contains(steps.determine_backends.outputs.backends, 'entryexit')
-      run: |
-        echo "Running seeder for EntryExitAPI..."
-        cd backend/EntryExitAPI
-        
-        # Build the API first
-        dotnet build --configuration Release
-        
-        # Run the API with seeding enabled
-        export ConnectionStrings__DefaultConnection="Server=tcp:${{ env.SQL_SERVER_NAME }}.database.windows.net,1433;Initial Catalog=EntryExitDB_${{ github.event.inputs.environment }};User ID=${{ vars.SQL_ADMIN_USER || 'sqladmin' }};Password=${{ secrets.SQL_ADMIN_PASSWORD_PROD }};Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;ConnectRetryCount=3;ConnectRetryInterval=10;"
-        export SeedOnStartup=true
-        export RUN_MIGRATIONS=false
-        
-        # Start the API in background, wait for seeding, then stop
-        timeout 60s dotnet run --configuration Release --no-build || true
-        
-        echo "✅ EntryExitAPI seeder completed"
+        echo "✅ Vermillion.API seeder completed"
 
     - name: 📝 Summary
       if: always()

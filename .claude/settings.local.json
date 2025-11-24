@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(powershell -ExecutionPolicy Bypass -File \"E:\\Vermillion\\update-namespaces.ps1\")",
+      "Bash(dotnet add reference:*)",
+      "Bash(dotnet add:*)",
+      "Bash(\"E:\\Vermillion\\backend\\Vermillion.API\\appsettings.Development.json\")",
+      "Bash(powershell -Command:*)",
+      "Bash(powershell -ExecutionPolicy Bypass -File \"E:\\Vermillion\\fix-remaining-issues.ps1\")",
+      "Bash(dotnet build:*)",
+      "Bash(dotnet new:*)",
+      "Bash(dotnet sln add:*)",
+      "Bash(del backendVermillion.Shared.DomainClass1.cs)",
+      "Bash(test -d \"E:\\Vermillion\\backend\\AttendanceAPI\")",
+      "Bash(test -d \"E:\\Vermillion\\backend\\EntryExitAPI\")",
+      "Bash(git log:*)",
+      "Bash(dir:*)",
+      "Bash(npm run build:*)",
+      "Bash(dotnet ef migrations add:*)",
+      "Bash(taskkill /F /PID 47056 2)",
+      "Bash(nul)",
+      "Bash(dotnet ef database update:*)",
+      "Bash(del \"E:\\Vermillion\\backend\\Vermillion.EntryExit.Domain\\Models\\Entities\\LabourRegistration.cs\")",
+      "Bash(find:*)",
+      "Bash(test:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
