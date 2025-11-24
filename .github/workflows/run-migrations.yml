@@ -65,14 +65,27 @@ jobs:
       run: |
         echo "backends=vermillion" >> $GITHUB_OUTPUT
 
-    - name: 🗄️ Run Migrations for Unified API
-      working-directory: backend/Vermillion.API
+    - name: 🗄️ Run Migrations for domain projects (Auth, Attendance, EntryExit, Shared)
       env:
         ConnectionStrings__DefaultConnection: Server=tcp:${{ env.SQL_SERVER_NAME }}.database.windows.net,1433;Initial Catalog=VermillionDB_${{ github.event.inputs.environment }};User ID=${{ vars.SQL_ADMIN_USER || 'sqladmin' }};Password=${{ secrets.SQL_ADMIN_PASSWORD_PROD }};Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;ConnectRetryCount=3;ConnectRetryInterval=10;
       run: |
-        echo "Running migrations for Vermillion.API on ${{ github.event.inputs.environment }}..."
-        dotnet ef database update --no-build --configuration Release
-        echo "✅ Vermillion.API migrations completed"
+        echo "Running EF migrations for domain projects against VermillionDB_${{ github.event.inputs.environment }}"
+
+        STARTUP_PROJECT="backend/Vermillion.API"
+
+        echo "-- Applying Auth domain migrations"
+        dotnet ef database update --project backend/Vermillion.Auth.Domain --startup-project $STARTUP_PROJECT --configuration Release --no-build
+
+        echo "-- Applying Attendance domain migrations"
+        dotnet ef database update --project backend/Vermillion.Attendance.Domain --startup-project $STARTUP_PROJECT --configuration Release --no-build
+
+        echo "-- Applying EntryExit domain migrations"
+        dotnet ef database update --project backend/Vermillion.EntryExit.Domain --startup-project $STARTUP_PROJECT --configuration Release --no-build
+
+        echo "-- Applying Shared domain migrations"
+        dotnet ef database update --project backend/Vermillion.Shared.Domain --startup-project $STARTUP_PROJECT --configuration Release --no-build
+
+        echo "✅ All domain migrations applied"
 
     - name: 🌱 Run Seeder for Unified API
       if: github.event.inputs.run_seeders == 'true'
