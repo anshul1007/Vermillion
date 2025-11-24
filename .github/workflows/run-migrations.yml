@@ -50,14 +50,34 @@ jobs:
 
     - name: 📦 Install EF Core Tools
       run: |
-        dotnet tool install --global dotnet-ef
+        echo "## dotnet info"
+        dotnet --info
+
+        echo "Installing dotnet-ef (v8) to match SDK..."
+        dotnet tool install --global dotnet-ef --version 8.*
         echo "## Ensure dotnet tools are on PATH"
         export PATH="$HOME/.dotnet/tools:$PATH"
 
-    - name: 🔁 Restore & Build unified API project
+    - name: 🔁 Restore & Build all projects
       run: |
-        echo "Restoring and building Vermillion.API for EF migrations..."
-        dotnet build backend/Vermillion.API/Vermillion.API.csproj --configuration Release
+        echo "Restoring and building all domain projects and API..."
+        dotnet restore
+        
+        echo "Building Shared domain..."
+        dotnet build backend/Vermillion.Shared.Domain/Vermillion.Shared.Domain.csproj
+        
+        echo "Building Auth domain..."
+        dotnet build backend/Vermillion.Auth.Domain/Vermillion.Auth.Domain.csproj
+        
+        echo "Building Attendance domain..."
+        dotnet build backend/Vermillion.Attendance.Domain/Vermillion.Attendance.Domain.csproj
+        
+        echo "Building EntryExit domain..."
+        dotnet build backend/Vermillion.EntryExit.Domain/Vermillion.EntryExit.Domain.csproj
+        
+        echo "Building Vermillion.API..."
+        dotnet build backend/Vermillion.API/Vermillion.API.csproj
+        
         echo "Build complete."
 
     - name: 🔍 Determine migration target
@@ -74,16 +94,16 @@ jobs:
         STARTUP_PROJECT="backend/Vermillion.API"
 
         echo "-- Applying Auth domain migrations"
-        dotnet ef database update --project backend/Vermillion.Auth.Domain --startup-project $STARTUP_PROJECT --configuration Release --no-build
+        dotnet ef database update --project backend/Vermillion.Auth.Domain --startup-project $STARTUP_PROJECT
 
         echo "-- Applying Attendance domain migrations"
-        dotnet ef database update --project backend/Vermillion.Attendance.Domain --startup-project $STARTUP_PROJECT --configuration Release --no-build
+        dotnet ef database update --project backend/Vermillion.Attendance.Domain --startup-project $STARTUP_PROJECT
 
         echo "-- Applying EntryExit domain migrations"
-        dotnet ef database update --project backend/Vermillion.EntryExit.Domain --startup-project $STARTUP_PROJECT --configuration Release --no-build
+        dotnet ef database update --project backend/Vermillion.EntryExit.Domain --startup-project $STARTUP_PROJECT
 
         echo "-- Applying Shared domain migrations"
-        dotnet ef database update --project backend/Vermillion.Shared.Domain --startup-project $STARTUP_PROJECT --configuration Release --no-build
+        dotnet ef database update --project backend/Vermillion.Shared.Domain --startup-project $STARTUP_PROJECT
 
         echo "✅ All domain migrations applied"
 
