@@ -105,7 +105,9 @@ jobs:
             --settings RUN_MIGRATIONS=true ASPNETCORE_ENVIRONMENT=Development
         fi
 
-        az webapp deploy --resource-group "$RG" --name "$WEBAPP_NAME" --src-path "$ZIP_PATH"
+        echo "Starting async deployment to $WEBAPP_NAME..."
+        az webapp deploy --resource-group "$RG" --name "$WEBAPP_NAME" --src-path "$ZIP_PATH" --async
+        echo "Deployment initiated, health check will verify readiness..."
 
     - name: 🔎 Health check API
       run: |
