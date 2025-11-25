@@ -1,5 +1,5 @@
 export const environment = {
   production: true,
-  apiUrl: 'http://10.0.2.2:5000/api/entryexit',
-  authApiUrl: 'http://10.0.2.2:5000/api'
+  apiUrl: 'https://vermillion-api-prod.azurewebsites.net/api/entryexit',
+  authApiUrl: 'https://vermillion-api-prod.azurewebsites.net/api'
 };
