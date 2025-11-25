@@ -27,18 +27,8 @@ var app = builder.Build();
 // Run migrations and seeders
 await app.MigrateAndSeedDatabasesAsync(builder.Configuration, logger);
 
-// Configure middleware pipeline
+// Configure middleware pipeline (includes CORS, Auth, and MapControllers)
 app.UseVermillionMiddleware();
-
-// Enable CORS early in the pipeline
-app.UseCors("AllowConfiguredOrigins");
-
-// Authentication / Authorization
-app.UseAuthentication();
-app.UseAuthorization();
-
-// Map controllers
-app.MapControllers();
 
 // Log startup completion
 logger.LogInformation("Vermillion Unified API started successfully!");

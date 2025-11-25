@@ -258,15 +258,23 @@ public static class ServiceCollectionExtensions
             .Distinct()
             .ToArray();
 
+        // Create logger for CORS diagnostics
+        var loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
+        var corsLogger = loggerFactory.CreateLogger("CORS");
+        corsLogger.LogInformation("CORS configured with origins: {Origins}", string.Join(", ", allowedOrigins));
+
         services.AddCors(options =>
         {
             options.AddPolicy("AllowConfiguredOrigins", policy =>
             {
                 policy.SetIsOriginAllowed(origin =>
                 {
+                    corsLogger.LogInformation("CORS: Checking origin '{Origin}'", origin);
+                    
                     // Check if origin matches any configured origin
                     if (allowedOrigins.Contains(origin, StringComparer.OrdinalIgnoreCase))
                     {
+                        corsLogger.LogInformation("CORS: Origin '{Origin}' matched exact origin", origin);
                         return true;
                     }
 
@@ -280,11 +288,13 @@ public static class ServiceCollectionExtensions
                                 System.Text.RegularExpressions.RegexOptions.IgnoreCase);
                             if (regex.IsMatch(origin))
                             {
+                                corsLogger.LogInformation("CORS: Origin '{Origin}' matched wildcard pattern '{Pattern}'", origin, pattern);
                                 return true;
                             }
                         }
                     }
 
+                    corsLogger.LogWarning("CORS: Origin '{Origin}' not allowed", origin);
                     return false;
                 })
                 .AllowAnyMethod()

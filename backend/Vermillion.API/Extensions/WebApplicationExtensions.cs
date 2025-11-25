@@ -34,7 +34,10 @@ public static class WebApplicationExtensions
         }
 
         app.UseHttpsRedirection();
+        
+        // CORS must come before Authentication/Authorization
         app.UseCors("AllowConfiguredOrigins");
+        
         app.UseAuthentication();
         app.UseAuthorization();
 
