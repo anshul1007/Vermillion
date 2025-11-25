@@ -30,6 +30,16 @@ await app.MigrateAndSeedDatabasesAsync(builder.Configuration, logger);
 // Configure middleware pipeline
 app.UseVermillionMiddleware();
 
+// Enable CORS early in the pipeline
+app.UseCors("AllowConfiguredOrigins");
+
+// Authentication / Authorization
+app.UseAuthentication();
+app.UseAuthorization();
+
+// Map controllers
+app.MapControllers();
+
 // Log startup completion
 logger.LogInformation("Vermillion Unified API started successfully!");
 logger.LogInformation("Auth API endpoints available at: /api/auth/*");

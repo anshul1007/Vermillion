@@ -239,17 +239,57 @@ public static class ServiceCollectionExtensions
     /// </summary>
     public static IServiceCollection AddVermillionCors(this IServiceCollection services, IConfiguration configuration)
     {
-        var allowedOrigins = configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
-                            ?? new[] { "http://localhost:4200", "http://localhost:8100" };
+        var configuredOrigins = configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+                               ?? Array.Empty<string>();
+
+        // Support additional origins via environment variable (comma separated)
+        var envOrigins = Environment.GetEnvironmentVariable("CORS_ALLOWED_ORIGINS") ?? string.Empty;
+        var envOriginsArray = envOrigins.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
+                               .Select(s => s.Trim())
+                               .Where(s => !string.IsNullOrEmpty(s))
+                               .ToArray();
+
+        // Ensure the known local dev origins are present if no origins configured
+        var defaultLocalOrigins = new[] { "http://localhost:4200", "https://localhost:4200", "http://localhost:8100", "https://localhost:8100" };
+
+        var allowedOrigins = configuredOrigins
+            .Concat(envOriginsArray)
+            .Concat(configuredOrigins.Length == 0 && envOriginsArray.Length == 0 ? defaultLocalOrigins : Array.Empty<string>())
+            .Distinct()
+            .ToArray();
 
         services.AddCors(options =>
         {
             options.AddPolicy("AllowConfiguredOrigins", policy =>
             {
-                policy.WithOrigins(allowedOrigins)
-                      .AllowAnyMethod()
-                      .AllowAnyHeader()
-                      .AllowCredentials();
+                policy.SetIsOriginAllowed(origin =>
+                {
+                    // Check if origin matches any configured origin
+                    if (allowedOrigins.Contains(origin, StringComparer.OrdinalIgnoreCase))
+                    {
+                        return true;
+                    }
+
+                    // Check for wildcard patterns (e.g., https://*.azurestaticapps.net)
+                    foreach (var pattern in allowedOrigins)
+                    {
+                        if (pattern.Contains("*"))
+                        {
+                            var regex = new System.Text.RegularExpressions.Regex(
+                                "^" + System.Text.RegularExpressions.Regex.Escape(pattern).Replace("\\*", ".*") + "$",
+                                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                            if (regex.IsMatch(origin))
+                            {
+                                return true;
+                            }
+                        }
+                    }
+
+                    return false;
+                })
+                .AllowAnyMethod()
+                .AllowAnyHeader()
+                .AllowCredentials();
             });
         });
 
