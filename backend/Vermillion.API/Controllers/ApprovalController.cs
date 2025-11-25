@@ -55,7 +55,7 @@ namespace Vermillion.API.Controllers
             return await _teamHelper.BuildTeamMemberDtosExcludingSystemAdminsAsync(employees);
         }
 
-        [HttpGet("attendance/pending")]
+        [HttpGet("pending")]
         public async Task<IActionResult> GetPendingAttendance([FromQuery] DateTime? date)
         {
             try
@@ -105,7 +105,7 @@ namespace Vermillion.API.Controllers
             }
         }
 
-        [HttpPost("attendance/{id}/approve")]
+        [HttpPost("{id}/approve")]
         public async Task<IActionResult> ApproveAttendance(Guid id)
         {
             try
@@ -188,7 +188,7 @@ namespace Vermillion.API.Controllers
             }
         }
 
-        [HttpPost("attendance/{id}/reject")]
+        [HttpPost("{id}/reject")]
         public async Task<IActionResult> RejectAttendance(Guid id, [FromBody] RejectAttendanceRequest request)
         {
             try
@@ -236,7 +236,7 @@ namespace Vermillion.API.Controllers
             }
         }
 
-        [HttpGet("attendance/history")]
+        [HttpGet("history")]
         public async Task<IActionResult> GetTeamAttendanceHistory([FromQuery] DateTime? startDate, [FromQuery] DateTime? endDate)
         {
             try

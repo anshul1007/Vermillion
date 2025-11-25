@@ -148,17 +148,14 @@ public class EntryExitAdminController : ControllerBase
         }
     }
 
-    [HttpPut("guards/{authUserId}")]
+    [HttpPut("guards/{authUserId:int}")]
     [Authorize(Roles = "SystemAdmin,Admin")]
-    public async Task<ActionResult> UpdateGuard(string authUserId, [FromBody] UpdateGuardDto updateDto)
+    public async Task<ActionResult> UpdateGuard(int authUserId, [FromBody] UpdateGuardDto updateDto)
     {
         try
         {
-            if (!int.TryParse(authUserId, out var userId))
-                return BadRequest(new { success = false, message = "Invalid user ID" });
-
             var ok = await _userService.UpdateUserAsync(
-                userId: userId,
+                userId: authUserId,
                 email: updateDto.Email,
                 firstName: updateDto.FirstName,
                 lastName: updateDto.LastName,

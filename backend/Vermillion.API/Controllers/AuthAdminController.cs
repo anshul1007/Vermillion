@@ -92,8 +92,8 @@ public class AuthAdminController : ControllerBase
 	/// <summary>
 	/// Get user ID by email address
 	/// </summary>
-	[HttpGet("users/by-email/{email}")]
-	public async Task<IActionResult> GetUserIdByEmail(string email)
+	[HttpGet("users/by-email")]
+	public async Task<IActionResult> GetUserIdByEmail([FromQuery] string email)
 	{
 		var user = await _context.Users
 			.Where(u => u.Email == email)
