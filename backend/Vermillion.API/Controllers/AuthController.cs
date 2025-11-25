@@ -22,6 +22,7 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("login")]
+    [AllowAnonymous]
     public async Task<IActionResult> Login([FromBody] LoginRequest request)
     {
         var (success, response, error) = await _authService.LoginAsync(request);
@@ -33,6 +34,7 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("refresh")]
+    [AllowAnonymous]
     public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenRequest request)
     {
         var (success, response, error) = await _authService.RefreshTokenAsync(request);
@@ -44,6 +46,7 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("revoke")]
+    [AllowAnonymous]
     public async Task<IActionResult> RevokeToken([FromBody] RefreshTokenRequest request)
     {
         var result = await _authService.RevokeRefreshTokenAsync(request.RefreshToken);
