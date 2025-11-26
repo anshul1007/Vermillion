@@ -29,7 +29,7 @@
 - `CreateVisitorDto`: Still accepts PhotoBase64 (converted to URL on save)
 
 #### 5. **Configuration**
-- Added `AzureBlobStorage` section to appsettings.json
+- Added `BlobStorage` section to appsettings.json
 - Development: Uses Azurite (local emulator)
 - Production: Uses Azure Storage Account
 
@@ -160,7 +160,7 @@ dotnet ef database update --context EntryExitDbContext
 4. Update production appsettings or App Settings:
    ```json
    {
-     "AzureBlobStorage": {
+     "BlobStorage": {
        "ConnectionString": "<your-connection-string>",
        "ContainerName": "photos"
      }

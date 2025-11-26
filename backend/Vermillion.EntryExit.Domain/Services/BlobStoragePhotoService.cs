@@ -23,14 +23,14 @@ public class BlobStoragePhotoService : IPhotoStorageService
     {
         _logger = logger;
         
-        var connectionString = configuration["AzureBlobStorage:ConnectionString"];
-        _containerName = configuration["AzureBlobStorage:ContainerName"] ?? "photos";
+        var connectionString = configuration["BlobStorage:ConnectionString"];
+        _containerName = configuration["BlobStorage:ContainerName"] ?? "photos";
         
         if (string.IsNullOrEmpty(connectionString))
         {
             throw new InvalidOperationException(
                 "Azure Blob Storage connection string is not configured. " +
-                "Add 'AzureBlobStorage:ConnectionString' to appsettings.json");
+                "Add 'BlobStorage:ConnectionString' to appsettings.json");
         }
 
         _blobServiceClient = new BlobServiceClient(connectionString);

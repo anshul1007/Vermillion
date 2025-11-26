@@ -26,7 +26,7 @@ For local development using Azurite (Azure Storage Emulator):
 **appsettings.Development.json**:
 ```json
 {
-  "AzureBlobStorage": {
+  "BlobStorage": {
     "ConnectionString": "UseDevelopmentStorage=true",
     "ContainerName": "photos"
   }
@@ -55,7 +55,7 @@ For local development using Azurite (Azure Storage Emulator):
 **appsettings.json** or Azure App Settings:
 ```json
 {
-  "AzureBlobStorage": {
+  "BlobStorage": {
     "ConnectionString": "<your-azure-storage-connection-string>",
     "ContainerName": "photos"
   }
@@ -167,7 +167,7 @@ photos/
 ## Troubleshooting
 
 ### "Azure Blob Storage connection string is not configured"
-- Ensure `AzureBlobStorage:ConnectionString` is set in appsettings.json
+- Ensure `BlobStorage:ConnectionString` is set in appsettings.json
 - For local dev, make sure Azurite is running
 
 ### Photos not loading in browser
