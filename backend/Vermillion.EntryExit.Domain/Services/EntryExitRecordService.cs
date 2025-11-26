@@ -236,7 +236,7 @@ public class EntryExitRecordService : IEntryExitRecordService
                         Data = new SearchResultDto
                         {
                             ResultType = "Labour",
-                            Labour =MapLabourToDto(labourReg),
+                            Labour = MapLabourToDto(labourReg),
                             HasOpenEntry = hasOpen,
                             LastEntry = lastEntry
                         }
@@ -255,10 +255,10 @@ public class EntryExitRecordService : IEntryExitRecordService
 
                 if (!string.IsNullOrEmpty(request.Name))
                     labourQuery = labourQuery.Where(lr => lr.Name.Contains(request.Name));
-                
+
                 if (!string.IsNullOrEmpty(request.Phone))
                     labourQuery = labourQuery.Where(lr => lr.PhoneNumber.Contains(request.Phone));
-                
+
                 if (request.ProjectId.HasValue)
                     labourQuery = labourQuery.Where(lr => lr.ProjectId == request.ProjectId.Value);
 
@@ -275,7 +275,7 @@ public class EntryExitRecordService : IEntryExitRecordService
                         Data = new SearchResultDto
                         {
                             ResultType = "Labour",
-                            Labour =MapLabourToDto(labour),
+                            Labour = MapLabourToDto(labour),
                             HasOpenEntry = hasOpen,
                             LastEntry = lastEntry
                         }
@@ -287,7 +287,7 @@ public class EntryExitRecordService : IEntryExitRecordService
 
                 if (!string.IsNullOrEmpty(request.Name))
                     visitorQuery = visitorQuery.Where(v => v.Name.Contains(request.Name));
-                
+
                 if (!string.IsNullOrEmpty(request.Phone))
                     visitorQuery = visitorQuery.Where(v => v.PhoneNumber.Contains(request.Phone));
 
@@ -451,8 +451,8 @@ public class EntryExitRecordService : IEntryExitRecordService
                 ? record.Labour?.Name
                 : record.Visitor?.Name,
             PhotoBase64 = record.PersonType == PersonType.Labour
-                ? record.Labour?.PhotoUrl
-                : record.Visitor?.PhotoUrl,
+                ? (string.IsNullOrEmpty(record.Labour?.PhotoUrl) ? null : (record.Labour!.PhotoUrl.StartsWith("/api/entryexit/photos/") ? record.Labour.PhotoUrl : $"/api/entryexit/photos/{record.Labour.PhotoUrl}"))
+                : (string.IsNullOrEmpty(record.Visitor?.PhotoUrl) ? null : (record.Visitor!.PhotoUrl.StartsWith("/api/entryexit/photos/") ? record.Visitor.PhotoUrl : $"/api/entryexit/photos/{record.Visitor.PhotoUrl}")),
             ContractorName = record.PersonType == PersonType.Labour
                 ? record.Labour?.Contractor?.Name
                 : null,
@@ -470,6 +470,10 @@ public class EntryExitRecordService : IEntryExitRecordService
 
     private LabourDto MapLabourToDto(Labour labour)
     {
+        var photoUrl = string.IsNullOrEmpty(labour.PhotoUrl)
+            ? null
+            : ((labour.PhotoUrl?.StartsWith("/api/entryexit/photos/") ?? false) ? labour.PhotoUrl : $"/api/entryexit/photos/{labour.PhotoUrl}");
+
         return new LabourDto
         {
             Id = labour.Id,
@@ -478,11 +482,11 @@ public class EntryExitRecordService : IEntryExitRecordService
             AadharNumber = !string.IsNullOrEmpty(labour.AadharNumberEncrypted)
                 ? _encryption.Decrypt(labour.AadharNumberEncrypted)
                 : null,
-            PhotoUrl = labour.PhotoUrl,
+            PhotoUrl = photoUrl ?? string.Empty,
             ProjectId = labour.ProjectId,
-            ProjectName = labour.Project.Name,
+            ProjectName = labour.Project?.Name ?? string.Empty,
             ContractorId = labour.ContractorId,
-            ContractorName = labour.Contractor.Name,
+            ContractorName = labour.Contractor?.Name ?? string.Empty,
             Barcode = labour.Barcode,
             IsActive = labour.IsActive,
             RegisteredBy = labour.RegisteredBy,
@@ -501,7 +505,7 @@ public class EntryExitRecordService : IEntryExitRecordService
             PhoneNumber = visitor.PhoneNumber,
             CompanyName = visitor.CompanyName,
             Purpose = visitor.Purpose,
-            PhotoUrl = visitor.PhotoUrl,
+            PhotoUrl = string.IsNullOrEmpty(visitor.PhotoUrl) ? string.Empty : (visitor.PhotoUrl.StartsWith("/api/entryexit/photos/") ? visitor.PhotoUrl : $"/api/entryexit/photos/{visitor.PhotoUrl}"),
             RegisteredBy = visitor.RegisteredBy,
             RegisteredAt = visitor.RegisteredAt
         };

@@ -101,7 +101,8 @@ public class BlobStoragePhotoService : IPhotoStorageService
 
             // Get container client (create container if it doesn't exist)
             var containerClient = _blobServiceClient.GetBlobContainerClient(_containerName);
-            await containerClient.CreateIfNotExistsAsync(PublicAccessType.Blob);
+            // Do not set public access on the container; some storage accounts disallow public access.
+            await containerClient.CreateIfNotExistsAsync();
 
             // Upload to blob storage
             var blobClient = containerClient.GetBlobClient(fileName);
@@ -114,11 +115,9 @@ public class BlobStoragePhotoService : IPhotoStorageService
                 });
             }
 
-            // Return the public URL
-            var photoUrl = blobClient.Uri.ToString();
-            _logger.LogInformation("Photo uploaded successfully to {Url}", photoUrl);
-
-            return photoUrl;
+            // Return the blob name (path) so callers can request it via an authenticated API
+            _logger.LogInformation("Photo uploaded successfully to blob {Blob}", fileName);
+            return fileName;
         }
         catch (Exception ex)
         {

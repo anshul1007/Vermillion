@@ -270,4 +270,31 @@ export class ApiService {
       headers: this.getHeaders()
     });
   }
+
+  // Fetch private photo blob by blob path
+  getPhotoBlob(blobPath: string): Observable<Blob> {
+    const headers = this.getHeaders();
+    // Accept either a raw blob path (e.g. "visitor/xxx.jpg") or a full api path ("/api/entryexit/photos/visitor/xxx.jpg" or "/api/photos/visitor/xxx.jpg").
+    let path = blobPath || '';
+    if (path.startsWith('/api/entryexit/photos/')) {
+      path = path.replace(/^\/api\/entryexit\/photos\//, '');
+    } else if (path.startsWith('/api/photos/')) {
+      path = path.replace(/^\/api\/photos\//, '');
+    }
+    if (path.startsWith('api/entryexit/photos/')) {
+      path = path.replace(/^api\/entryexit\/photos\//, '');
+    } else if (path.startsWith('api/photos/')) {
+      path = path.replace(/^api\/photos\//, '');
+    }
+    // Photos controller may be mounted at /api/entryexit/photos or /api/photos depending on deployment
+    // Preserve slashes in the blobPath by encoding each segment separately.
+    const safePath = path.split('/').map(segment => encodeURIComponent(segment)).join('/');
+
+    // Some deployments mount the photos endpoint under /api/entryexit/photos
+    // If the configured entryExit API url contains 'entryexit', request that variant first.
+    const prefersEntryExit = this.entryExitApiUrl && this.entryExitApiUrl.includes('/entryexit');
+    const base = prefersEntryExit ? this.entryExitApiUrl.replace(/\/$/, '') : this.authApiUrl.replace(/\/$/, '');
+
+    return this.http.get(`${base}/photos/${safePath}`, { headers, responseType: 'blob' as 'blob' });
+  }
 }

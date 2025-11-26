@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, inject, signal, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -76,7 +76,7 @@ import { AuthService } from '../core/auth/auth.service';
                     <div class="person-avatar">
                       <img
                         *ngIf="result()!.photoUrl"
-                        [src]="result()!.photoUrl"
+                        [src]="getImageSrc(result()!)"
                         [alt]="result()!.name"
                       />
                       <div *ngIf="!result()!.photoUrl" class="avatar-placeholder">
@@ -258,7 +258,7 @@ import { AuthService } from '../core/auth/auth.service';
                 <div class="photo-frame">
                   <img 
                     *ngIf="labour.photoUrl" 
-                    [src]="labour.photoUrl" 
+                    [src]="getImageSrc(labour)" 
                     [alt]="labour.name"
                   />
                   <div *ngIf="!labour.photoUrl" class="photo-placeholder-large">
@@ -293,13 +293,20 @@ import { AuthService } from '../core/auth/auth.service';
     </div>
   `
 })
-export class EntryExitComponent {
+export class EntryExitComponent implements OnDestroy {
+  // Map from blobPath -> object URL
+  private photoObjectUrlMap: Map<string, string> = new Map();
+  // Track in-flight fetch promises to avoid duplicate requests
+  private photoFetchPromises: Map<string, Promise<void>> = new Map();
   private api = inject(ApiService);
   private barcodeSvc = inject(BarcodeService);
   private authService = inject(AuthService);
   private router = inject(Router);
+  private cdr = inject(ChangeDetectorRef);
 
   guardProfile = this.authService.guardProfile;
+  // Small transparent placeholder so <img> exists before object URL is available
+  placeholderUrl = 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=';
   searchTerm = '';
   result = signal<any>(null);
   results = signal<any[] | null>(null);
@@ -325,6 +332,55 @@ export class EntryExitComponent {
     } catch (err) {
       this.errorMessage.set('Barcode scan failed or cancelled');
     }
+  }
+
+  ngOnDestroy(): void {
+    this.clearPhotoCache();
+  }
+
+  // Returns a safe src string (object URL) for the person's photoUrl value.
+  // If photoUrl is already an object URL in the cache it is returned synchronously.
+  // Otherwise it triggers a fetch via ApiService.getPhotoBlob and populates the cache.
+  getImageSrc(person: any): string | null {
+    if (!person || !person.photoUrl) return null;
+    const blobPath = person.photoUrl.replace(/^\/?api\/photos\//, '').replace(/^\//, '');
+
+    // If we already have an object URL cached, return it.
+    const existing = this.photoObjectUrlMap.get(blobPath);
+    if (existing) return existing;
+
+    // If already fetching, return a placeholder immediately so <img> renders.
+    if (this.photoFetchPromises.has(blobPath)) return this.placeholderUrl;
+
+    // Kick off fetch (no await) and store promise to avoid duplicate fetches
+    const p = this.api.getPhotoBlob(blobPath).toPromise().then((blob: Blob | null | undefined) => {
+      if (!blob) return;
+      try {
+        const url = URL.createObjectURL(blob as Blob);
+        this.photoObjectUrlMap.set(blobPath, url);
+        // Notify Angular to update bindings so the new object URL is applied immediately
+        try { this.cdr.detectChanges(); } catch { }
+      } catch (err) {
+        console.error('Failed to create object URL for photo', err);
+      }
+    }).catch(err => {
+      console.error('Failed to fetch photo blob', err);
+    }).finally(() => {
+      this.photoFetchPromises.delete(blobPath);
+    });
+
+    this.photoFetchPromises.set(blobPath, p);
+    // Return placeholder until the object URL is ready
+    return this.placeholderUrl;
+  }
+
+  // Revoke and clear cached object URLs (call on component destroy or when clearing results)
+  private clearPhotoCache(): void {
+    for (const url of this.photoObjectUrlMap.values()) {
+      try { URL.revokeObjectURL(url); } catch { }
+    }
+    this.photoObjectUrlMap.clear();
+    this.photoFetchPromises.clear();
   }
 
   search(): void {
@@ -526,6 +582,7 @@ export class EntryExitComponent {
     this.searchTerm = '';
     this.errorMessage.set('');
     this.successMessage.set('');
+    this.clearPhotoCache();
   }
 
   backToResults(): void {
@@ -582,6 +639,8 @@ export class EntryExitComponent {
     this.result.set(r);
     this.results.set(null);
     this.errorMessage.set('');
+    // Pre-fetch the selected person's photo (non-blocking)
+    if (r?.photoUrl) this.getImageSrc(r);
   }
 
   subtitleFor(r: any): string {

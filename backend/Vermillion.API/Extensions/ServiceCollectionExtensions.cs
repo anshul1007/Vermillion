@@ -250,7 +250,7 @@ public static class ServiceCollectionExtensions
                                .ToArray();
 
         // Ensure the known local dev origins are present if no origins configured
-        var defaultLocalOrigins = new[] { "http://localhost:4200", "https://localhost:4200", "http://localhost:8100", "https://localhost:8100" };
+        var defaultLocalOrigins = new[] { "http://localhost:4200", "https://localhost:4200", "http://localhost:4300", "https://localhost:4300" };
 
         var allowedOrigins = configuredOrigins
             .Concat(envOriginsArray)

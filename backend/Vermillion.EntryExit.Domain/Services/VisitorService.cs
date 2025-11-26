@@ -242,11 +242,11 @@ public class VisitorService : IVisitorService
             PhoneNumber = visitor.PhoneNumber,
             CompanyName = visitor.CompanyName,
             Purpose = visitor.Purpose,
-            PhotoUrl = visitor.PhotoUrl,
+            PhotoUrl = string.IsNullOrWhiteSpace(visitor.PhotoUrl) ? string.Empty : (visitor.PhotoUrl.StartsWith("/api/entryexit/photos/") ? visitor.PhotoUrl : $"/api/entryexit/photos/{visitor.PhotoUrl}"),
             RegisteredBy = visitor.RegisteredBy,
             RegisteredAt = visitor.RegisteredAt,
             ProjectId = visitor.ProjectId,
-            ProjectName = visitor.Project?.Name
+            ProjectName = visitor.Project?.Name ?? string.Empty
         };
     }
 }

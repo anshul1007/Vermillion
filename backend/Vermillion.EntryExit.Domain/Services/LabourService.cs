@@ -38,7 +38,7 @@ public class LabourService : ILabourService
     {
         try
         {
-            _logger.LogInformation("Registering labour - Name: {Name}, Phone: {Phone}, Barcode: {Barcode}", 
+            _logger.LogInformation("Registering labour - Name: {Name}, Phone: {Phone}, Barcode: {Barcode}",
                 dto.Name, dto.PhoneNumber, dto.Barcode);
 
             // Validate project and contractor exist
@@ -101,7 +101,7 @@ public class LabourService : ILabourService
                 IsActive = true
             };
 
-            _logger.LogInformation("Created labour entity - Name: {Name}, Phone: {Phone}, Barcode: {Barcode}", 
+            _logger.LogInformation("Created labour entity - Name: {Name}, Phone: {Phone}, Barcode: {Barcode}",
                 labour.Name, labour.PhoneNumber, labour.Barcode);
 
             _context.Labours.Add(labour);
@@ -295,7 +295,7 @@ public class LabourService : ILabourService
             AadharNumber = !string.IsNullOrEmpty(labour.AadharNumberEncrypted)
                 ? _encryption.Decrypt(labour.AadharNumberEncrypted)
                 : null,
-            PhotoUrl = labour.PhotoUrl,
+            PhotoUrl = string.IsNullOrEmpty(labour.PhotoUrl) ? string.Empty : (labour.PhotoUrl.StartsWith("/api/entryexit/photos/") ? labour.PhotoUrl : $"/api/entryexit/photos/{labour.PhotoUrl}"),
             ProjectId = labour.ProjectId,
             ProjectName = labour.Project.Name,
             ContractorId = labour.ContractorId,

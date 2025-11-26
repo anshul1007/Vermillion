@@ -24,14 +24,14 @@ public class RecordsController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<AuthApiResponse<EntryExitRecordDto>>> CreateRecord([FromBody] CreateEntryExitRecordDto dto)
     {
-    var userEmail = User.FindFirst(ClaimTypes.Name)?.Value ?? "System";
-    var result = await _recordService.CreateRecordAsync(dto, userEmail);
+        var userEmail = User.FindFirst(ClaimTypes.Name)?.Value ?? "System";
+        var result = await _recordService.CreateRecordAsync(dto, userEmail);
 
         if (!result.Success)
         {
             if (result.Errors?.Contains("OPEN_SESSION_EXISTS") == true)
                 return Conflict(result);
-            
+
             return BadRequest(result);
         }
 
@@ -159,7 +159,7 @@ public class RecordsController : ControllerBase
                 barcode = labour.Barcode,
                 projectId = labour.ProjectId,
                 contractorId = labour.ContractorId,
-                photoUrl = labour.PhotoUrl,
+                photoUrl = string.IsNullOrEmpty(labour.PhotoUrl) ? string.Empty : (labour.PhotoUrl.StartsWith("/api/entryexit/photos/") ? labour.PhotoUrl : $"/api/entryexit/photos/{labour.PhotoUrl}"),
                 hasOpenEntry
             });
         }
@@ -179,7 +179,7 @@ public class RecordsController : ControllerBase
                     personType = "Visitor",
                     companyName = visitor.CompanyName,
                     purpose = visitor.Purpose,
-                    photoUrl = visitor.PhotoUrl,
+                    photoUrl = string.IsNullOrEmpty(visitor.PhotoUrl) ? string.Empty : (visitor.PhotoUrl.StartsWith("/api/entryexit/photos/") ? visitor.PhotoUrl : $"/api/entryexit/photos/{visitor.PhotoUrl}"),
                     hasOpenEntry
                 });
             }
@@ -209,7 +209,7 @@ public class RecordsController : ControllerBase
 
         // Search labour by contractor name
         var labourResult = await labourService.SearchLabourAsync(null, null, null, null);
-        
+
         if (labourResult?.Success != true || labourResult.Data == null)
         {
             return Ok(new AuthApiResponse<object>
@@ -242,7 +242,7 @@ public class RecordsController : ControllerBase
                 projectName = labour.ProjectName,
                 contractorId = labour.ContractorId,
                 contractorName = labour.ContractorName,
-                photoUrl = labour.PhotoUrl,
+                photoUrl = string.IsNullOrEmpty(labour.PhotoUrl) ? string.Empty : (labour.PhotoUrl.StartsWith("/api/entryexit/photos/") ? labour.PhotoUrl : $"/api/entryexit/photos/{labour.PhotoUrl}"),
                 hasOpenEntry
             });
         }
@@ -284,7 +284,7 @@ public class RecordsController : ControllerBase
             };
 
             var result = await _recordService.CreateRecordAsync(recordDto, userEmail);
-            
+
             if (result.Success)
             {
                 successCount++;
