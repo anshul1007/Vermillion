@@ -58,26 +58,11 @@ jobs:
         echo "## Ensure dotnet tools are on PATH"
         export PATH="$HOME/.dotnet/tools:$PATH"
 
-    - name: 🔁 Restore & Build all projects
+    - name: 🔁 Restore & Build solution
       run: |
-        echo "Restoring and building all domain projects and API..."
-        dotnet restore
-        
-        echo "Building Shared domain..."
-        dotnet build backend/Vermillion.Shared.Domain/Vermillion.Shared.Domain.csproj
-        
-        echo "Building Auth domain..."
-        dotnet build backend/Vermillion.Auth.Domain/Vermillion.Auth.Domain.csproj
-        
-        echo "Building Attendance domain..."
-        dotnet build backend/Vermillion.Attendance.Domain/Vermillion.Attendance.Domain.csproj
-        
-        echo "Building EntryExit domain..."
-        dotnet build backend/Vermillion.EntryExit.Domain/Vermillion.EntryExit.Domain.csproj
-        
-        echo "Building Vermillion.API..."
-        dotnet build backend/Vermillion.API/Vermillion.API.csproj
-        
+        echo "Restoring and building solution at backend/Vermillion.sln..."
+        dotnet restore backend/Vermillion.sln
+        dotnet build backend/Vermillion.sln --configuration Release
         echo "Build complete."
 
     - name: 🔍 Determine migration target
