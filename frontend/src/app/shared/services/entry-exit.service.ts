@@ -93,7 +93,7 @@ export interface LabourRegistration {
   labourName: string;
   phoneNumber: string;
   aadharNumber?: string;
-  photoBase64?: string;
+  photoUrl: string;
   projectId: number;
   projectName: string;
   contractorId: number;
@@ -109,7 +109,7 @@ export interface VisitorRegistration {
   id: number;
   name: string;
   phoneNumber: string;
-  photoBase64: string;
+  photoUrl: string;
   projectId: number;
   projectName?: string;
   companyName?: string;

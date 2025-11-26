@@ -76,7 +76,7 @@ import { AuthService } from '../core/auth/auth.service';
                     <div class="person-avatar">
                       <img
                         *ngIf="result()!.photoUrl"
-                        [src]="getPhotoDataUrl(result()!.photoUrl)"
+                        [src]="result()!.photoUrl"
                         [alt]="result()!.name"
                       />
                       <div *ngIf="!result()!.photoUrl" class="avatar-placeholder">
@@ -258,7 +258,7 @@ import { AuthService } from '../core/auth/auth.service';
                 <div class="photo-frame">
                   <img 
                     *ngIf="labour.photoUrl" 
-                    [src]="getPhotoDataUrl(labour.photoUrl)" 
+                    [src]="labour.photoUrl" 
                     [alt]="labour.name"
                   />
                   <div *ngIf="!labour.photoUrl" class="photo-placeholder-large">
@@ -604,13 +604,6 @@ export class EntryExitComponent {
     return r.personType || '';
   }
 
-  getPhotoDataUrl(photoUrl: string): string {
-    if (!photoUrl) return '';
-    // If already a data URL, return as-is
-    if (photoUrl.startsWith('data:')) return photoUrl;
-    // Otherwise, prepend the data URL prefix for base64 JPEG
-    return `data:image/jpeg;base64,${photoUrl}`;
-  }
 
   // Contractor mode methods
   switchToContractorMode(): void {

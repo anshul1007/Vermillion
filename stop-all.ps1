@@ -38,15 +38,46 @@ function Stop-ProcessByPort {
     }
 }
 
+# Fallback: stop PowerShell windows by window title (useful if services were started with Start-Process powershell -WindowTitle)
+function Stop-ProcessByWindowTitle {
+    param(
+        [string]$TitlePattern,
+        [string]$Name
+    )
+
+    Write-Host "Attempting to stop $Name by window title matching '$TitlePattern'..." -ForegroundColor Yellow
+
+    $pwshProcesses = Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.ProcessName -in @('powershell','pwsh') -and $_.MainWindowTitle -like $TitlePattern }
+
+    if ($pwshProcesses) {
+        foreach ($p in $pwshProcesses) {
+            try {
+                Write-Host "  Stopping window process: $($p.ProcessName) (PID: $($p.Id)) - Title: $($p.MainWindowTitle)" -ForegroundColor Gray
+                Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+                Write-Host "  ✓ $Name stopped (by window title)" -ForegroundColor Green
+            }
+            catch {
+                Write-Host "  ⚠ Failed to stop process PID $($p.Id)" -ForegroundColor Yellow
+            }
+        }
+        return $true
+    }
+
+    Write-Host "  ℹ No matching windows found for $Name" -ForegroundColor Gray
+    return $false
+}
+
 Write-Host "Stopping Backend APIs..." -ForegroundColor Yellow
-Stop-ProcessByPort -Port 5275 -Name "AuthAPI"
-Stop-ProcessByPort -Port 5000 -Name "AttendanceAPI"
-Stop-ProcessByPort -Port 5001 -Name "EntryExitAPI"
+$stopped = Stop-ProcessByPort -Port 5000 -Name "Vermillion.API"
+if (-not $stopped) { Stop-ProcessByWindowTitle -TitlePattern '*Vermillion.API*' -Name 'Vermillion.API' }
 
 Write-Host ""
 Write-Host "Stopping Frontend Applications..." -ForegroundColor Yellow
 Stop-ProcessByPort -Port 4200 -Name "Web App"
-Stop-ProcessByPort -Port 8100 -Name "Mobile App"
+if (-not (Stop-ProcessByPort -Port 8100 -Name "Mobile App")) {
+    # Try by window title as fallback
+    Stop-ProcessByWindowTitle -TitlePattern '*Mobile App*' -Name 'Mobile App'
+}
 
 Write-Host ""
 Write-Host "Stopping any background jobs..." -ForegroundColor Yellow

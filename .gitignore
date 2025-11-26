@@ -556,3 +556,5 @@ sample-data/
 !tsconfig.json
 !*.csproj
 !NuGet.Config
+
+.azurite

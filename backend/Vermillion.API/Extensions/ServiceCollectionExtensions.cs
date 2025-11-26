@@ -177,7 +177,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ILabourService, LabourService>();
         services.AddScoped<IVisitorService, VisitorService>();
         services.AddScoped<IEntryExitRecordService, EntryExitRecordService>();
-        services.AddScoped<IPhotoStorageService, Base64PhotoStorageService>();
+        services.AddScoped<IPhotoStorageService, BlobStoragePhotoService>();
         services.AddScoped<IEncryptionService, EncryptionService>();
         // Add data protection for EncryptionService
         services.AddDataProtection();

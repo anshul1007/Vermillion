@@ -46,13 +46,7 @@ import { takeUntil, take } from 'rxjs/operators';
                     <span class="label">Created:</span>
                     <span class="value">{{ formatDate(tenant.createdAt) }}</span>
                   </div>
-                  @if (tenant.apiKey) {
-                    <div class="info-row">
-                      <span class="label">API Key:</span>
-                      <span class="value api-key">{{ maskApiKey(tenant.apiKey) }}</span>
-                      <button class="btn btn-sm btn-copy" (click)="copyApiKey(tenant.apiKey)" title="Copy API Key">📋</button>
-                    </div>
-                  }
+                  <!-- API Key removed -->
                 </div>
                 <div class="tenant-actions">
                   <button class="btn btn-sm btn-warning" (click)="editTenant(tenant)">
@@ -173,17 +167,6 @@ export class TenantsManagementComponent implements OnInit {
     return new Date(date).toLocaleDateString();
   }
 
-  maskApiKey(apiKey: string): string {
-    if (!apiKey || apiKey.length < 8) return apiKey;
-    return apiKey.substring(0, 8) + '...' + apiKey.substring(apiKey.length - 4);
-  }
-
-  copyApiKey(apiKey: string): void {
-    navigator.clipboard.writeText(apiKey).then(() => {
-      alert('API Key copied to clipboard!');
-    }).catch(err => {
-      console.error('Failed to copy API Key', err);
-    });
-  }
+  // API Key helpers removed
 }
 

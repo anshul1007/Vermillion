@@ -24,7 +24,6 @@ public class TenantService : ITenantService
         {
             Name = request.Name,
             Domain = request.Domain,
-            ApiKey = Guid.NewGuid().ToString()
         };
 
         _context.Tenants.Add(tenant);

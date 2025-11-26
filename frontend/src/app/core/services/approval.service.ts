@@ -58,7 +58,7 @@ export class ApprovalService {
       params = params.set('date', date);
     }
 
-    return this.http.get<ApiResponse<AttendanceRecord[]>>(`${this.apiUrl}/attendance/pending`, { params })
+    return this.http.get<ApiResponse<AttendanceRecord[]>>(`${this.apiUrl}/pending`, { params })
       .pipe(
         map(response => {
           if (response.success && response.data) {
@@ -70,7 +70,7 @@ export class ApprovalService {
   }
 
   approveAttendance(attendanceId: string): Observable<void> {
-    return this.http.post<ApiResponse<void>>(`${this.apiUrl}/attendance/${attendanceId}/approve`, {})
+    return this.http.post<ApiResponse<void>>(`${this.apiUrl}/${attendanceId}/approve`, {})
       .pipe(
         map(response => {
           if (!response.success) {
@@ -81,7 +81,7 @@ export class ApprovalService {
   }
 
   rejectAttendance(attendanceId: string, reason: string): Observable<void> {
-    return this.http.post<ApiResponse<void>>(`${this.apiUrl}/attendance/${attendanceId}/reject`, {
+    return this.http.post<ApiResponse<void>>(`${this.apiUrl}/${attendanceId}/reject`, {
       rejectionReason: reason
     })
       .pipe(
@@ -98,7 +98,7 @@ export class ApprovalService {
       .set('startDate', startDate)
       .set('endDate', endDate);
 
-    return this.http.get<ApiResponse<AttendanceRecord[]>>(`${this.apiUrl}/attendance/history`, { params })
+    return this.http.get<ApiResponse<AttendanceRecord[]>>(`${this.apiUrl}/history`, { params })
       .pipe(
         map(response => {
           if (response.success && response.data) {

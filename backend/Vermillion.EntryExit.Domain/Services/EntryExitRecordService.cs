@@ -183,8 +183,8 @@ public class EntryExitRecordService : IEntryExitRecordService
                             ? entry.Labour?.Name ?? "Unknown"
                             : entry.Visitor?.Name ?? "Unknown",
                         PhotoBase64 = entry.PersonType == PersonType.Labour
-                            ? entry.Labour?.PhotoBase64
-                            : entry.Visitor?.PhotoBase64,
+                            ? entry.Labour?.PhotoUrl
+                            : entry.Visitor?.PhotoUrl,
                         EntryTime = entry.Timestamp,
                         Gate = entry.Gate,
                         LabourId = entry.LabourId,
@@ -451,8 +451,8 @@ public class EntryExitRecordService : IEntryExitRecordService
                 ? record.Labour?.Name
                 : record.Visitor?.Name,
             PhotoBase64 = record.PersonType == PersonType.Labour
-                ? record.Labour?.PhotoBase64
-                : record.Visitor?.PhotoBase64,
+                ? record.Labour?.PhotoUrl
+                : record.Visitor?.PhotoUrl,
             ContractorName = record.PersonType == PersonType.Labour
                 ? record.Labour?.Contractor?.Name
                 : null,
@@ -478,7 +478,7 @@ public class EntryExitRecordService : IEntryExitRecordService
             AadharNumber = !string.IsNullOrEmpty(labour.AadharNumberEncrypted)
                 ? _encryption.Decrypt(labour.AadharNumberEncrypted)
                 : null,
-            PhotoBase64 = labour.PhotoBase64,
+            PhotoUrl = labour.PhotoUrl,
             ProjectId = labour.ProjectId,
             ProjectName = labour.Project.Name,
             ContractorId = labour.ContractorId,
@@ -501,7 +501,7 @@ public class EntryExitRecordService : IEntryExitRecordService
             PhoneNumber = visitor.PhoneNumber,
             CompanyName = visitor.CompanyName,
             Purpose = visitor.Purpose,
-            PhotoBase64 = visitor.PhotoBase64,
+            PhotoUrl = visitor.PhotoUrl,
             RegisteredBy = visitor.RegisteredBy,
             RegisteredAt = visitor.RegisteredAt
         };

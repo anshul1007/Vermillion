@@ -12,7 +12,7 @@ using Vermillion.Auth.Domain.Data;
 namespace Vermillion.Auth.Domain.Migrations.Auth
 {
     [DbContext(typeof(AuthDbContext))]
-    [Migration("20251115053556_InitialCreate_Auth")]
+    [Migration("20251126105151_InitialCreate_Auth")]
     partial class InitialCreate_Auth
     {
         /// <inheritdoc />
@@ -256,9 +256,6 @@ namespace Vermillion.Auth.Domain.Migrations.Auth
                         .HasColumnType("int");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("ApiKey")
-                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");

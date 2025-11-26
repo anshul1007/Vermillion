@@ -70,7 +70,6 @@ namespace Vermillion.Shared.Domain.Migrations.Shared
 
                     b.ToTable("AuditLogs", "shared");
                 });
-
 #pragma warning restore 612, 618
         }
     }

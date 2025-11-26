@@ -636,10 +636,10 @@
             <span>{{ labour.registeredBy }}</span>
           </div>
           }
-          @if (labour.photoBase64) {
+          @if (labour.photoUrl) {
           <div class="info-row">
             <span class="label">Photo:</span>
-            <img [src]="'data:image/jpeg;base64,' + labour.photoBase64" alt="Labour photo" style="max-width: 100px; border-radius: 4px;" />
+            <img [src]="labour.photoUrl" alt="Labour photo" style="max-width: 100px; border-radius: 4px;" />
           </div>
           }
         </div>
@@ -739,10 +739,10 @@
             <span>{{ visitor.registeredBy }}</span>
           </div>
           }
-          @if (visitor.photoBase64) {
+          @if (visitor.photoUrl) {
           <div class="info-row">
             <span class="label">Photo:</span>
-            <img [src]="'data:image/jpeg;base64,' + visitor.photoBase64" alt="Visitor photo" style="max-width: 100px; border-radius: 4px;" />
+            <img [src]="visitor.photoUrl" alt="Visitor photo" style="max-width: 100px; border-radius: 4px;" />
           </div>
           }
         </div>

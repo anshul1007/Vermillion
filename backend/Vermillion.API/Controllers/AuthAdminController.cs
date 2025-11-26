@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Vermillion.Auth.Domain.Services;
+using Vermillion.EntryExit.Domain.Models.DTOs;
 using Vermillion.Auth.Domain.Models.DTOs;
 using Vermillion.Auth.Domain.Data;
 
@@ -80,12 +81,12 @@ public class AuthAdminController : ControllerBase
 				});
 			}
 
-			return Ok(new ApiResponse<object>(true, result, null));
+			return Ok(new AuthApiResponse<object> { Success = true, Data = result, Message = null });
 		}
 		catch (Exception ex)
 		{
 			_logger.LogError(ex, "Error fetching users");
-			return StatusCode(500, new ApiResponse<object>(false, null, $"Error fetching users: {ex.Message}"));
+			return StatusCode(500, new AuthApiResponse<object> { Success = false, Data = null, Message = $"Error fetching users: {ex.Message}" });
 		}
 	}
 
@@ -125,7 +126,7 @@ public class AuthAdminController : ControllerBase
 			return NotFound(new ApiResponse<string>(false, null, $"No role found for user {userId} in {tenantDomain} tenant"));
 		}
 
-		return Ok(new { role = userRole.Role.Name });
+		return Ok(new AuthApiResponse<object> { Success = true, Data = new { role = userRole.Role.Name } });
 	}
 
 	/// <summary>
@@ -147,7 +148,7 @@ public class AuthAdminController : ControllerBase
 			return NotFound(new ApiResponse<string>(false, null, $"User {userId} not found"));
 		}
 
-		return Ok(new ApiResponse<object>(true, user, null));
+		return Ok(new AuthApiResponse<object> { Success = true, Data = user, Message = null });
 	}
 
 	/// <summary>
@@ -209,7 +210,7 @@ public class AuthAdminController : ControllerBase
 			return NotFound(new ApiResponse<string>(false, null, $"Role {roleId} not found"));
 		}
 
-		return Ok(new ApiResponse<object>(true, role, null));
+		return Ok(new AuthApiResponse<object> { Success = true, Data = role, Message = null });
 	}
 
 	/// <summary>
@@ -241,7 +242,7 @@ public class AuthAdminController : ControllerBase
 			return NotFound(new ApiResponse<string>(false, null, $"Employee record not found for user {userId}"));
 		}
 
-		return Ok(new ApiResponse<object>(true, employee, null));
+		return Ok(new AuthApiResponse<object> { Success = true, Data = employee, Message = null });
 	}
 
 	/// <summary>
@@ -287,7 +288,7 @@ public class AuthAdminController : ControllerBase
 			})
 			.ToListAsync();
 
-		return Ok(new ApiResponse<object>(true, employees, null));
+		return Ok(new AuthApiResponse<object> { Success = true, Data = employees, Message = null });
 	}
 
 	/// <summary>
@@ -308,7 +309,7 @@ public class AuthAdminController : ControllerBase
 			})
 			.ToListAsync();
 
-		return Ok(new ApiResponse<object>(true, departments, null));
+		return Ok(new AuthApiResponse<object> { Success = true, Data = departments, Message = null });
 	}
 
 	/// <summary>
@@ -400,7 +401,7 @@ public class AuthAdminController : ControllerBase
 			var passwordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
 
 			// Create user
-			var user = new Vermillion.Auth.Domain.Models.Entities.User
+			var user = new Auth.Domain.Models.Entities.User
 			{
 				Username = request.Username,
 				Email = request.Email,
@@ -415,7 +416,7 @@ public class AuthAdminController : ControllerBase
 
 			_logger.LogInformation("User {Username} created with ID {UserId}", user.Username, user.Id);
 
-			return Ok(new ApiResponse<object>(true, new { id = user.Id, username = user.Username, email = user.Email }, "User created successfully"));
+			return Ok(new AuthApiResponse<object> { Success = true, Data = new { id = user.Id, username = user.Username, email = user.Email }, Message = "User created successfully" });
 		}
 		catch (Exception ex)
 		{
@@ -475,7 +476,7 @@ public class AuthAdminController : ControllerBase
 				_logger.LogWarning("No fields provided to update for user {UserId}", id);
 			}
 
-			return Ok(new ApiResponse<object>(true, new { id = user.Id, username = user.Username, email = user.Email }, "User updated successfully"));
+			return Ok(new AuthApiResponse<object> { Success = true, Data = new { id = user.Id, username = user.Username, email = user.Email }, Message = "User updated successfully" });
 		}
 		catch (Exception ex)
 		{
@@ -552,7 +553,7 @@ public class AuthAdminController : ControllerBase
 			}
 
 			// Create new assignment
-			var userRole = new Vermillion.Auth.Domain.Models.Entities.UserRole
+			var userRole = new Auth.Domain.Models.Entities.UserRole
 			{
 				UserId = userId,
 				TenantId = tenantId,
@@ -713,7 +714,7 @@ public class AuthAdminController : ControllerBase
 			if (existingRole != null)
 				return BadRequest(new ApiResponse<object>(false, null, "Role with this name already exists"));
 
-			var role = new Vermillion.Auth.Domain.Models.Entities.Role
+			var role = new Auth.Domain.Models.Entities.Role
 			{
 				Name = request.Name,
 				Description = request.Description,
@@ -726,7 +727,7 @@ public class AuthAdminController : ControllerBase
 
 			_logger.LogInformation("Role {RoleName} created with ID {RoleId}", role.Name, role.Id);
 
-			return Ok(new ApiResponse<object>(true, new { id = role.Id, name = role.Name }, "Role created successfully"));
+			return Ok(new AuthApiResponse<object> { Success = true, Data = new { id = role.Id, name = role.Name }, Message = "Role created successfully" });
 		}
 		catch (Exception ex)
 		{
@@ -889,7 +890,7 @@ public class AuthAdminController : ControllerBase
 			if (existingPermission != null)
 				return BadRequest(new ApiResponse<object>(false, null, "Permission with this name or resource/action combination already exists"));
 
-			var permission = new Vermillion.Auth.Domain.Models.Entities.Permission
+			var permission = new Auth.Domain.Models.Entities.Permission
 			{
 				Name = request.Name,
 				Resource = request.Resource,
@@ -904,7 +905,7 @@ public class AuthAdminController : ControllerBase
 
 			_logger.LogInformation("Permission {PermissionName} created with ID {PermissionId}", permission.Name, permission.Id);
 
-			return Ok(new ApiResponse<object>(true, new { id = permission.Id, name = permission.Name }, "Permission created successfully"));
+			return Ok(new AuthApiResponse<object> { Success = true, Data = new { id = permission.Id, name = permission.Name }, Message = "Permission created successfully" });
 		}
 		catch (Exception ex)
 		{
@@ -1006,7 +1007,7 @@ public class AuthAdminController : ControllerBase
 				return BadRequest(new ApiResponse<object>(false, null, "Permission is already assigned to this role"));
 
 			// Create new assignment
-			var rolePermission = new Vermillion.Auth.Domain.Models.Entities.RolePermission
+			var rolePermission = new Auth.Domain.Models.Entities.RolePermission
 			{
 				RoleId = roleId,
 				PermissionId = permissionId,

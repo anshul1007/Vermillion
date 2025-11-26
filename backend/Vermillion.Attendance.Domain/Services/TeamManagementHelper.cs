@@ -1,5 +1,6 @@
-using Vermillion.Attendance.Domain.Models.DTOs;
 using Microsoft.Extensions.Logging;
+using Vermillion.Attendance.Domain.Models.DTOs;
+using Vermillion.Auth.Domain.Services;
 
 namespace Vermillion.Attendance.Domain.Services
 {
@@ -12,18 +13,15 @@ namespace Vermillion.Attendance.Domain.Services
 
     public class TeamManagementHelper : ITeamManagementHelper
     {
-        private readonly Vermillion.Auth.Domain.Services.IUserService _userService;
+        private readonly IUserService _userService;
         private readonly ILogger<TeamManagementHelper> _logger;
 
-        public TeamManagementHelper(Vermillion.Auth.Domain.Services.IUserService userService, ILogger<TeamManagementHelper> logger)
+        public TeamManagementHelper(IUserService userService, ILogger<TeamManagementHelper> logger)
         {
             _userService = userService;
             _logger = logger;
         }
 
-        /// <summary>
-        /// Gets all employees from AuthAPI (with caching)
-        /// </summary>
         public async Task<List<EmployeeDto>?> GetAllEmployeesAsync()
         {
             var employees = await _userService.GetAllEmployeesAsync();
@@ -32,7 +30,6 @@ namespace Vermillion.Attendance.Domain.Services
 
             return employees.Select(e =>
             {
-                // Build DepartmentDto from Auth.Domain Department entity
                 DepartmentDto? deptDto = null;
                 if (e.Department != null)
                 {
@@ -56,8 +53,8 @@ namespace Vermillion.Attendance.Domain.Services
                     managerObj = new
                     {
                         Id = e.Manager.Id.ToString(),
-                        FirstName = e.Manager.FirstName,
-                        LastName = e.Manager.LastName
+                        e.Manager.FirstName,
+                        e.Manager.LastName
                     };
                 }
 
@@ -79,9 +76,6 @@ namespace Vermillion.Attendance.Domain.Services
             }).ToList();
         }
 
-        /// <summary>
-        /// Returns set of userIds that report to the specified manager, or null if employees fetch fails
-        /// </summary>
         public async Task<HashSet<int>?> GetManagerTeamUserIdsAsync(Guid managerEmployeeId)
         {
             var employees = await _userService.GetAllEmployeesAsync();
@@ -96,9 +90,6 @@ namespace Vermillion.Attendance.Domain.Services
             return teamUserIds;
         }
 
-        /// <summary>
-        /// Build TeamMemberDto list but exclude any users who have the SystemAdmin role in AuthAPI
-        /// </summary>
         public async Task<List<TeamMemberDto>> BuildTeamMemberDtosExcludingSystemAdminsAsync(IEnumerable<EmployeeDto> employees)
         {
             var tasks = employees.Select(async e =>

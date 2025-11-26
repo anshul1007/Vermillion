@@ -201,8 +201,10 @@ namespace Vermillion.EntryExit.Domain.Migrations.EntryExit
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
 
-                    b.Property<string>("PhotoBase64")
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<string>("PhotoUrl")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<int>("ProjectId")
                         .HasColumnType("int");
@@ -289,9 +291,10 @@ namespace Vermillion.EntryExit.Domain.Migrations.EntryExit
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
 
-                    b.Property<string>("PhotoBase64")
+                    b.Property<string>("PhotoUrl")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<int>("ProjectId")
                         .HasColumnType("int");

@@ -53,7 +53,7 @@ public class VisitorService : IVisitorService
             }
 
             // Validate and process photo
-            string photoBase64 = await _photoStorage.SavePhotoAsync(dto.PhotoBase64, "visitor");
+            string photoUrl = await _photoStorage.SavePhotoAsync(dto.PhotoBase64, "visitor");
 
             var visitor = new Visitor
             {
@@ -61,7 +61,7 @@ public class VisitorService : IVisitorService
                 PhoneNumber = dto.PhoneNumber,
                 CompanyName = dto.CompanyName,
                 Purpose = dto.Purpose,
-                PhotoBase64 = photoBase64,
+                PhotoUrl = photoUrl,
                 RegisteredBy = registeredBy,
                 RegisteredAt = DateTime.UtcNow,
                 ProjectId = dto.ProjectId
@@ -242,7 +242,7 @@ public class VisitorService : IVisitorService
             PhoneNumber = visitor.PhoneNumber,
             CompanyName = visitor.CompanyName,
             Purpose = visitor.Purpose,
-            PhotoBase64 = visitor.PhotoBase64,
+            PhotoUrl = visitor.PhotoUrl,
             RegisteredBy = visitor.RegisteredBy,
             RegisteredAt = visitor.RegisteredAt,
             ProjectId = visitor.ProjectId,

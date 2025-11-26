@@ -20,7 +20,7 @@ export interface CreateLabourRegistrationDto {
   name: string;
   phoneNumber: string;
   aadharNumber?: string;
-  photoBase64?: string;
+  photoBase64: string;  // Sent as base64, backend converts to blob URL
   projectId: number;
   contractorId: number;
   barcode: string;
@@ -33,7 +33,7 @@ export interface LabourRegistrationDto {
   labourName: string;
   phoneNumber: string;
   aadharNumber?: string;
-  photoBase64?: string;
+  photoUrl: string;
   projectId: number;
   projectName: string;
   contractorId: number;
@@ -45,13 +45,26 @@ export interface LabourRegistrationDto {
   updatedAt?: string;
 }
 
-export interface VisitorRegistrationDto {
+export interface CreateVisitorRegistrationDto {
   name: string;
   phoneNumber: string;
   companyName?: string;
   purpose: string;
-  photoBase64: string;
+  photoBase64: string;  // Sent as base64, backend converts to blob URL
   projectId: number;
+}
+
+export interface VisitorRegistrationDto {
+  id: number;
+  name: string;
+  phoneNumber: string;
+  companyName?: string;
+  purpose: string;
+  photoUrl: string;
+  registeredBy: string;
+  registeredAt: string;
+  projectId: number;
+  projectName: string;
 }
 
 export interface CreateRecordDto {
@@ -135,8 +148,8 @@ export class ApiService {
   }
 
   // Labour endpoints
-  registerLabour(data: CreateLabourRegistrationDto): Observable<ApiResponse<any>> {
-    return this.http.post<ApiResponse<any>>(`${this.entryExitApiUrl}/labour/register`, data, {
+  registerLabour(data: CreateLabourRegistrationDto): Observable<ApiResponse<LabourRegistrationDto>> {
+    return this.http.post<ApiResponse<LabourRegistrationDto>>(`${this.entryExitApiUrl}/labour/register`, data, {
       headers: this.getHeaders()
     });
   }
@@ -148,8 +161,8 @@ export class ApiService {
   }
 
   // Visitor endpoints
-  registerVisitor(data: VisitorRegistrationDto): Observable<ApiResponse<any>> {
-    return this.http.post<ApiResponse<any>>(`${this.entryExitApiUrl}/visitor/register`, data, {
+  registerVisitor(data: CreateVisitorRegistrationDto): Observable<ApiResponse<VisitorRegistrationDto>> {
+    return this.http.post<ApiResponse<VisitorRegistrationDto>>(`${this.entryExitApiUrl}/visitor/register`, data, {
       headers: this.getHeaders()
     });
   }

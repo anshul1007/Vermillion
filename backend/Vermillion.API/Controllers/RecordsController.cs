@@ -159,7 +159,7 @@ public class RecordsController : ControllerBase
                 barcode = labour.Barcode,
                 projectId = labour.ProjectId,
                 contractorId = labour.ContractorId,
-                photoUrl = labour.PhotoBase64,
+                photoUrl = labour.PhotoUrl,
                 hasOpenEntry
             });
         }
@@ -179,7 +179,7 @@ public class RecordsController : ControllerBase
                     personType = "Visitor",
                     companyName = visitor.CompanyName,
                     purpose = visitor.Purpose,
-                    photoUrl = visitor.PhotoBase64,
+                    photoUrl = visitor.PhotoUrl,
                     hasOpenEntry
                 });
             }
@@ -242,7 +242,7 @@ public class RecordsController : ControllerBase
                 projectName = labour.ProjectName,
                 contractorId = labour.ContractorId,
                 contractorName = labour.ContractorName,
-                photoUrl = labour.PhotoBase64,
+                photoUrl = labour.PhotoUrl,
                 hasOpenEntry
             });
         }

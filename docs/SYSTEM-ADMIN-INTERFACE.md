@@ -211,7 +211,6 @@ interface Tenant {
   id: number;
   name: string;
   domain: string;
-  apiKey?: string;
   isActive: boolean;
   createdAt: Date;
   userCount?: number;

@@ -55,7 +55,7 @@ namespace Vermillion.API.Controllers
                     .AnyAsync(h => h.Date == today && h.IsActive);
 
                 // Create new attendance record
-                var attendance = new Vermillion.Attendance.Domain.Models.Entities.Attendance
+                var attendance = new Attendance.Domain.Models.Entities.Attendance
                 {
                     Id = Guid.NewGuid(),
                     UserId = userId.Value,

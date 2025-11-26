@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Vermillion.Auth.Domain.Models.DTOs;
 using Vermillion.Auth.Domain.Services;
 using Vermillion.Auth.Domain.Data;
+using Vermillion.EntryExit.Domain.Models.DTOs;
 
 namespace Vermillion.API.Controllers;
 
@@ -67,13 +68,16 @@ public class AuthController : ControllerBase
         if (!success)
             return BadRequest(new ApiResponse<string>(false, null, error));
 
-        return Ok(new ApiResponse<object>(true, new
-        {
-            tenant!.Id,
-            tenant.Name,
-            tenant.Domain,
-            tenant.ApiKey
-        }, "Tenant registered successfully"));
+        var t = tenant!;
+
+        var tenantDto = new TenantDto(
+            t.Id,
+            t.Name,
+            t.Domain,
+            t.IsActive
+        );
+
+        return Ok(new AuthApiResponse<TenantDto> { Success = true, Data = tenantDto, Message = "Tenant registered successfully" });
     }
 
     [HttpGet("tenant")]
@@ -81,7 +85,8 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> GetAllTenants()
     {
         var tenants = await _tenantService.GetAllTenantsAsync();
-        return Ok(new ApiResponse<object>(true, tenants, null));
+            var tenantDtos = tenants.Select(t => new TenantDto(t.Id, t.Name, t.Domain, t.IsActive)).ToList();
+        return Ok(new AuthApiResponse<List<TenantDto>> { Success = true, Data = tenantDtos, Message = null });
     }
 
     [HttpGet("tenant/{id}")]
@@ -93,7 +98,10 @@ public class AuthController : ControllerBase
         if (tenant == null)
             return NotFound(new ApiResponse<string>(false, null, "Tenant not found"));
 
-        return Ok(new ApiResponse<object>(true, tenant, null));
+        var t2 = tenant!;
+
+        var tenantDto = new TenantDto(t2.Id, t2.Name, t2.Domain, t2.IsActive);
+        return Ok(new AuthApiResponse<TenantDto> { Success = true, Data = tenantDto, Message = null });
     }
 
     [HttpGet("tenant/domain/{domain}")]
@@ -105,7 +113,10 @@ public class AuthController : ControllerBase
         if (tenant == null)
             return NotFound(new ApiResponse<string>(false, null, "Tenant not found"));
 
-        return Ok(new ApiResponse<object>(true, tenant, null));
+        var t3 = tenant!;
+
+        var tenantDto2 = new TenantDto(t3.Id, t3.Name, t3.Domain, t3.IsActive);
+        return Ok(new AuthApiResponse<TenantDto> { Success = true, Data = tenantDto2, Message = null });
     }
 
     [HttpPut("tenant/{id}/activate")]

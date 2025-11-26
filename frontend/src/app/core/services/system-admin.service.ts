@@ -44,7 +44,7 @@ export interface Tenant {
   id: number;
   name: string;
   domain: string;
-  apiKey?: string;
+  // apiKey removed
   isActive: boolean;
   createdAt: Date;
   userCount?: number;

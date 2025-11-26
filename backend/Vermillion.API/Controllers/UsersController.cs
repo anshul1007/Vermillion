@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Vermillion.Auth.Domain.Data;
 using Vermillion.Auth.Domain.Models.DTOs;
+using Vermillion.EntryExit.Domain.Models.DTOs;
 
 namespace Vermillion.API.Controllers;
 
@@ -56,7 +57,7 @@ public class UsersController : ControllerBase
             return NotFound(new ApiResponse<string>(false, null, $"No role found for user {userId} in {tenantDomain} tenant"));
         }
 
-        return Ok(new { role = userRole.Role.Name });
+        return Ok(new AuthApiResponse<object> { Success = true, Data = new { role = userRole.Role.Name } });
     }
 
     /// <summary>
@@ -78,7 +79,7 @@ public class UsersController : ControllerBase
             return NotFound(new ApiResponse<string>(false, null, $"User {userId} not found"));
         }
 
-        return Ok(new ApiResponse<object>(true, user, null));
+        return Ok(new AuthApiResponse<object> { Success = true, Data = user, Message = null });
     }
 
     /// <summary>
@@ -140,7 +141,7 @@ public class UsersController : ControllerBase
             return NotFound(new ApiResponse<string>(false, null, $"Role {roleId} not found"));
         }
 
-        return Ok(new ApiResponse<object>(true, role, null));
+        return Ok(new AuthApiResponse<object> { Success = true, Data = role, Message = null });
     }
 
     /// <summary>
@@ -172,7 +173,7 @@ public class UsersController : ControllerBase
             return NotFound(new ApiResponse<string>(false, null, $"Employee record not found for user {userId}"));
         }
 
-        return Ok(new ApiResponse<object>(true, employee, null));
+        return Ok(new AuthApiResponse<object> { Success = true, Data = employee, Message = null });
     }
 
     /// <summary>
@@ -218,7 +219,7 @@ public class UsersController : ControllerBase
             })
             .ToListAsync();
 
-        return Ok(new ApiResponse<object>(true, employees, null));
+        return Ok(new AuthApiResponse<object> { Success = true, Data = employees, Message = null });
     }
 
     /// <summary>
@@ -239,6 +240,6 @@ public class UsersController : ControllerBase
             })
             .ToListAsync();
 
-        return Ok(new ApiResponse<object>(true, departments, null));
+        return Ok(new AuthApiResponse<object> { Success = true, Data = departments, Message = null });
     }
 }

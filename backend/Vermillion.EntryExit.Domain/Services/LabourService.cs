@@ -70,12 +70,18 @@ public class LabourService : ILabourService
                     Errors = new List<string> { "DUPLICATE_BARCODE" }
                 };
 
-            // Validate and process photo
-            string? photoBase64 = null;
-            if (!string.IsNullOrEmpty(dto.PhotoBase64))
+            // Validate and process photo (required)
+            if (string.IsNullOrEmpty(dto.PhotoBase64))
             {
-                photoBase64 = await _photoStorage.SavePhotoAsync(dto.PhotoBase64, "labour");
+                return new AuthApiResponse<LabourDto>
+                {
+                    Success = false,
+                    Message = "Photo is required for labour registration",
+                    Errors = new List<string> { "PHOTO_REQUIRED" }
+                };
             }
+
+            string photoUrl = await _photoStorage.SavePhotoAsync(dto.PhotoBase64, "labour");
 
             // Create labour record
             var labour = new Labour
@@ -85,7 +91,7 @@ public class LabourService : ILabourService
                 AadharNumberEncrypted = !string.IsNullOrEmpty(dto.AadharNumber)
                     ? _encryption.Encrypt(dto.AadharNumber)
                     : null,
-                PhotoBase64 = photoBase64,
+                PhotoUrl = photoUrl,
                 ProjectId = dto.ProjectId,
                 ContractorId = dto.ContractorId,
                 Barcode = dto.Barcode,
@@ -289,7 +295,7 @@ public class LabourService : ILabourService
             AadharNumber = !string.IsNullOrEmpty(labour.AadharNumberEncrypted)
                 ? _encryption.Decrypt(labour.AadharNumberEncrypted)
                 : null,
-            PhotoBase64 = labour.PhotoBase64,
+            PhotoUrl = labour.PhotoUrl,
             ProjectId = labour.ProjectId,
             ProjectName = labour.Project.Name,
             ContractorId = labour.ContractorId,

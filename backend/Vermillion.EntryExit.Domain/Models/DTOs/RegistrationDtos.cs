@@ -7,7 +7,7 @@ public class LabourDto
     public string Name { get; set; } = string.Empty;
     public string PhoneNumber { get; set; } = string.Empty;
     public string? AadharNumber { get; set; }  // Decrypted for display (admin only)
-    public string? PhotoBase64 { get; set; }
+    public string PhotoUrl { get; set; } = string.Empty;
     public int ProjectId { get; set; }
     public string ProjectName { get; set; } = string.Empty;
     public int ContractorId { get; set; }
@@ -25,7 +25,7 @@ public class CreateLabourDto
     public string Name { get; set; } = string.Empty;
     public string PhoneNumber { get; set; } = string.Empty;
     public string? AadharNumber { get; set; }  // Will be encrypted before saving
-    public string? PhotoBase64 { get; set; }
+    public string? PhotoBase64 { get; set; }  // Accepted in requests, converted to PhotoUrl
     public int ProjectId { get; set; }
     public int ContractorId { get; set; }
     public string Barcode { get; set; } = string.Empty;
@@ -43,7 +43,7 @@ public class VisitorDto
     public string PhoneNumber { get; set; } = string.Empty;
     public string? CompanyName { get; set; }
     public string? Purpose { get; set; }
-    public string PhotoBase64 { get; set; } = string.Empty;
+    public string PhotoUrl { get; set; } = string.Empty;
     public string? RegisteredBy { get; set; }
     public DateTime RegisteredAt { get; set; }
     public int ProjectId { get; set; }
@@ -56,7 +56,7 @@ public class CreateVisitorDto
     public string PhoneNumber { get; set; } = string.Empty;
     public string? CompanyName { get; set; }
     public string? Purpose { get; set; }
-    public string PhotoBase64 { get; set; } = string.Empty;
+    public string PhotoBase64 { get; set; } = string.Empty;  // Accepted in requests, converted to PhotoUrl
     public int ProjectId { get; set; }
 }
 

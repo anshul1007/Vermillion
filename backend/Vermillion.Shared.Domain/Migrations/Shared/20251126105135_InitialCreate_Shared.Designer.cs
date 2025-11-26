@@ -12,7 +12,7 @@ using Vermillion.Shared.Domain.Data;
 namespace Vermillion.Shared.Domain.Migrations.Shared
 {
     [DbContext(typeof(SharedDbContext))]
-    [Migration("20251115053629_InitialCreate_Shared")]
+    [Migration("20251126105135_InitialCreate_Shared")]
     partial class InitialCreate_Shared
     {
         /// <inheritdoc />
@@ -73,7 +73,6 @@ namespace Vermillion.Shared.Domain.Migrations.Shared
 
                     b.ToTable("AuditLogs", "shared");
                 });
-
 #pragma warning restore 612, 618
         }
     }

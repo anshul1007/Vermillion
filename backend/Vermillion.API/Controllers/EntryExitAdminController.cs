@@ -31,7 +31,7 @@ public class EntryExitAdminController : ControllerBase
         {
             var employees = await _userService.GetAllEmployeesAsync(excludeGuards: false);
             if (employees == null)
-                return StatusCode(502, new { success = false, message = "Failed to fetch users" });
+                return StatusCode(502, new AuthApiResponse<object> { Success = false, Message = "Failed to fetch users" });
 
             // Filter users with Guard role in EntryExit tenant
             var guardsWithRoles = new List<GuardListItemDto>();
@@ -58,12 +58,12 @@ public class EntryExitAdminController : ControllerBase
                 }
             }
 
-            return Ok(new { success = true, data = guardsWithRoles, message = (string?)null });
+            return Ok(new AuthApiResponse<List<GuardListItemDto>> { Success = true, Data = guardsWithRoles, Message = null });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error getting users");
-            return StatusCode(500, new { success = false, message = "Error getting users", errors = new[] { ex.Message } });
+            return StatusCode(500, new AuthApiResponse<object> { Success = false, Message = "Error getting users", Errors = new List<string> { ex.Message } });
         }
     }
 
@@ -75,7 +75,7 @@ public class EntryExitAdminController : ControllerBase
         {
             var employees = await _userService.GetAllEmployeesAsync(excludeGuards: false);
             if (employees == null)
-                return StatusCode(502, new { success = false, message = "Failed to fetch users" });
+                return StatusCode(502, new AuthApiResponse<object> { Success = false, Message = "Failed to fetch users" });
 
             // Filter users with Guard role in EntryExit tenant
             var guardsWithRoles = new List<GuardListItemDto>();
@@ -102,12 +102,12 @@ public class EntryExitAdminController : ControllerBase
                 }
             }
 
-            return Ok(new { success = true, data = guardsWithRoles, message = (string?)null });
+            return Ok(new AuthApiResponse<List<GuardListItemDto>> { Success = true, Data = guardsWithRoles, Message = null });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error getting guards list");
-            return StatusCode(500, new { success = false, message = "Error getting guards list", errors = new[] { ex.Message } });
+            return StatusCode(500, new AuthApiResponse<object> { Success = false, Message = "Error getting guards list", Errors = new List<string> { ex.Message } });
         }
     }
 
@@ -136,15 +136,15 @@ public class EntryExitAdminController : ControllerBase
 
             if (!success)
             {
-                return BadRequest(new { success = false, message = "Failed to create guard", error = message });
+                return BadRequest(new AuthApiResponse<object> { Success = false, Message = "Failed to create guard", Errors = new List<string> { message } });
             }
 
-            return Ok(new { success = true, message = "Guard created successfully", userId });
+            return Ok(new AuthApiResponse<object> { Success = true, Data = userId, Message = "Guard created successfully" });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error creating guard");
-            return StatusCode(500, new { success = false, message = "Error creating guard", errors = new[] { ex.Message } });
+            return StatusCode(500, new AuthApiResponse<object> { Success = false, Message = "Error creating guard", Errors = new List<string> { ex.Message } });
         }
     }
 
@@ -167,14 +167,14 @@ public class EntryExitAdminController : ControllerBase
             );
 
             if (!ok)
-                return BadRequest(new { success = false, message = "Failed to update guard" });
+                return BadRequest(new AuthApiResponse<object> { Success = false, Message = "Failed to update guard" });
 
-            return Ok(new { success = true, message = "Guard updated" });
+            return Ok(new AuthApiResponse<object> { Success = true, Message = "Guard updated" });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error updating guard");
-            return StatusCode(500, new { success = false, message = "Error updating guard", errors = new[] { ex.Message } });
+            return StatusCode(500, new AuthApiResponse<object> { Success = false, Message = "Error updating guard", Errors = new List<string> { ex.Message } });
         }
     }
 

@@ -12,8 +12,8 @@ using Vermillion.EntryExit.Domain.Data;
 namespace Vermillion.EntryExit.Domain.Migrations.EntryExit
 {
     [DbContext(typeof(EntryExitDbContext))]
-    [Migration("20251118022402_ChangePhotoStorageToBase64")]
-    partial class ChangePhotoStorageToBase64
+    [Migration("20251126105220_InitialCreate_EntryExit")]
+    partial class InitialCreate_EntryExit
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -91,7 +91,7 @@ namespace Vermillion.EntryExit.Domain.Migrations.EntryExit
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
-                    b.Property<int?>("LabourRegistrationId")
+                    b.Property<int?>("LabourId")
                         .HasColumnType("int");
 
                     b.Property<string>("Notes")
@@ -117,13 +117,13 @@ namespace Vermillion.EntryExit.Domain.Migrations.EntryExit
                         .IsUnique()
                         .HasFilter("[ClientId] IS NOT NULL");
 
-                    b.HasIndex("LabourRegistrationId", "Action", "Timestamp");
+                    b.HasIndex("LabourId", "Action", "Timestamp");
 
                     b.HasIndex("VisitorId", "Action", "Timestamp");
 
                     b.ToTable("EntryExitRecords", "entryexit", t =>
                         {
-                            t.HasCheckConstraint("CK_EntryExitRecord_PersonType", "(PersonType = 1 AND LabourRegistrationId IS NOT NULL AND VisitorId IS NULL) OR (PersonType = 2 AND VisitorId IS NOT NULL AND LabourRegistrationId IS NULL)");
+                            t.HasCheckConstraint("CK_EntryExitRecord_PersonType", "(PersonType = 1 AND LabourId IS NOT NULL AND VisitorId IS NULL) OR (PersonType = 2 AND VisitorId IS NOT NULL AND LabourId IS NULL)");
                         });
                 });
 
@@ -178,10 +178,21 @@ namespace Vermillion.EntryExit.Domain.Migrations.EntryExit
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
+                    b.Property<string>("Barcode")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("ContractorId")
+                        .HasColumnType("int");
+
                     b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("datetime2")
                         .HasDefaultValueSql("GETUTCDATE()");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -193,40 +204,10 @@ namespace Vermillion.EntryExit.Domain.Migrations.EntryExit
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
 
-                    b.Property<string>("PhotoBase64")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("PhoneNumber");
-
-                    b.ToTable("Labours", "entryexit");
-                });
-
-            modelBuilder.Entity("Vermillion.EntryExit.Domain.Models.Entities.LabourRegistration", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Barcode")
+                    b.Property<string>("PhotoUrl")
                         .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<int>("ContractorId")
-                        .HasColumnType("int");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("bit");
-
-                    b.Property<int>("LabourId")
-                        .HasColumnType("int");
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<int>("ProjectId")
                         .HasColumnType("int");
@@ -247,12 +228,12 @@ namespace Vermillion.EntryExit.Domain.Migrations.EntryExit
 
                     b.HasIndex("ContractorId");
 
-                    b.HasIndex("LabourId");
+                    b.HasIndex("PhoneNumber");
 
                     b.HasIndex("ProjectId", "Barcode")
                         .IsUnique();
 
-                    b.ToTable("LabourRegistrations", "entryexit");
+                    b.ToTable("Labours", "entryexit");
                 });
 
             modelBuilder.Entity("Vermillion.EntryExit.Domain.Models.Entities.Project", b =>
@@ -313,9 +294,13 @@ namespace Vermillion.EntryExit.Domain.Migrations.EntryExit
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
 
-                    b.Property<string>("PhotoBase64")
+                    b.Property<string>("PhotoUrl")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int>("ProjectId")
+                        .HasColumnType("int");
 
                     b.Property<string>("Purpose")
                         .HasMaxLength(500)
@@ -337,6 +322,8 @@ namespace Vermillion.EntryExit.Domain.Migrations.EntryExit
 
                     b.HasIndex("PhoneNumber");
 
+                    b.HasIndex("ProjectId");
+
                     b.ToTable("Visitors", "entryexit");
                 });
 
@@ -353,9 +340,9 @@ namespace Vermillion.EntryExit.Domain.Migrations.EntryExit
 
             modelBuilder.Entity("Vermillion.EntryExit.Domain.Models.Entities.EntryExitRecord", b =>
                 {
-                    b.HasOne("Vermillion.EntryExit.Domain.Models.Entities.LabourRegistration", "LabourRegistration")
+                    b.HasOne("Vermillion.EntryExit.Domain.Models.Entities.Labour", "Labour")
                         .WithMany("EntryExitRecords")
-                        .HasForeignKey("LabourRegistrationId")
+                        .HasForeignKey("LabourId")
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("Vermillion.EntryExit.Domain.Models.Entities.Visitor", "Visitor")
@@ -363,7 +350,7 @@ namespace Vermillion.EntryExit.Domain.Migrations.EntryExit
                         .HasForeignKey("VisitorId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.Navigation("LabourRegistration");
+                    b.Navigation("Labour");
 
                     b.Navigation("Visitor");
                 });
@@ -379,44 +366,37 @@ namespace Vermillion.EntryExit.Domain.Migrations.EntryExit
                     b.Navigation("Project");
                 });
 
-            modelBuilder.Entity("Vermillion.EntryExit.Domain.Models.Entities.LabourRegistration", b =>
+            modelBuilder.Entity("Vermillion.EntryExit.Domain.Models.Entities.Labour", b =>
                 {
                     b.HasOne("Vermillion.EntryExit.Domain.Models.Entities.Contractor", "Contractor")
-                        .WithMany("LabourRegistrations")
+                        .WithMany()
                         .HasForeignKey("ContractorId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("Vermillion.EntryExit.Domain.Models.Entities.Labour", "Labour")
-                        .WithMany("Registrations")
-                        .HasForeignKey("LabourId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
                     b.HasOne("Vermillion.EntryExit.Domain.Models.Entities.Project", "Project")
-                        .WithMany("LabourRegistrations")
+                        .WithMany()
                         .HasForeignKey("ProjectId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("Contractor");
 
-                    b.Navigation("Labour");
+                    b.Navigation("Project");
+                });
+
+            modelBuilder.Entity("Vermillion.EntryExit.Domain.Models.Entities.Visitor", b =>
+                {
+                    b.HasOne("Vermillion.EntryExit.Domain.Models.Entities.Project", "Project")
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
 
                     b.Navigation("Project");
                 });
 
-            modelBuilder.Entity("Vermillion.EntryExit.Domain.Models.Entities.Contractor", b =>
-                {
-                    b.Navigation("LabourRegistrations");
-                });
-
             modelBuilder.Entity("Vermillion.EntryExit.Domain.Models.Entities.Labour", b =>
-                {
-                    b.Navigation("Registrations");
-                });
-
-            modelBuilder.Entity("Vermillion.EntryExit.Domain.Models.Entities.LabourRegistration", b =>
                 {
                     b.Navigation("EntryExitRecords");
                 });
@@ -424,8 +404,6 @@ namespace Vermillion.EntryExit.Domain.Migrations.EntryExit
             modelBuilder.Entity("Vermillion.EntryExit.Domain.Models.Entities.Project", b =>
                 {
                     b.Navigation("Contractors");
-
-                    b.Navigation("LabourRegistrations");
                 });
 
             modelBuilder.Entity("Vermillion.EntryExit.Domain.Models.Entities.Visitor", b =>

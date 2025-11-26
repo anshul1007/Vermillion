@@ -21,10 +21,11 @@ public class Visitor
     public string? Purpose { get; set; }
 
     /// <summary>
-    /// Photo stored as base64 encoded string
+    /// Photo URL in Azure Blob Storage
     /// </summary>
     [Required]
-    public string PhotoBase64 { get; set; } = string.Empty;
+    [MaxLength(500)]
+    public string PhotoUrl { get; set; } = string.Empty;
 
     [MaxLength(100)]
     public string? RegisteredBy { get; set; }

@@ -21,9 +21,11 @@ public class Labour
     public string? AadharNumberEncrypted { get; set; }
 
     /// <summary>
-    /// Photo stored as base64 encoded string
+    /// Photo URL in Azure Blob Storage
     /// </summary>
-    public string? PhotoBase64 { get; set; }
+    [Required]
+    [MaxLength(500)]
+    public string PhotoUrl { get; set; } = string.Empty;
 
     // Project assignment fields (merged from LabourRegistration)
     public int ProjectId { get; set; }

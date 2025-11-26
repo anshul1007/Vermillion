@@ -56,4 +56,11 @@ public record TenantRegistrationRequest(
     string AdminPassword
 );
 
+public record TenantDto(
+    int Id,
+    string Name,
+    string Domain,
+    bool IsActive
+);
+
 public record ApiResponse<T>(bool Success, T? Data, string? Message);

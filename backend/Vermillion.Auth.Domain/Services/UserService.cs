@@ -245,7 +245,7 @@ public class UserService : IUserService
 
         if (_cache.TryGetValue<List<Employee>>(cacheKey, out var cachedEmployees))
         {
-            return cachedEmployees;
+            return cachedEmployees ?? new List<Employee>();
         }
 
         try
@@ -296,7 +296,7 @@ public class UserService : IUserService
 
         if (_cache.TryGetValue<List<Department>>(cacheKey, out var cachedDepartments))
         {
-            return cachedDepartments;
+            return cachedDepartments ?? new List<Department>();
         }
 
         try
@@ -552,7 +552,7 @@ public class UserService : IUserService
 
         if (_cache.TryGetValue<List<Employee>>(cacheKey, out var cachedEmployees))
         {
-            return cachedEmployees;
+            return cachedEmployees ?? new List<Employee>();
         }
 
         try

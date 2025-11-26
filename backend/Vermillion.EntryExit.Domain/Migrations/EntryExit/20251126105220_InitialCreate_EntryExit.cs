@@ -1,4 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore.Migrations;
+﻿using System;
+using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
@@ -12,25 +13,6 @@ namespace Vermillion.EntryExit.Domain.Migrations.EntryExit
         {
             migrationBuilder.EnsureSchema(
                 name: "entryexit");
-
-            migrationBuilder.CreateTable(
-                name: "Labours",
-                schema: "entryexit",
-                columns: table => new
-                {
-                    Id = table.Column<int>(type: "int", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    Name = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
-                    PhoneNumber = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: false),
-                    AadharNumberEncrypted = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    PhotoUrl = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
-                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "GETUTCDATE()"),
-                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_Labours", x => x.Id);
-                });
 
             migrationBuilder.CreateTable(
                 name: "Projects",
@@ -48,27 +30,6 @@ namespace Vermillion.EntryExit.Domain.Migrations.EntryExit
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_Projects", x => x.Id);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "Visitors",
-                schema: "entryexit",
-                columns: table => new
-                {
-                    Id = table.Column<int>(type: "int", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    Name = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
-                    PhoneNumber = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: false),
-                    CompanyName = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
-                    Purpose = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    PhotoUrl = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: false),
-                    RegisteredBy = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
-                    RegisteredAt = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "GETUTCDATE()"),
-                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_Visitors", x => x.Id);
                 });
 
             migrationBuilder.CreateTable(
@@ -125,40 +86,66 @@ namespace Vermillion.EntryExit.Domain.Migrations.EntryExit
                 });
 
             migrationBuilder.CreateTable(
-                name: "LabourRegistrations",
+                name: "Visitors",
                 schema: "entryexit",
                 columns: table => new
                 {
                     Id = table.Column<int>(type: "int", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    LabourId = table.Column<int>(type: "int", nullable: false),
+                    Name = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
+                    PhoneNumber = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: false),
+                    CompanyName = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
+                    Purpose = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    PhotoUrl = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
+                    RegisteredBy = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    RegisteredAt = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "GETUTCDATE()"),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    ProjectId = table.Column<int>(type: "int", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Visitors", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_Visitors_Projects_ProjectId",
+                        column: x => x.ProjectId,
+                        principalSchema: "entryexit",
+                        principalTable: "Projects",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "Labours",
+                schema: "entryexit",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    Name = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
+                    PhoneNumber = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: false),
+                    AadharNumberEncrypted = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    PhotoUrl = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     ProjectId = table.Column<int>(type: "int", nullable: false),
                     ContractorId = table.Column<int>(type: "int", nullable: false),
                     Barcode = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
                     IsActive = table.Column<bool>(type: "bit", nullable: false),
                     RegisteredBy = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
                     RegisteredAt = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "GETUTCDATE()"),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "GETUTCDATE()"),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_LabourRegistrations", x => x.Id);
+                    table.PrimaryKey("PK_Labours", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_LabourRegistrations_Contractors_ContractorId",
+                        name: "FK_Labours_Contractors_ContractorId",
                         column: x => x.ContractorId,
                         principalSchema: "entryexit",
                         principalTable: "Contractors",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_LabourRegistrations_Labours_LabourId",
-                        column: x => x.LabourId,
-                        principalSchema: "entryexit",
-                        principalTable: "Labours",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
-                    table.ForeignKey(
-                        name: "FK_LabourRegistrations_Projects_ProjectId",
+                        name: "FK_Labours_Projects_ProjectId",
                         column: x => x.ProjectId,
                         principalSchema: "entryexit",
                         principalTable: "Projects",
@@ -174,7 +161,7 @@ namespace Vermillion.EntryExit.Domain.Migrations.EntryExit
                     Id = table.Column<int>(type: "int", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
                     PersonType = table.Column<int>(type: "int", nullable: false),
-                    LabourRegistrationId = table.Column<int>(type: "int", nullable: true),
+                    LabourId = table.Column<int>(type: "int", nullable: true),
                     VisitorId = table.Column<int>(type: "int", nullable: true),
                     Action = table.Column<int>(type: "int", nullable: false),
                     Timestamp = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
@@ -187,12 +174,12 @@ namespace Vermillion.EntryExit.Domain.Migrations.EntryExit
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_EntryExitRecords", x => x.Id);
-                    table.CheckConstraint("CK_EntryExitRecord_PersonType", "(PersonType = 1 AND LabourRegistrationId IS NOT NULL AND VisitorId IS NULL) OR (PersonType = 2 AND VisitorId IS NOT NULL AND LabourRegistrationId IS NULL)");
+                    table.CheckConstraint("CK_EntryExitRecord_PersonType", "(PersonType = 1 AND LabourId IS NOT NULL AND VisitorId IS NULL) OR (PersonType = 2 AND VisitorId IS NOT NULL AND LabourId IS NULL)");
                     table.ForeignKey(
-                        name: "FK_EntryExitRecords_LabourRegistrations_LabourRegistrationId",
-                        column: x => x.LabourRegistrationId,
+                        name: "FK_EntryExitRecords_Labours_LabourId",
+                        column: x => x.LabourId,
                         principalSchema: "entryexit",
-                        principalTable: "LabourRegistrations",
+                        principalTable: "Labours",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
@@ -219,10 +206,10 @@ namespace Vermillion.EntryExit.Domain.Migrations.EntryExit
                 filter: "[ClientId] IS NOT NULL");
 
             migrationBuilder.CreateIndex(
-                name: "IX_EntryExitRecords_LabourRegistrationId_Action_Timestamp",
+                name: "IX_EntryExitRecords_LabourId_Action_Timestamp",
                 schema: "entryexit",
                 table: "EntryExitRecords",
-                columns: new[] { "LabourRegistrationId", "Action", "Timestamp" });
+                columns: new[] { "LabourId", "Action", "Timestamp" });
 
             migrationBuilder.CreateIndex(
                 name: "IX_EntryExitRecords_VisitorId_Action_Timestamp",
@@ -244,29 +231,23 @@ namespace Vermillion.EntryExit.Domain.Migrations.EntryExit
                 column: "ProjectId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_LabourRegistrations_ContractorId",
+                name: "IX_Labours_ContractorId",
                 schema: "entryexit",
-                table: "LabourRegistrations",
+                table: "Labours",
                 column: "ContractorId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_LabourRegistrations_LabourId",
-                schema: "entryexit",
-                table: "LabourRegistrations",
-                column: "LabourId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_LabourRegistrations_ProjectId_Barcode",
-                schema: "entryexit",
-                table: "LabourRegistrations",
-                columns: new[] { "ProjectId", "Barcode" },
-                unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "IX_Labours_PhoneNumber",
                 schema: "entryexit",
                 table: "Labours",
                 column: "PhoneNumber");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Labours_ProjectId_Barcode",
+                schema: "entryexit",
+                table: "Labours",
+                columns: new[] { "ProjectId", "Barcode" },
+                unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "IX_Projects_Name",
@@ -280,6 +261,12 @@ namespace Vermillion.EntryExit.Domain.Migrations.EntryExit
                 schema: "entryexit",
                 table: "Visitors",
                 column: "PhoneNumber");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Visitors_ProjectId",
+                schema: "entryexit",
+                table: "Visitors",
+                column: "ProjectId");
         }
 
         /// <inheritdoc />
@@ -294,7 +281,7 @@ namespace Vermillion.EntryExit.Domain.Migrations.EntryExit
                 schema: "entryexit");
 
             migrationBuilder.DropTable(
-                name: "LabourRegistrations",
+                name: "Labours",
                 schema: "entryexit");
 
             migrationBuilder.DropTable(
@@ -303,10 +290,6 @@ namespace Vermillion.EntryExit.Domain.Migrations.EntryExit
 
             migrationBuilder.DropTable(
                 name: "Contractors",
-                schema: "entryexit");
-
-            migrationBuilder.DropTable(
-                name: "Labours",
                 schema: "entryexit");
 
             migrationBuilder.DropTable(

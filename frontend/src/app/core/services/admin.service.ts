@@ -375,7 +375,7 @@ export class AdminService {
       .set('startDate', startDate)
       .set('endDate', endDate);
 
-    return this.http.get<ApiResponse<any[]>>(`${this.apiUrl}/attendance/history`, { params })
+    return this.http.get<ApiResponse<any[]>>(`${environment.apiUrl}/attendance/approval/history`, { params })
       .pipe(
         map(response => {
           if (response.success && response.data) {
@@ -416,7 +416,8 @@ export class AdminService {
       params = params.set('date', date);
     }
 
-    return this.http.get<ApiResponse<any[]>>(`${this.apiUrl}/attendance/pending`, { params })
+    // Approval controller hosts pending attendance
+    return this.http.get<ApiResponse<any[]>>(`${environment.apiUrl}/attendance/approval/pending`, { params })
       .pipe(
         map(response => {
           if (response.success && response.data) {
@@ -432,7 +433,7 @@ export class AdminService {
   }
 
   approveAttendance(attendanceId: string): Observable<void> {
-    return this.http.post<ApiResponse<void>>(`${this.apiUrl}/attendance/${attendanceId}/approve`, {})
+    return this.http.post<ApiResponse<void>>(`${environment.apiUrl}/attendance/approval/${attendanceId}/approve`, {})
       .pipe(
         map(response => {
           if (!response.success) {
@@ -447,7 +448,7 @@ export class AdminService {
   }
 
   rejectAttendance(attendanceId: string, reason: string): Observable<void> {
-    return this.http.post<ApiResponse<void>>(`${this.apiUrl}/attendance/${attendanceId}/reject`, {
+    return this.http.post<ApiResponse<void>>(`${environment.apiUrl}/attendance/approval/${attendanceId}/reject`, {
       rejectionReason: reason
     })
       .pipe(
@@ -464,7 +465,8 @@ export class AdminService {
   }
 
   getPendingLeaveRequests(): Observable<any[]> {
-    return this.http.get<ApiResponse<any[]>>(`${this.apiUrl}/leave/pending`)
+    // Leave controller endpoint for pending approvals
+    return this.http.get<ApiResponse<any[]>>(`${environment.apiUrl}/attendance/leave/pending-approvals`)
       .pipe(
         map(response => {
           if (response.success && response.data) {
@@ -480,20 +482,33 @@ export class AdminService {
   }
 
   approveOrRejectLeave(leaveRequestId: string, approved: boolean, rejectionReason?: string): Observable<any> {
-    return this.http.post<ApiResponse<any>>(`${this.apiUrl}/leave/approve`, {
-      leaveRequestId,
-      approved,
-      rejectionReason
-    })
+    if (approved) {
+      return this.http.post<ApiResponse<any>>(`${environment.apiUrl}/attendance/leave/${leaveRequestId}/approve`, {})
+        .pipe(
+          map(response => {
+            if (response.success && response.data) {
+              return response.data;
+            }
+            throw new Error(response.error || 'Failed to approve leave request');
+          }),
+          catchError(err => {
+            console.error('Error approving leave request', err);
+            throw err;
+          })
+        );
+    }
+
+    // Reject
+    return this.http.post<ApiResponse<any>>(`${environment.apiUrl}/attendance/leave/${leaveRequestId}/reject`, { rejectionReason })
       .pipe(
         map(response => {
           if (response.success && response.data) {
             return response.data;
           }
-          throw new Error(response.error || 'Failed to process leave request');
+          throw new Error(response.error || 'Failed to reject leave request');
         }),
         catchError(err => {
-          console.error('Error processing leave request', err);
+          console.error('Error rejecting leave request', err);
           throw err;
         })
       );
