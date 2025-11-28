@@ -267,15 +267,14 @@ button.card:hover {
 }
 
 .type-badge {
-  padding: 0.25rem 0.5rem;
+  padding: 0.25rem 0.6rem;
   border-radius: 0.5rem;
   font-weight: 700;
   font-size: 0.85rem;
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   color: white;
-  max-width: calc(100% - 14px);
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -1805,70 +1804,118 @@ input {
   flex-shrink: 0;
 }
 
-/* Sessions grid styles */
-.sessions-grid {
-  display: grid;
-  grid-template-rows: auto 1fr;
-  gap: 0.5rem;
+/* Sessions table styles */
+.sessions-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  border-radius: 0.75rem;
+  background: $card-bg;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
 }
 
-.grid-header {
-  display: grid;
-  grid-template-columns: 80px 1fr 1fr 200px 200px 160px;
-  gap: 0.5rem;
-  padding: 0.75rem 1rem;
+.sessions-table {
+  width: 100%;
+  min-width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+}
+
+.sessions-table thead th {
+  padding: 0.85rem 1.2rem;
+  text-align: left;
   font-weight: 700;
+  font-size: 0.85rem;
   color: $gray-text;
   background: $gray-bg-light;
-  border-radius: 0.5rem;
-  align-items: center;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
 }
 
-.grid-body {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  margin-top: 0.5rem;
+.sessions-table thead th:first-child {
+  border-top-left-radius: 0.75rem;
 }
 
-.grid-row {
-  display: grid;
-  grid-template-columns: 80px 1fr 1fr 200px 200px 160px;
-  gap: 0.5rem;
-  align-items: center;
-  padding: 0.75rem 1rem;
-  background: $card-bg;
-  border-radius: 0.5rem;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+.sessions-table thead th:last-child {
+  border-top-right-radius: 0.75rem;
 }
 
-.grid-row:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 18px rgba(0,0,0,0.06);
-}
-
-.reports-container .cell {
-  color: $gray-text;
+.sessions-table tbody td {
+  padding: 0.85rem 1.2rem;
   font-size: 0.95rem;
+  color: $gray-text;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  vertical-align: middle;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.sessions-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.sessions-table tbody tr:last-child td:first-child {
+  border-bottom-left-radius: 0.75rem;
+}
+
+.sessions-table tbody tr:last-child td:last-child {
+  border-bottom-right-radius: 0.75rem;
+}
+
+.sessions-table tbody tr:hover {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.sessions-table .col-status {
+  width: 12%;
+}
+
+.sessions-table .col-name {
+  width: 23%;
+  white-space: normal;
+  line-height: 1.3;
+}
+
+.sessions-table .col-company {
+  width: 21%;
+  white-space: normal;
+  line-height: 1.3;
+}
+
+.sessions-table .col-entry,
+.sessions-table .col-exit {
+  width: 15%;
   white-space: nowrap;
 }
 
+.sessions-table .col-guard {
+  width: 14%;
+  white-space: normal;
+  word-break: break-all;
+  overflow-wrap: anywhere;
+  overflow: visible;
+  text-overflow: initial;
+}
+
+.status-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.status-indicator .type-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 @media (max-width: 900px) {
-  .grid-header, .grid-row {
-    grid-template-columns: 64px 1fr 1fr 140px 140px 120px;
+  .sessions-table {
+    min-width: 760px;
   }
 }
 
 @media (max-width: 640px) {
-  .grid-header, .grid-row {
-    grid-template-columns: 48px 1fr 120px 120px;
-    grid-auto-flow: row;
-  }
-
-  .grid-header > :nth-child(5),
-  .grid-row > :nth-child(5) {
-    display: none;
+  .sessions-table {
+    min-width: 640px;
   }
 }

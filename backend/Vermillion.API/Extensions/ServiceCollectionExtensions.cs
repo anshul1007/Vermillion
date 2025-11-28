@@ -186,6 +186,7 @@ public static class ServiceCollectionExtensions
         // Shared Domain Services
         logger.LogInformation("Registering Shared domain services...");
         services.AddScoped<SharedSeeder>();
+        services.AddSingleton<ITimeProvider, SystemTimeProvider>();
 
         // Add Memory Cache for cross-domain caching
         services.AddMemoryCache();

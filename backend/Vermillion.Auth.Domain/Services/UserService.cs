@@ -533,9 +533,8 @@ public class UserService : IUserService
             _context.Employees.Add(employee);
             await _context.SaveChangesAsync();
 
-            // Invalidate cache
-            _cache.Remove("all_employees_True");
-            _cache.Remove("all_employees_False");
+            // Invalidate all employee-related caches
+            InvalidateAllEmployeesCaches();
 
             return (true, "User created successfully", user.Id);
         }
@@ -577,13 +576,65 @@ public class UserService : IUserService
         }
     }
 
+    public async Task<HashSet<int>?> GetTeamUserIdsByManagerAsync(Guid managerEmployeeId)
+    {
+        var cacheKey = $"team_userids_{managerEmployeeId}";
+
+        if (_cache.TryGetValue<HashSet<int>>(cacheKey, out var cachedUserIds))
+        {
+            return cachedUserIds;
+        }
+
+        try
+        {
+            // Optimized: Query only UserId field for employees reporting to this manager
+            var teamUserIdsList = await _context.Employees
+                .AsNoTracking()
+                .Where(e => e.ManagerId == managerEmployeeId)
+                .Select(e => e.UserId)
+                .ToListAsync();
+
+            var teamUserIds = teamUserIdsList != null ? teamUserIdsList.ToHashSet() : new HashSet<int>();
+
+            _cache.Set(cacheKey, teamUserIds, _cacheDuration);
+
+            return teamUserIds;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching team user IDs for manager {ManagerId}", managerEmployeeId);
+            return null;
+        }
+    }
+
     private void InvalidateUserCache(int userId)
     {
+        // Invalidate user-specific caches
         _cache.Remove($"user_{userId}");
         _cache.Remove($"user_email_{userId}");
         _cache.Remove($"user_name_{userId}");
         _cache.Remove($"user_isactive_{userId}");
+        
+        // Invalidate user role caches for all tenants
+        _cache.Remove($"user_role_{userId}_attendance");
+        _cache.Remove($"user_role_{userId}_entryexit");
+        _cache.Remove($"user_role_{userId}_auth");
+        
+        // Invalidate employee list caches
         _cache.Remove("all_employees_True");
         _cache.Remove("all_employees_False");
+        
+        // Note: We don't invalidate team_userids_* caches here as we'd need to know all managers
+        // Consider implementing a more sophisticated cache invalidation strategy if needed
+    }
+
+    private void InvalidateAllEmployeesCaches()
+    {
+        // Invalidate all employee-related caches when structure changes
+        _cache.Remove("all_employees_True");
+        _cache.Remove("all_employees_False");
+        
+        // Clear all team user IDs caches (requires pattern matching or cache key tracking)
+        // For now, relying on cache expiration (5 minutes)
     }
 }

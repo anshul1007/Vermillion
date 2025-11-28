@@ -1,15 +1,15 @@
 namespace Vermillion.Attendance.Domain.Models.DTOs
 {
-    public class ApiResponse<T>
+    public class AttendanceApiResponse<T>
     {
         public bool Success { get; set; }
         public T? Data { get; set; }
         public string? Error { get; set; }
         public string? Message { get; set; }
 
-        public static ApiResponse<T> SuccessResponse(T data, string? message = null)
+        public static AttendanceApiResponse<T> SuccessResponse(T data, string? message = null)
         {
-            return new ApiResponse<T>
+            return new AttendanceApiResponse<T>
             {
                 Success = true,
                 Data = data,
@@ -17,9 +17,9 @@ namespace Vermillion.Attendance.Domain.Models.DTOs
             };
         }
 
-        public static ApiResponse<T> ErrorResponse(string error, string? message = null)
+        public static AttendanceApiResponse<T> ErrorResponse(string error, string? message = null)
         {
-            return new ApiResponse<T>
+            return new AttendanceApiResponse<T>
             {
                 Success = false,
                 Error = error,

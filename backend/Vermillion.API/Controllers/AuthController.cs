@@ -1,9 +1,10 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using Vermillion.Auth.Domain.Models.DTOs;
+using Vermillion.API.Extensions;
 using Vermillion.Auth.Domain.Services;
 using Vermillion.Auth.Domain.Data;
-using Vermillion.EntryExit.Domain.Models.DTOs;
+using Vermillion.Shared.Domain.Models.DTOs;
 
 namespace Vermillion.API.Controllers;
 
@@ -14,12 +15,14 @@ public class AuthController : ControllerBase
     private readonly IAuthService _authService;
     private readonly ITenantService _tenantService;
     private readonly AuthDbContext _context;
+    private readonly ILogger<AuthController> _logger;
 
-    public AuthController(IAuthService authService, ITenantService tenantService, AuthDbContext context)
+    public AuthController(IAuthService authService, ITenantService tenantService, AuthDbContext context, ILogger<AuthController> logger)
     {
         _authService = authService;
         _tenantService = tenantService;
         _context = context;
+        _logger = logger;
     }
 
     [HttpPost("login")]
@@ -29,9 +32,15 @@ public class AuthController : ControllerBase
         var (success, response, error) = await _authService.LoginAsync(request);
         
         if (!success)
-            return Unauthorized(new ApiResponse<string>(false, null, error));
+            return Unauthorized(ApiResponse<string>.ErrorResponse(error ?? "Invalid credentials"));
 
-        return Ok(new ApiResponse<LoginResponse>(true, response, "Login successful"));
+        if (response == null)
+        {
+            _logger.LogError("Login succeeded but response was null. Email={Email}, Tenant={Tenant}", request.Email, request.TenantDomain ?? "(none)");
+            return this.ServerError("Login succeeded but response was null");
+        }
+
+        return Ok(ApiResponse<LoginResponse>.SuccessResponse(response, "Login successful"));
     }
 
     [HttpPost("refresh")]
@@ -41,9 +50,15 @@ public class AuthController : ControllerBase
         var (success, response, error) = await _authService.RefreshTokenAsync(request);
         
         if (!success)
-            return Unauthorized(new ApiResponse<string>(false, null, error));
+            return Unauthorized(ApiResponse<string>.ErrorResponse(error ?? "Could not refresh token"));
 
-        return Ok(new ApiResponse<LoginResponse>(true, response, "Token refreshed"));
+        if (response == null)
+        {
+            _logger.LogError("Refresh token succeeded but response was null");
+            return this.ServerError("Refresh token succeeded but response was null");
+        }
+
+        return Ok(ApiResponse<LoginResponse>.SuccessResponse(response, "Token refreshed"));
     }
 
     [HttpPost("revoke")]
@@ -53,9 +68,9 @@ public class AuthController : ControllerBase
         var result = await _authService.RevokeRefreshTokenAsync(request.RefreshToken);
         
         if (!result)
-            return NotFound(new ApiResponse<string>(false, null, "Token not found"));
+            return NotFound(ApiResponse<string>.ErrorResponse("Token not found"));
 
-        return Ok(new ApiResponse<string>(true, null, "Token revoked"));
+        return Ok(ApiResponse<EmptyResponseDto>.SuccessResponse(new EmptyResponseDto(), "Token revoked"));
     }
 
     // Tenant Management Endpoints
@@ -66,18 +81,22 @@ public class AuthController : ControllerBase
         var (success, tenant, error) = await _tenantService.RegisterTenantAsync(request);
 
         if (!success)
-            return BadRequest(new ApiResponse<string>(false, null, error));
+            return BadRequest(ApiResponse<string>.ErrorResponse(error ?? "Tenant registration failed"));
 
-        var t = tenant!;
+        if (tenant == null)
+        {
+            _logger.LogError("Tenant registration succeeded but tenant was null. AdminEmail={AdminEmail}, Domain={Domain}", request.AdminEmail, request.Domain);
+            return this.ServerError("Tenant registration succeeded but tenant was null");
+        }
 
         var tenantDto = new TenantDto(
-            t.Id,
-            t.Name,
-            t.Domain,
-            t.IsActive
+            tenant.Id,
+            tenant.Name,
+            tenant.Domain,
+            tenant.IsActive
         );
 
-        return Ok(new AuthApiResponse<TenantDto> { Success = true, Data = tenantDto, Message = "Tenant registered successfully" });
+        return Ok(ApiResponse<TenantDto>.SuccessResponse(tenantDto, "Tenant registered successfully"));
     }
 
     [HttpGet("tenant")]
@@ -86,7 +105,7 @@ public class AuthController : ControllerBase
     {
         var tenants = await _tenantService.GetAllTenantsAsync();
             var tenantDtos = tenants.Select(t => new TenantDto(t.Id, t.Name, t.Domain, t.IsActive)).ToList();
-        return Ok(new AuthApiResponse<List<TenantDto>> { Success = true, Data = tenantDtos, Message = null });
+        return Ok(new ApiResponse<List<TenantDto>> { Success = true, Data = tenantDtos, Message = null });
     }
 
     [HttpGet("tenant/{id}")]
@@ -96,12 +115,10 @@ public class AuthController : ControllerBase
         var tenant = await _tenantService.GetTenantByIdAsync(id);
 
         if (tenant == null)
-            return NotFound(new ApiResponse<string>(false, null, "Tenant not found"));
+            return NotFound(ApiResponse<string>.ErrorResponse("Tenant not found"));
 
-        var t2 = tenant!;
-
-        var tenantDto = new TenantDto(t2.Id, t2.Name, t2.Domain, t2.IsActive);
-        return Ok(new AuthApiResponse<TenantDto> { Success = true, Data = tenantDto, Message = null });
+        var tenantDto = new TenantDto(tenant.Id, tenant.Name, tenant.Domain, tenant.IsActive);
+        return Ok(ApiResponse<TenantDto>.SuccessResponse(tenantDto));
     }
 
     [HttpGet("tenant/domain/{domain}")]
@@ -111,12 +128,10 @@ public class AuthController : ControllerBase
         var tenant = await _tenantService.GetTenantByDomainAsync(domain);
 
         if (tenant == null)
-            return NotFound(new ApiResponse<string>(false, null, "Tenant not found"));
+            return NotFound(ApiResponse<string>.ErrorResponse("Tenant not found"));
 
-        var t3 = tenant!;
-
-        var tenantDto2 = new TenantDto(t3.Id, t3.Name, t3.Domain, t3.IsActive);
-        return Ok(new AuthApiResponse<TenantDto> { Success = true, Data = tenantDto2, Message = null });
+        var tenantDto2 = new TenantDto(tenant.Id, tenant.Name, tenant.Domain, tenant.IsActive);
+        return Ok(ApiResponse<TenantDto>.SuccessResponse(tenantDto2));
     }
 
     [HttpPut("tenant/{id}/activate")]
@@ -126,9 +141,9 @@ public class AuthController : ControllerBase
         var result = await _tenantService.ActivateTenantAsync(id);
 
         if (!result)
-            return NotFound(new ApiResponse<string>(false, null, "Tenant not found"));
+            return NotFound(ApiResponse<string>.ErrorResponse("Tenant not found"));
 
-        return Ok(new ApiResponse<string>(true, null, "Tenant activated"));
+        return Ok(ApiResponse<EmptyResponseDto>.SuccessResponse(new EmptyResponseDto(), "Tenant activated"));
     }
 
     [HttpPut("tenant/{id}/deactivate")]
@@ -138,8 +153,8 @@ public class AuthController : ControllerBase
         var result = await _tenantService.DeactivateTenantAsync(id);
 
         if (!result)
-            return NotFound(new ApiResponse<string>(false, null, "Tenant not found"));
+            return NotFound(ApiResponse<string>.ErrorResponse("Tenant not found"));
 
-        return Ok(new ApiResponse<string>(true, null, "Tenant deactivated"));
+        return Ok(ApiResponse<EmptyResponseDto>.SuccessResponse(new EmptyResponseDto(), "Tenant deactivated"));
     }
 }

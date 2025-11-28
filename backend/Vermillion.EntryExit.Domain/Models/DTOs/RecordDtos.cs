@@ -14,6 +14,7 @@ public class EntryExitRecordDto
     public string? Gate { get; set; }
     public string? Notes { get; set; }
     public string? RecordedBy { get; set; }
+    public int? ProjectId { get; set; }
 
     // Additional info for display
     public string? PersonName { get; set; }

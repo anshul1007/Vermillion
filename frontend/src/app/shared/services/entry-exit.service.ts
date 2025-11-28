@@ -228,6 +228,11 @@ export class EntryExitService {
       .pipe(map(response => response.data));
   }
 
+  getLabourByProjectAndContractor(projectId: number, contractorId: number): Observable<LabourRegistration[]> {
+    return this.http.get<ApiResponse<LabourRegistration[]>>(`${this.apiUrl}/labour/by-project/${projectId}/contractor/${contractorId}`)
+      .pipe(map(response => response.data));
+  }
+
   searchLabour(query: string): Observable<LabourRegistration[]> {
     return this.http.get<ApiResponse<LabourRegistration[]>>(`${this.apiUrl}/labour/search?query=${encodeURIComponent(query)}`)
       .pipe(map(response => response.data));
@@ -255,7 +260,13 @@ export class EntryExitService {
   }
 
   // Reports
-  getRecords(labourId?: number | null, visitorId?: number | null, fromDate?: Date, toDate?: Date): Observable<any[]> {
+  getRecords(
+    labourId?: number | null,
+    visitorId?: number | null,
+    projectId?: number | null,
+    fromDate?: Date,
+    toDate?: Date
+  ): Observable<any[]> {
     let params = new HttpParams();
     
     if (labourId) {
@@ -263,6 +274,9 @@ export class EntryExitService {
     }
     if (visitorId) {
       params = params.set('visitorId', visitorId.toString());
+    }
+    if (projectId != null && projectId > 0) {
+      params = params.set('projectId', projectId.toString());
     }
     if (fromDate) {
       params = params.set('fromDate', fromDate.toISOString());

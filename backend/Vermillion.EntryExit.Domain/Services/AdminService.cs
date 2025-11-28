@@ -1,6 +1,7 @@
 using Vermillion.EntryExit.Domain.Data;
 using Vermillion.EntryExit.Domain.Models.DTOs;
 using Vermillion.EntryExit.Domain.Models.Entities;
+using Vermillion.Shared.Domain.Models.DTOs;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -8,18 +9,18 @@ namespace Vermillion.EntryExit.Domain.Services;
 
 public interface IAdminService
 {
-    Task<AuthApiResponse<ProjectDto>> CreateProjectAsync(CreateProjectDto dto);
-    Task<AuthApiResponse<List<ProjectDto>>> GetProjectsAsync(bool? activeOnly);
-    Task<AuthApiResponse<ProjectDto>> UpdateProjectAsync(int id, UpdateProjectDto dto);
-    Task<AuthApiResponse<bool>> DeleteProjectAsync(int id);
-    Task<AuthApiResponse<ContractorDto>> CreateContractorAsync(CreateContractorDto dto);
-    Task<AuthApiResponse<List<ContractorDto>>> GetContractorsAsync(int? projectId, bool? activeOnly);
-    Task<AuthApiResponse<ContractorDto>> UpdateContractorAsync(int id, UpdateContractorDto dto);
-    Task<AuthApiResponse<bool>> DeleteContractorAsync(int id);
-    Task<AuthApiResponse<GuardDto>> AssignGuardToProjectAsync(AssignGuardToProjectDto dto, string assignedBy);
-    Task<AuthApiResponse<bool>> UnassignGuardFromProjectAsync(UnassignGuardFromProjectDto dto);
-    Task<AuthApiResponse<List<GuardDto>>> GetGuardsAsync(int? projectId, bool? activeOnly);
-    Task<AuthApiResponse<List<GuardProjectInfo>>> GetGuardAssignmentsAsync(int authUserId);
+    Task<ApiResponse<ProjectDto>> CreateProjectAsync(CreateProjectDto dto);
+    Task<ApiResponse<List<ProjectDto>>> GetProjectsAsync(bool? activeOnly);
+    Task<ApiResponse<ProjectDto>> UpdateProjectAsync(int id, UpdateProjectDto dto);
+    Task<ApiResponse<bool>> DeleteProjectAsync(int id);
+    Task<ApiResponse<ContractorDto>> CreateContractorAsync(CreateContractorDto dto);
+    Task<ApiResponse<List<ContractorDto>>> GetContractorsAsync(int? projectId, bool? activeOnly);
+    Task<ApiResponse<ContractorDto>> UpdateContractorAsync(int id, UpdateContractorDto dto);
+    Task<ApiResponse<bool>> DeleteContractorAsync(int id);
+    Task<ApiResponse<GuardDto>> AssignGuardToProjectAsync(AssignGuardToProjectDto dto, string assignedBy);
+    Task<ApiResponse<bool>> UnassignGuardFromProjectAsync(UnassignGuardFromProjectDto dto);
+    Task<ApiResponse<List<GuardDto>>> GetGuardsAsync(int? projectId, bool? activeOnly);
+    Task<ApiResponse<List<GuardProjectInfo>>> GetGuardAssignmentsAsync(int authUserId);
 }
 
 public class AdminService : IAdminService
@@ -33,7 +34,7 @@ public class AdminService : IAdminService
         _logger = logger;
     }
 
-    public async Task<AuthApiResponse<ProjectDto>> CreateProjectAsync(CreateProjectDto dto)
+    public async Task<ApiResponse<ProjectDto>> CreateProjectAsync(CreateProjectDto dto)
     {
         try
         {
@@ -43,11 +44,7 @@ public class AdminService : IAdminService
 
             if (existing != null)
             {
-                return new AuthApiResponse<ProjectDto>
-                {
-                    Success = false,
-                    Message = "Project with this name already exists"
-                };
+                return ApiResponse<ProjectDto>.ErrorResponse("Project with this name already exists");
             }
 
             var project = new Project
@@ -61,32 +58,22 @@ public class AdminService : IAdminService
             _context.Projects.Add(project);
             await _context.SaveChangesAsync();
 
-            return new AuthApiResponse<ProjectDto>
+            return ApiResponse<ProjectDto>.SuccessResponse(new ProjectDto
             {
-                Success = true,
-                Message = "Project created successfully",
-                Data = new ProjectDto
-                {
-                    Id = project.Id,
-                    Name = project.Name,
-                    Description = project.Description,
-                    IsActive = project.IsActive
-                }
-            };
+                Id = project.Id,
+                Name = project.Name,
+                Description = project.Description,
+                IsActive = project.IsActive
+            }, "Project created successfully");
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error creating project");
-            return new AuthApiResponse<ProjectDto>
-            {
-                Success = false,
-                Message = "Error creating project",
-                Errors = new List<string> { ex.Message }
-            };
+            return ApiResponse<ProjectDto>.ErrorResponse("Error creating project", ex.Message);
         }
     }
 
-    public async Task<AuthApiResponse<List<ProjectDto>>> GetProjectsAsync(bool? activeOnly)
+    public async Task<ApiResponse<List<ProjectDto>>> GetProjectsAsync(bool? activeOnly)
     {
         try
         {
@@ -107,7 +94,7 @@ public class AdminService : IAdminService
                 IsActive = p.IsActive
             }).ToList();
 
-            return new AuthApiResponse<List<ProjectDto>>
+            return new ApiResponse<List<ProjectDto>>
             {
                 Success = true,
                 Message = $"Found {dtos.Count} project(s)",
@@ -117,7 +104,7 @@ public class AdminService : IAdminService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error getting projects");
-            return new AuthApiResponse<List<ProjectDto>>
+            return new ApiResponse<List<ProjectDto>>
             {
                 Success = false,
                 Message = "Error getting projects",
@@ -126,18 +113,14 @@ public class AdminService : IAdminService
         }
     }
 
-    public async Task<AuthApiResponse<ProjectDto>> UpdateProjectAsync(int id, UpdateProjectDto dto)
+    public async Task<ApiResponse<ProjectDto>> UpdateProjectAsync(int id, UpdateProjectDto dto)
     {
         try
         {
             var project = await _context.Projects.FindAsync(id);
             if (project == null)
             {
-                return new AuthApiResponse<ProjectDto>
-                {
-                    Success = false,
-                    Message = "Project not found"
-                };
+                return ApiResponse<ProjectDto>.ErrorResponse("Project not found");
             }
 
             // Update only provided fields
@@ -146,14 +129,10 @@ public class AdminService : IAdminService
                 // Check if new name already exists (excluding current project)
                 var existing = await _context.Projects
                     .FirstOrDefaultAsync(p => p.Name.ToLower() == dto.Name.ToLower() && p.Id != id);
-                
+
                 if (existing != null)
                 {
-                    return new AuthApiResponse<ProjectDto>
-                    {
-                        Success = false,
-                        Message = "Project with this name already exists"
-                    };
+                    return ApiResponse<ProjectDto>.ErrorResponse("Project with this name already exists");
                 }
                 project.Name = dto.Name;
             }
@@ -175,37 +154,24 @@ public class AdminService : IAdminService
                 IsActive = project.IsActive
             };
 
-            return new AuthApiResponse<ProjectDto>
-            {
-                Success = true,
-                Message = "Project updated successfully",
-                Data = resultDto
-            };
+            return ApiResponse<ProjectDto>.SuccessResponse(resultDto
+            , "Project updated successfully");
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error updating project");
-            return new AuthApiResponse<ProjectDto>
-            {
-                Success = false,
-                Message = "Error updating project",
-                Errors = new List<string> { ex.Message }
-            };
+            return ApiResponse<ProjectDto>.ErrorResponse("Error updating project", ex.Message);
         }
     }
 
-    public async Task<AuthApiResponse<bool>> DeleteProjectAsync(int id)
+    public async Task<ApiResponse<bool>> DeleteProjectAsync(int id)
     {
         try
         {
             var project = await _context.Projects.FindAsync(id);
             if (project == null)
             {
-                return new AuthApiResponse<bool>
-                {
-                    Success = false,
-                    Message = "Project not found"
-                };
+                return ApiResponse<bool>.ErrorResponse("Project not found");
             }
 
             // Check if project has contractors
@@ -214,11 +180,7 @@ public class AdminService : IAdminService
 
             if (hasContractors)
             {
-                return new AuthApiResponse<bool>
-                {
-                    Success = false,
-                    Message = "Cannot delete project with associated contractors. Please delete or reassign contractors first."
-                };
+                return ApiResponse<bool>.ErrorResponse("Cannot delete project with associated contractors. Please delete or reassign contractors first.");
             }
 
             // Check if project has guard assignments
@@ -227,47 +189,30 @@ public class AdminService : IAdminService
 
             if (hasGuardAssignments)
             {
-                return new AuthApiResponse<bool>
-                {
-                    Success = false,
-                    Message = "Cannot delete project with guard assignments. Please unassign guards first."
-                };
+                return ApiResponse<bool>.ErrorResponse("Cannot delete project with guard assignments. Please unassign guards first.");
             }
 
             _context.Projects.Remove(project);
             await _context.SaveChangesAsync();
 
-            return new AuthApiResponse<bool>
-            {
-                Success = true,
-                Message = "Project deleted successfully",
-                Data = true
-            };
+            return ApiResponse<bool>.SuccessResponse(true
+            , "Project deleted successfully");
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error deleting project");
-            return new AuthApiResponse<bool>
-            {
-                Success = false,
-                Message = "Error deleting project",
-                Errors = new List<string> { ex.Message }
-            };
+            return ApiResponse<bool>.ErrorResponse("Error deleting project", ex.Message);
         }
     }
 
-    public async Task<AuthApiResponse<ContractorDto>> CreateContractorAsync(CreateContractorDto dto)
+    public async Task<ApiResponse<ContractorDto>> CreateContractorAsync(CreateContractorDto dto)
     {
         try
         {
             var project = await _context.Projects.FindAsync(dto.ProjectId);
             if (project == null || !project.IsActive)
             {
-                return new AuthApiResponse<ContractorDto>
-                {
-                    Success = false,
-                    Message = "Invalid or inactive project"
-                };
+                return ApiResponse<ContractorDto>.ErrorResponse("Invalid or inactive project");
             }
 
             var contractor = new Contractor
@@ -283,34 +228,24 @@ public class AdminService : IAdminService
             _context.Contractors.Add(contractor);
             await _context.SaveChangesAsync();
 
-            return new AuthApiResponse<ContractorDto>
+            return ApiResponse<ContractorDto>.SuccessResponse(new ContractorDto
             {
-                Success = true,
-                Message = "Contractor created successfully",
-                Data = new ContractorDto
-                {
-                    Id = contractor.Id,
-                    Name = contractor.Name,
-                    ContactPerson = contractor.ContactPerson,
-                    PhoneNumber = contractor.PhoneNumber,
-                    ProjectId = contractor.ProjectId,
-                    IsActive = contractor.IsActive
-                }
-            };
+                Id = contractor.Id,
+                Name = contractor.Name,
+                ContactPerson = contractor.ContactPerson,
+                PhoneNumber = contractor.PhoneNumber,
+                ProjectId = contractor.ProjectId,
+                IsActive = contractor.IsActive
+            }, "Contractor created successfully");
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error creating contractor");
-            return new AuthApiResponse<ContractorDto>
-            {
-                Success = false,
-                Message = "Error creating contractor",
-                Errors = new List<string> { ex.Message }
-            };
+            return ApiResponse<ContractorDto>.ErrorResponse("Error creating contractor", ex.Message);
         }
     }
 
-    public async Task<AuthApiResponse<List<ContractorDto>>> GetContractorsAsync(int? projectId, bool? activeOnly)
+    public async Task<ApiResponse<List<ContractorDto>>> GetContractorsAsync(int? projectId, bool? activeOnly)
     {
         try
         {
@@ -338,7 +273,7 @@ public class AdminService : IAdminService
                 IsActive = c.IsActive
             }).ToList();
 
-            return new AuthApiResponse<List<ContractorDto>>
+            return new ApiResponse<List<ContractorDto>>
             {
                 Success = true,
                 Message = $"Found {dtos.Count} contractor(s)",
@@ -348,7 +283,7 @@ public class AdminService : IAdminService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error getting contractors");
-            return new AuthApiResponse<List<ContractorDto>>
+            return new ApiResponse<List<ContractorDto>>
             {
                 Success = false,
                 Message = "Error getting contractors",
@@ -357,18 +292,14 @@ public class AdminService : IAdminService
         }
     }
 
-    public async Task<AuthApiResponse<ContractorDto>> UpdateContractorAsync(int id, UpdateContractorDto dto)
+    public async Task<ApiResponse<ContractorDto>> UpdateContractorAsync(int id, UpdateContractorDto dto)
     {
         try
         {
             var contractor = await _context.Contractors.FindAsync(id);
             if (contractor == null)
             {
-                return new AuthApiResponse<ContractorDto>
-                {
-                    Success = false,
-                    Message = "Contractor not found"
-                };
+                return ApiResponse<ContractorDto>.ErrorResponse("Contractor not found");
             }
 
             // Update only provided fields
@@ -387,11 +318,7 @@ public class AdminService : IAdminService
                 var project = await _context.Projects.FindAsync(dto.ProjectId.Value);
                 if (project == null || !project.IsActive)
                 {
-                    return new AuthApiResponse<ContractorDto>
-                    {
-                        Success = false,
-                        Message = "Invalid or inactive project"
-                    };
+                    return ApiResponse<ContractorDto>.ErrorResponse("Invalid or inactive project");
                 }
                 contractor.ProjectId = dto.ProjectId.Value;
             }
@@ -412,62 +339,40 @@ public class AdminService : IAdminService
                 IsActive = contractor.IsActive
             };
 
-            return new AuthApiResponse<ContractorDto>
-            {
-                Success = true,
-                Message = "Contractor updated successfully",
-                Data = resultDto
-            };
+            return ApiResponse<ContractorDto>.SuccessResponse(resultDto
+            , "Contractor updated successfully");
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error updating contractor");
-            return new AuthApiResponse<ContractorDto>
-            {
-                Success = false,
-                Message = "Error updating contractor",
-                Errors = new List<string> { ex.Message }
-            };
+            return ApiResponse<ContractorDto>.ErrorResponse("Error updating contractor", ex.Message);
         }
     }
 
-    public async Task<AuthApiResponse<bool>> DeleteContractorAsync(int id)
+    public async Task<ApiResponse<bool>> DeleteContractorAsync(int id)
     {
         try
         {
             var contractor = await _context.Contractors.FindAsync(id);
             if (contractor == null)
             {
-                return new AuthApiResponse<bool>
-                {
-                    Success = false,
-                    Message = "Contractor not found"
-                };
+                return ApiResponse<bool>.ErrorResponse("Contractor not found");
             }
 
             _context.Contractors.Remove(contractor);
             await _context.SaveChangesAsync();
 
-            return new AuthApiResponse<bool>
-            {
-                Success = true,
-                Message = "Contractor deleted successfully",
-                Data = true
-            };
+            return ApiResponse<bool>.SuccessResponse(true
+            , "Contractor deleted successfully");
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error deleting contractor");
-            return new AuthApiResponse<bool>
-            {
-                Success = false,
-                Message = "Error deleting contractor",
-                Errors = new List<string> { ex.Message }
-            };
+            return ApiResponse<bool>.ErrorResponse("Error deleting contractor", ex.Message);
         }
     }
 
-    public async Task<AuthApiResponse<GuardDto>> AssignGuardToProjectAsync(AssignGuardToProjectDto dto, string assignedBy)
+    public async Task<ApiResponse<GuardDto>> AssignGuardToProjectAsync(AssignGuardToProjectDto dto, string assignedBy)
     {
         try
         {
@@ -475,11 +380,7 @@ public class AdminService : IAdminService
             var project = await _context.Projects.FindAsync(dto.ProjectId);
             if (project == null || !project.IsActive)
             {
-                return new AuthApiResponse<GuardDto>
-                {
-                    Success = false,
-                    Message = "Invalid or inactive project"
-                };
+                return ApiResponse<GuardDto>.ErrorResponse("Invalid or inactive project");
             }
 
             // Check if assignment already exists
@@ -490,11 +391,7 @@ public class AdminService : IAdminService
             {
                 if (existingAssignment.IsActive)
                 {
-                    return new AuthApiResponse<GuardDto>
-                    {
-                        Success = false,
-                        Message = "Guard is already assigned to this project"
-                    };
+                    return ApiResponse<GuardDto>.ErrorResponse("Guard is already assigned to this project");
                 }
 
                 // Reactivate existing assignment
@@ -502,11 +399,7 @@ public class AdminService : IAdminService
                 existingAssignment.UpdatedAt = DateTime.UtcNow;
                 await _context.SaveChangesAsync();
 
-                return new AuthApiResponse<GuardDto>
-                {
-                    Success = true,
-                    Message = "Guard reassigned to project successfully"
-                };
+                return ApiResponse<GuardDto>.SuccessResponse(new GuardDto(), "Guard reassigned to project successfully");
             }
 
             // Create new assignment
@@ -522,25 +415,16 @@ public class AdminService : IAdminService
             _context.GuardProjectAssignments.Add(assignment);
             await _context.SaveChangesAsync();
 
-            return new AuthApiResponse<GuardDto>
-            {
-                Success = true,
-                Message = "Guard assigned to project successfully"
-            };
+            return ApiResponse<GuardDto>.SuccessResponse(new GuardDto(), "Guard assigned to project successfully");
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error assigning guard to project");
-            return new AuthApiResponse<GuardDto>
-            {
-                Success = false,
-                Message = "Error assigning guard to project",
-                Errors = new List<string> { ex.Message }
-            };
+            return ApiResponse<GuardDto>.ErrorResponse("Error assigning guard to project", ex.Message);
         }
     }
 
-    public async Task<AuthApiResponse<bool>> UnassignGuardFromProjectAsync(UnassignGuardFromProjectDto dto)
+    public async Task<ApiResponse<bool>> UnassignGuardFromProjectAsync(UnassignGuardFromProjectDto dto)
     {
         try
         {
@@ -549,62 +433,38 @@ public class AdminService : IAdminService
 
             if (assignment == null)
             {
-                return new AuthApiResponse<bool>
-                {
-                    Success = false,
-                    Message = "Guard assignment not found or already inactive"
-                };
+                return ApiResponse<bool>.ErrorResponse("Guard assignment not found or already inactive");
             }
 
             assignment.IsActive = false;
             assignment.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
 
-            return new AuthApiResponse<bool>
-            {
-                Success = true,
-                Message = "Guard unassigned from project successfully",
-                Data = true
-            };
+            return ApiResponse<bool>.SuccessResponse(true
+            , "Guard unassigned from project successfully");
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error unassigning guard from project");
-            return new AuthApiResponse<bool>
-            {
-                Success = false,
-                Message = "Error unassigning guard from project",
-                Errors = new List<string> { ex.Message }
-            };
+            return ApiResponse<bool>.ErrorResponse("Error unassigning guard from project", ex.Message);
         }
     }
 
-    public async Task<AuthApiResponse<List<GuardDto>>> GetGuardsAsync(int? projectId, bool? activeOnly)
+    public Task<ApiResponse<List<GuardDto>>> GetGuardsAsync(int? projectId, bool? activeOnly)
     {
-        try
+        // This method will need to call AuthAPI to get guards.
+        // For now return a completed Task with an empty result (placeholder for future integration).
+        var response = new ApiResponse<List<GuardDto>>
         {
-            // This method will need to call AuthAPI to get guards
-            // For now, returning empty list - needs AuthAPI client integration
-            return new AuthApiResponse<List<GuardDto>>
-            {
-                Success = true,
-                Message = "Guards retrieval requires AuthAPI integration",
-                Data = new List<GuardDto>()
-            };
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error getting guards");
-            return new AuthApiResponse<List<GuardDto>>
-            {
-                Success = false,
-                Message = "Error getting guards",
-                Errors = new List<string> { ex.Message }
-            };
-        }
+            Success = true,
+            Message = "Guards retrieval requires AuthAPI integration",
+            Data = new List<GuardDto>()
+        };
+
+        return Task.FromResult(response);
     }
 
-    public async Task<AuthApiResponse<List<GuardProjectInfo>>> GetGuardAssignmentsAsync(int authUserId)
+    public async Task<ApiResponse<List<GuardProjectInfo>>> GetGuardAssignmentsAsync(int authUserId)
     {
         try
         {
@@ -622,7 +482,7 @@ public class AdminService : IAdminService
                 AssignedAt = a.AssignedAt
             }).ToList();
 
-            return new AuthApiResponse<List<GuardProjectInfo>>
+            return new ApiResponse<List<GuardProjectInfo>>
             {
                 Success = true,
                 Message = $"Found {projectInfos.Count} project assignment(s)",
@@ -632,7 +492,7 @@ public class AdminService : IAdminService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error getting guard assignments");
-            return new AuthApiResponse<List<GuardProjectInfo>>
+            return new ApiResponse<List<GuardProjectInfo>>
             {
                 Success = false,
                 Message = "Error getting guard assignments",

@@ -63,4 +63,4 @@ public record TenantDto(
     bool IsActive
 );
 
-public record ApiResponse<T>(bool Success, T? Data, string? Message);
+//public record ApiResponse<T>(bool Success, T? Data, string? Message);

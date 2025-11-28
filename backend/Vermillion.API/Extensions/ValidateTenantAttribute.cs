@@ -1,8 +1,6 @@
-using System;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
-using Vermillion.API.Constants;
-using Vermillion.EntryExit.Domain.Models.DTOs;
+using Vermillion.Shared.Domain.Models.DTOs;
 
 namespace Vermillion.API.Extensions
 {
@@ -44,12 +42,10 @@ namespace Vermillion.API.Extensions
                 }
             }
 
-            var response = new AuthApiResponse<object>
-            {
-                Success = false,
-                Message = "Invalid tenant",
-                Errors = new List<string> { "Request not permitted for current tenant" }
-            };
+            var response = ApiResponse<string>.ErrorResponse(
+                "Invalid tenant",
+                new List<string> { "Request not permitted for current tenant" }
+            );
 
             context.Result = new BadRequestObjectResult(response);
         }

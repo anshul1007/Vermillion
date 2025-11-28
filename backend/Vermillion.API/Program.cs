@@ -13,6 +13,15 @@ builder.Services.AddVermillionDomainServices(logger);
 builder.Services.AddVermillionCors(builder.Configuration);
 builder.Services.AddVermillionSwagger();
 
+// Add Response Compression
+builder.Services.AddResponseCompression(options =>
+{
+	options.EnableForHttps = true;
+	options.Providers.Add<Microsoft.AspNetCore.ResponseCompression.GzipCompressionProvider>();
+	options.MimeTypes = Microsoft.AspNetCore.ResponseCompression.ResponseCompressionDefaults.MimeTypes.Concat(
+		new[] { "application/json" });
+});
+
 // Add Controllers with JSON options (string enums, camelCase)
 builder.Services.AddControllers()
 	.AddJsonOptions(opts =>
@@ -29,6 +38,8 @@ await app.MigrateAndSeedDatabasesAsync(builder.Configuration, logger);
 
 // Configure middleware pipeline (includes CORS, Auth, and MapControllers)
 app.UseVermillionMiddleware();
+// Add correlation id middleware early in the pipeline
+app.UseMiddleware<Vermillion.API.Middleware.CorrelationIdMiddleware>();
 
 // Log startup completion
 logger.LogInformation("Vermillion Unified API started successfully!");

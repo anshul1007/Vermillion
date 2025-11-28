@@ -546,7 +546,7 @@
             id="filterProject"
             class="form-control"
             [ngModel]="labourFilterProjectId()"
-            (ngModelChange)="labourFilterProjectId.set($event); labourFilterContractorId.set(0); onLabourFilterChange()"
+            (ngModelChange)="labourFilterProjectId.set($event); onLabourFilterChange()"
           >
             <option [ngValue]="0">Select a project</option>
             @for (project of projects(); track project.id) {
@@ -561,7 +561,7 @@
             id="filterContractor"
             class="form-control"
             [ngModel]="labourFilterContractorId()"
-            (ngModelChange)="labourFilterContractorId.set($event); labourFilterProjectId.set(0); onLabourFilterChange()"
+            (ngModelChange)="labourFilterContractorId.set($event); onLabourFilterChange()"
           >
             <option [ngValue]="0">Select a contractor</option>
             @for (contractor of contractors(); track contractor.id) {

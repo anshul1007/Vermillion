@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace Vermillion.EntryExit.Domain.Models.DTOs;
 
 // Labour DTOs (merged with LabourRegistration)
@@ -22,11 +24,28 @@ public class LabourDto
 
 public class CreateLabourDto
 {
+    [Required(ErrorMessage = "Name is required")]
+    [StringLength(100, MinimumLength = 2, ErrorMessage = "Name must be between 2 and 100 characters")]
     public string Name { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "Phone number is required")]
+    [Phone(ErrorMessage = "Invalid phone number format")]
+    [StringLength(20, ErrorMessage = "Phone number cannot exceed 20 characters")]
     public string PhoneNumber { get; set; } = string.Empty;
+
+    [StringLength(12, MinimumLength = 12, ErrorMessage = "Aadhar number must be exactly 12 digits")]
+    [RegularExpression(@"^\d{12}$", ErrorMessage = "Aadhar number must contain only digits")]
     public string? AadharNumber { get; set; }  // Will be encrypted before saving
+
+    [Required(ErrorMessage = "Photo is required")]
     public string? PhotoBase64 { get; set; }  // Accepted in requests, converted to PhotoUrl
+
+    [Required(ErrorMessage = "Project ID is required")]
+    [Range(1, int.MaxValue, ErrorMessage = "Invalid project ID")]
     public int ProjectId { get; set; }
+
+    [Required(ErrorMessage = "Contractor ID is required")]
+    [Range(1, int.MaxValue, ErrorMessage = "Invalid contractor ID")]
     public int ContractorId { get; set; }
     public string Barcode { get; set; } = string.Empty;
 }

@@ -517,11 +517,11 @@ export class EntryExitComponent implements OnDestroy {
       next: (response) => {
         this.submitting.set(false);
         if (response.success) {
+          const current = this.result();
+          if (current) {
+            this.result.set({ ...current, hasOpenEntry: true });
+          }
           this.successMessage.set('Entry logged successfully!');
-          setTimeout(() => {
-            this.clearResult();
-            this.successMessage.set('');
-          }, 2000);
         } else {
           this.errorMessage.set(response.message || 'Failed to log entry');
         }
@@ -560,11 +560,11 @@ export class EntryExitComponent implements OnDestroy {
       next: (response) => {
         this.submitting.set(false);
         if (response.success) {
+          const current = this.result();
+          if (current) {
+            this.result.set({ ...current, hasOpenEntry: false });
+          }
           this.successMessage.set('Exit logged successfully!');
-          setTimeout(() => {
-            this.clearResult();
-            this.successMessage.set('');
-          }, 2000);
         } else {
           this.errorMessage.set(response.message || 'Failed to log exit');
         }

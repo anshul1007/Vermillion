@@ -22,4 +22,8 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\Vermillion.Shared.Domain\Vermillion.Shared.Domain.csproj" />
+  </ItemGroup>
+
 </Project>

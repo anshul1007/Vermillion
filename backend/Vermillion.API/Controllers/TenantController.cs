@@ -1,8 +1,11 @@
+using System.Net.Mail;
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Vermillion.Auth.Domain.Models.DTOs;
 using Vermillion.Auth.Domain.Services;
-using Vermillion.EntryExit.Domain.Models.DTOs;
+using Vermillion.Shared.Domain.Models.DTOs;
+using Vermillion.API.Extensions;
 
 namespace Vermillion.API.Controllers;
 
@@ -22,14 +25,24 @@ public class TenantController : ControllerBase
     [Authorize(Roles = "SystemAdmin")]
     public async Task<IActionResult> RegisterTenant([FromBody] TenantRegistrationRequest request)
     {
+        var validationErrors = ValidateTenantRegistrationRequest(request);
+        if (validationErrors.Count > 0)
+            return BadRequest(ApiResponse<string>.ErrorResponse("Invalid tenant registration request", validationErrors));
+
         var (success, tenant, error) = await _tenantService.RegisterTenantAsync(request);
 
         if (!success)
-            return BadRequest(new ApiResponse<string>(false, null, error));
+        {
+            var message = error ?? "Tenant registration failed";
+            var errors = error is null ? null : new List<string> { error };
+            return BadRequest(ApiResponse<string>.ErrorResponse(message, errors));
+        }
 
-        var t = tenant!;
-        var dto = new TenantDto(t.Id, t.Name, t.Domain, t.IsActive);
-        return Ok(new AuthApiResponse<TenantDto> { Success = true, Data = dto, Message = "Tenant registered successfully" });
+        if (tenant == null)
+            return this.ServerError("Tenant registration succeeded but tenant data was not returned");
+
+        var dto = new TenantDto(tenant.Id, tenant.Name, tenant.Domain, tenant.IsActive);
+        return Ok(ApiResponse<TenantDto>.SuccessResponse(dto, "Tenant registered successfully"));
     }
 
     [HttpGet]
@@ -38,7 +51,7 @@ public class TenantController : ControllerBase
     {
         var tenants = await _tenantService.GetAllTenantsAsync();
         var dtos = tenants.Select(t => new TenantDto(t.Id, t.Name, t.Domain, t.IsActive)).ToList();
-        return Ok(new AuthApiResponse<List<TenantDto>> { Success = true, Data = dtos, Message = null });
+        return Ok(ApiResponse<List<TenantDto>>.SuccessResponse(dtos));
     }
 
     [HttpGet("{id}")]
@@ -48,11 +61,10 @@ public class TenantController : ControllerBase
         var tenant = await _tenantService.GetTenantByIdAsync(id);
 
         if (tenant == null)
-            return NotFound(new ApiResponse<string>(false, null, "Tenant not found"));
+            return NotFound(ApiResponse<string>.ErrorResponse("Tenant not found"));
 
-        var t2 = tenant!;
-        var dto2 = new TenantDto(t2.Id, t2.Name, t2.Domain, t2.IsActive);
-        return Ok(new AuthApiResponse<TenantDto> { Success = true, Data = dto2, Message = null });
+        var dto2 = new TenantDto(tenant.Id, tenant.Name, tenant.Domain, tenant.IsActive);
+        return Ok(ApiResponse<TenantDto>.SuccessResponse(dto2));
     }
 
     [HttpGet("domain/{domain}")]
@@ -62,11 +74,10 @@ public class TenantController : ControllerBase
         var tenant = await _tenantService.GetTenantByDomainAsync(domain);
 
         if (tenant == null)
-            return NotFound(new ApiResponse<string>(false, null, "Tenant not found"));
+            return NotFound(ApiResponse<string>.ErrorResponse("Tenant not found"));
 
-        var t3 = tenant!;
-        var dto3 = new TenantDto(t3.Id, t3.Name, t3.Domain, t3.IsActive);
-        return Ok(new AuthApiResponse<TenantDto> { Success = true, Data = dto3, Message = null });
+        var dto3 = new TenantDto(tenant.Id, tenant.Name, tenant.Domain, tenant.IsActive);
+        return Ok(ApiResponse<TenantDto>.SuccessResponse(dto3));
     }
 
     [HttpPut("{id}/activate")]
@@ -76,9 +87,9 @@ public class TenantController : ControllerBase
         var result = await _tenantService.ActivateTenantAsync(id);
 
         if (!result)
-            return NotFound(new ApiResponse<string>(false, null, "Tenant not found"));
+            return NotFound(ApiResponse<string>.ErrorResponse("Tenant not found"));
 
-        return Ok(new ApiResponse<string>(true, null, "Tenant activated"));
+        return Ok(ApiResponse<EmptyResponseDto>.SuccessResponse(new EmptyResponseDto(), "Tenant activated"));
     }
 
     [HttpPut("{id}/deactivate")]
@@ -88,23 +99,149 @@ public class TenantController : ControllerBase
         var result = await _tenantService.DeactivateTenantAsync(id);
 
         if (!result)
-            return NotFound(new ApiResponse<string>(false, null, "Tenant not found"));
+            return NotFound(ApiResponse<string>.ErrorResponse("Tenant not found"));
 
-        return Ok(new ApiResponse<string>(true, null, "Tenant deactivated"));
+        return Ok(ApiResponse<EmptyResponseDto>.SuccessResponse(new EmptyResponseDto(), "Tenant deactivated"));
     }
 
     [HttpPut("{id}")]
     [Authorize(Roles = "SystemAdmin")]
     public async Task<IActionResult> UpdateTenant(int id, [FromBody] UpdateTenantRequest request)
     {
+        var validationErrors = ValidateUpdateTenantRequest(request);
+        if (validationErrors.Count > 0)
+            return BadRequest(ApiResponse<string>.ErrorResponse("Invalid tenant update request", validationErrors));
+
         var (success, tenant, error) = await _tenantService.UpdateTenantAsync(id, request);
 
         if (!success)
-            return BadRequest(new ApiResponse<string>(false, null, error));
+        {
+            var message = error ?? "Tenant update failed";
+            var errors = error is null ? null : new List<string> { error };
+            return BadRequest(ApiResponse<string>.ErrorResponse(message, errors));
+        }
 
-        var t4 = tenant!;
-        var dto4 = new TenantDto(t4.Id, t4.Name, t4.Domain, t4.IsActive);
-        return Ok(new AuthApiResponse<TenantDto> { Success = true, Data = dto4, Message = "Tenant updated successfully" });
+        if (tenant == null)
+            return this.ServerError("Tenant update succeeded but tenant data was not returned");
+
+        var dto4 = new TenantDto(tenant.Id, tenant.Name, tenant.Domain, tenant.IsActive);
+        return Ok(ApiResponse<TenantDto>.SuccessResponse(dto4, "Tenant updated successfully"));
+    }
+
+    private static List<string> ValidateTenantRegistrationRequest(TenantRegistrationRequest? request)
+    {
+        var errors = new List<string>();
+
+        if (request == null)
+        {
+            errors.Add("Request payload is required.");
+            return errors;
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Name))
+        {
+            errors.Add("Tenant name is required.");
+        }
+        else if (request.Name.Length < 3)
+        {
+            errors.Add("Tenant name must be at least 3 characters long.");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Domain))
+        {
+            errors.Add("Tenant domain is required.");
+        }
+        else if (!IsValidDomain(request.Domain))
+        {
+            errors.Add("Tenant domain contains invalid characters or format.");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.AdminEmail))
+        {
+            errors.Add("Administrator email is required.");
+        }
+        else if (!IsValidEmail(request.AdminEmail))
+        {
+            errors.Add("Administrator email is not a valid email address.");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.AdminPassword))
+        {
+            errors.Add("Administrator password is required.");
+        }
+        else if (request.AdminPassword.Length < 8)
+        {
+            errors.Add("Administrator password must be at least 8 characters long.");
+        }
+
+        return errors;
+    }
+
+    private static List<string> ValidateUpdateTenantRequest(UpdateTenantRequest? request)
+    {
+        var errors = new List<string>();
+
+        if (request == null)
+        {
+            errors.Add("Request payload is required.");
+            return errors;
+        }
+
+        var hasName = request.Name is not null;
+        var hasDomain = request.Domain is not null;
+
+        if (!hasName && !hasDomain)
+        {
+            errors.Add("At least one tenant attribute (name or domain) must be provided.");
+        }
+
+        if (hasName)
+        {
+            if (string.IsNullOrWhiteSpace(request.Name))
+            {
+                errors.Add("Tenant name cannot be empty.");
+            }
+            else if (request.Name!.Length < 3)
+            {
+                errors.Add("Tenant name must be at least 3 characters long.");
+            }
+        }
+
+        if (hasDomain)
+        {
+            if (string.IsNullOrWhiteSpace(request.Domain))
+            {
+                errors.Add("Tenant domain cannot be empty.");
+            }
+            else if (!IsValidDomain(request.Domain!))
+            {
+                errors.Add("Tenant domain contains invalid characters or format.");
+            }
+        }
+
+        return errors;
+    }
+
+    private static bool IsValidDomain(string domain)
+    {
+        if (string.IsNullOrWhiteSpace(domain))
+            return false;
+
+        const string pattern = @"^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$";
+        return Regex.IsMatch(domain, pattern, RegexOptions.CultureInvariant);
+    }
+
+    private static bool IsValidEmail(string email)
+    {
+        try
+        {
+            _ = new MailAddress(email);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
     }
 }
 

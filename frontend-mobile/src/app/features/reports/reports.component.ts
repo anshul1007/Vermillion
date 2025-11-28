@@ -19,14 +19,6 @@ interface EntryExitRecord {
   visitorId?: number | null;
 }
 
-interface Statistics {
-  totalEntries: number;
-  totalExits: number;
-  openSessions: number;
-  totalLabour: number;
-  totalVisitors: number;
-}
-
 interface SessionRow {
   id: string;
   personType: 'Labour' | 'Visitor';
@@ -35,6 +27,14 @@ interface SessionRow {
   entryTime: string;
   exitTime?: string | null;
   guardName?: string | null;
+}
+
+interface Statistics {
+  totalEntries: number;
+  totalExits: number;
+  openSessions: number;
+  totalLabour: number;
+  totalVisitors: number;
 }
 
 @Component({
@@ -146,9 +146,9 @@ interface SessionRow {
         </div>
 
         <div class="records-section">
-          <div class="section-header">
+            <div class="section-header">
             <h3>Recent Records</h3>
-            <div class="record-count">{{ records().length }} records</div>
+            <div class="record-count">{{ sessions().length }} records</div>
           </div>
 
           @if (records().length === 0) {
@@ -163,46 +163,50 @@ interface SessionRow {
               <p>No records found for the selected date range</p>
             </div>
           } @else {
-            <div class="sessions-grid">
-              <div class="grid-header">
-                <div>Type</div>
-                <div>Name</div>
-                <div>Company / Contractor</div>
-                <div>Entry Time</div>
-                <div>Exit Time</div>
-                <div>Guard</div>
-              </div>
-
-              <div class="grid-body">
-                @for (session of sessions(); track session.id) {
-                  <div class="grid-row">
-                    <div class="type-cell">
-                      @if (!session.exitTime || session.exitTime === '') {
-                        <svg class="active-dot" width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Active session">
-                          <title>Active session</title>
-                          <circle cx="8" cy="8" r="6" />
-                        </svg>
-                      } @else {
-                        <span class="checked-out-dot" title="Checked out">
-                          <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
-                            <circle cx="12" cy="12" r="10" />
-                            <path d="M9 12.5l1.8 1.8L15 11" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" />
-                          </svg>
+            <div class="sessions-table-wrapper">
+              <table class="sessions-table">
+                <thead>
+                  <tr>
+                    <th class="col-status">Type</th>
+                    <th class="col-name">Name</th>
+                    <th class="col-company">Company / Contractor</th>
+                    <th class="col-entry">Entry Time</th>
+                    <th class="col-exit">Exit Time</th>
+                    <th class="col-guard">Guard</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (session of sessions(); track session.id) {
+                    <tr>
+                      <td class="col-status">
+                        <span class="status-indicator" [class.active]="!session.exitTime">
+                          @if (!session.exitTime || session.exitTime === '') {
+                            <svg class="active-dot" width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Active session">
+                              <title>Active session</title>
+                              <circle cx="8" cy="8" r="6" />
+                            </svg>
+                          } @else {
+                            <span class="checked-out-dot" title="Checked out">
+                              <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+                                <circle cx="12" cy="12" r="10" />
+                                <path d="M9 12.5l1.8 1.8L15 11" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+                              </svg>
+                            </span>
+                          }
+                          <span class="type-badge" [class.labour]="session.personType === 'Labour'" [class.visitor]="session.personType === 'Visitor'">
+                            {{ session.personType }}
+                          </span>
                         </span>
-                      }
-                      <div class="type-badge" [class.labour]="session.personType === 'Labour'" [class.visitor]="session.personType === 'Visitor'">
-                        {{ session.personType }}
-                      </div>
-                    </div>
-
-                    <div class="cell name">{{ session.name }}</div>
-                    <div class="cell company">{{ session.contractor || '-' }}</div>
-                    <div class="cell entry">{{ session.entryTime ? formatDateTime(session.entryTime) : '-' }}</div>
-                    <div class="cell exit">{{ session.exitTime ? formatDateTime(session.exitTime) : '-' }}</div>
-                    <div class="cell guard">{{ session.guardName || '-' }}</div>
-                  </div>
-                }
-              </div>
+                      </td>
+                      <td class="col-name">{{ session.name }}</td>
+                      <td class="col-company">{{ session.contractor || '-' }}</td>
+                      <td class="col-entry">{{ session.entryTime ? formatDateTime(session.entryTime) : '-' }}</td>
+                      <td class="col-exit">{{ session.exitTime ? formatDateTime(session.exitTime) : '-' }}</td>
+                      <td class="col-guard">{{ session.guardName || '-' }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
             </div>
           }
         </div>
@@ -310,57 +314,66 @@ export class ReportsComponent implements OnInit {
   }
 
   private buildSessions(records: EntryExitRecord[]) {
-    // Build paired sessions (entry -> exit) per person
     const grouped = new Map<string, EntryExitRecord[]>();
-    records.forEach(r => {
-      let idPart = 'unknown';
-      if (r.labourId != null && r.labourId !== 0) idPart = `labour:${r.labourId}`;
-      else if (r.visitorId != null && r.visitorId !== 0) idPart = `visitor:${r.visitorId}`;
-      else idPart = r.personName || 'unknown';
 
-      const key = `${r.personType}-${idPart}`;
+    for (const record of records) {
+      let keySuffix = 'unknown';
+      if (record.labourId != null && record.labourId !== 0) {
+        keySuffix = `labour:${record.labourId}`;
+      } else if (record.visitorId != null && record.visitorId !== 0) {
+        keySuffix = `visitor:${record.visitorId}`;
+      } else if (record.personName) {
+        keySuffix = record.personName;
+      }
+
+      const key = `${record.personType}-${keySuffix}`;
       if (!grouped.has(key)) grouped.set(key, []);
-      grouped.get(key)!.push(r);
-    });
+      grouped.get(key)!.push(record);
+    }
 
     const sessions: SessionRow[] = [];
 
-    for (const [key, recs] of grouped) {
-      const sorted = recs.slice().sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-      const pendingEntries: EntryExitRecord[] = [];
+    for (const [key, entries] of grouped) {
+      const sorted = entries
+        .slice()
+        .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
 
-      for (const r of sorted) {
-        if (r.action === 'Entry') {
-          pendingEntries.push(r);
-        } else { // Exit
-          if (pendingEntries.length > 0) {
-            const entry = pendingEntries.shift()!;
-            sessions.push({
-              id: `${key}-${entry.timestamp}-${r.timestamp}`,
-              personType: r.personType,
-              name: entry.personName || r.personName || 'Unknown',
-              contractor: entry.contractorName ?? r.contractorName ?? null,
-              entryTime: entry.timestamp,
-              exitTime: r.timestamp,
-              guardName: r.guardName ?? entry.guardName ?? null,
-            });
-          } else {
-            // Unmatched exit, create a session with empty entryTime
-            sessions.push({
-              id: `${key}-unmatched-exit-${r.timestamp}`,
-              personType: r.personType,
-              name: r.personName || 'Unknown',
-              contractor: r.contractorName ?? null,
-              entryTime: '',
-              exitTime: r.timestamp,
-              guardName: r.guardName ?? null,
-            });
-          }
+      const pending: EntryExitRecord[] = [];
+
+      for (const record of sorted) {
+        if (record.action === 'Entry') {
+          pending.push(record);
+          continue;
+        }
+
+        if (record.action === 'Exit' && pending.length > 0) {
+          const entry = pending.shift()!;
+          sessions.push({
+            id: `${key}-${entry.timestamp}-${record.timestamp}`,
+            personType: entry.personType,
+            name: entry.personName || record.personName || 'Unknown',
+            contractor: entry.contractorName ?? record.contractorName ?? null,
+            entryTime: entry.timestamp,
+            exitTime: record.timestamp,
+            guardName: record.guardName ?? entry.guardName ?? null,
+          });
+          continue;
+        }
+
+        if (record.action === 'Exit') {
+          sessions.push({
+            id: `${key}-exit-${record.timestamp}`,
+            personType: record.personType,
+            name: record.personName || 'Unknown',
+            contractor: record.contractorName ?? null,
+            entryTime: '',
+            exitTime: record.timestamp,
+            guardName: record.guardName ?? null,
+          });
         }
       }
 
-      // Remaining pending entries -> open sessions
-      for (const entry of pendingEntries) {
+      for (const entry of pending) {
         sessions.push({
           id: `${key}-open-${entry.timestamp}`,
           personType: entry.personType,
@@ -373,11 +386,10 @@ export class ReportsComponent implements OnInit {
       }
     }
 
-    // Sort overall by entryTime desc (most recent first), fall back to exitTime
     sessions.sort((a, b) => {
-      const ta = a.entryTime ? new Date(a.entryTime).getTime() : (a.exitTime ? new Date(a.exitTime).getTime() : 0);
-      const tb = b.entryTime ? new Date(b.entryTime).getTime() : (b.exitTime ? new Date(b.exitTime).getTime() : 0);
-      return tb - ta;
+      const aTime = a.entryTime ? new Date(a.entryTime).getTime() : (a.exitTime ? new Date(a.exitTime).getTime() : 0);
+      const bTime = b.entryTime ? new Date(b.entryTime).getTime() : (b.exitTime ? new Date(b.exitTime).getTime() : 0);
+      return bTime - aTime;
     });
 
     this.sessions.set(sessions);

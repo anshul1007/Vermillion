@@ -5,6 +5,8 @@ using Vermillion.Attendance.Domain.Data;
 using Vermillion.Attendance.Domain.Models.DTOs;
 using Vermillion.Attendance.Domain.Models.Entities;
 using Vermillion.Attendance.Domain.Services;
+using Vermillion.Shared.Domain.Models.DTOs;
+using Vermillion.API.Extensions;
 
 namespace Vermillion.API.Controllers
 {
@@ -32,7 +34,7 @@ namespace Vermillion.API.Controllers
                 var userId = _currentUserService.GetCurrentUserId();
                 if (!userId.HasValue)
                 {
-                    return Unauthorized(ApiResponse<object>.ErrorResponse("Invalid or missing user claim"));
+                    return Unauthorized(ApiResponse<string>.ErrorResponse("Invalid or missing user claim"));
                 }
 
                 var today = DateOnly.FromDateTime(DateTime.UtcNow);
@@ -44,7 +46,7 @@ namespace Vermillion.API.Controllers
 
                 if (existingAttendance != null)
                 {
-                    return BadRequest(ApiResponse<object>.ErrorResponse("You have already logged in today"));
+                    return BadRequest(ApiResponse<string>.ErrorResponse("You have already logged in today"));
                 }
 
                 // Check if today is a weekend
@@ -89,7 +91,7 @@ namespace Vermillion.API.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error during attendance login");
-                return StatusCode(500, ApiResponse<object>.ErrorResponse("An error occurred during login", ex.Message));
+                    return this.ServerError("An error occurred during login");
             }
         }
 
@@ -101,7 +103,7 @@ namespace Vermillion.API.Controllers
                 var userId = _currentUserService.GetCurrentUserId();
                 if (!userId.HasValue)
                 {
-                    return Unauthorized(ApiResponse<object>.ErrorResponse("Invalid or missing user claim"));
+                    return Unauthorized(ApiResponse<string>.ErrorResponse("Invalid or missing user claim"));
                 }
 
                 var today = DateOnly.FromDateTime(DateTime.UtcNow);
@@ -113,12 +115,12 @@ namespace Vermillion.API.Controllers
 
                 if (attendance == null)
                 {
-                    return BadRequest(ApiResponse<object>.ErrorResponse("No login record found for today. Please login first."));
+                    return BadRequest(ApiResponse<string>.ErrorResponse("No login record found for today. Please login first."));
                 }
 
                 if (attendance.LogoutTime.HasValue)
                 {
-                    return BadRequest(ApiResponse<object>.ErrorResponse("You have already logged out today"));
+                    return BadRequest(ApiResponse<string>.ErrorResponse("You have already logged out today"));
                 }
 
                 // Update logout time
@@ -151,7 +153,7 @@ namespace Vermillion.API.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error during attendance logout");
-                return StatusCode(500, ApiResponse<object>.ErrorResponse("An error occurred during logout", ex.Message));
+                    return this.ServerError("An error occurred during logout");
             }
         }
 
@@ -161,7 +163,7 @@ namespace Vermillion.API.Controllers
             var userId = _currentUserService.GetCurrentUserId();
             if (!userId.HasValue)
             {
-                return Unauthorized(ApiResponse<object>.ErrorResponse("Invalid or missing user claim"));
+                return Unauthorized(ApiResponse<string>.ErrorResponse("Invalid or missing user claim"));
             }
 
             var today = DateOnly.FromDateTime(DateTime.UtcNow);
@@ -190,7 +192,7 @@ namespace Vermillion.API.Controllers
                 Status = att.Status.ToString(),
                 ApproverName = null,
                 ApprovedAt = att.ApprovedAt,
-                WorkDuration = att.LogoutTime.HasValue ? att.LogoutTime.Value - att.LoginTime : (TimeSpan?)null
+                WorkDuration = att.LogoutTime.HasValue ? att.LogoutTime.Value - att.LoginTime : null
             };
 
             return Ok(ApiResponse<AttendanceDto>.SuccessResponse(dto));
@@ -207,7 +209,7 @@ namespace Vermillion.API.Controllers
             var currentUserId = _currentUserService.GetCurrentUserId();
             if (!currentUserId.HasValue)
             {
-                return Unauthorized(ApiResponse<object>.ErrorResponse("Invalid or missing user claim"));
+                return Unauthorized(ApiResponse<string>.ErrorResponse("Invalid or missing user claim"));
             }
 
             var effectiveUserId = currentUserId.Value;
@@ -241,7 +243,7 @@ namespace Vermillion.API.Controllers
                 Status = att.Status.ToString(),
                 ApproverName = null,
                 ApprovedAt = att.ApprovedAt,
-                WorkDuration = att.LogoutTime.HasValue ? att.LogoutTime.Value - att.LoginTime : (TimeSpan?)null
+                WorkDuration = att.LogoutTime.HasValue ? att.LogoutTime.Value - att.LoginTime : null
             }).ToList();
 
             return Ok(ApiResponse<List<AttendanceDto>>.SuccessResponse(dtos));
@@ -274,7 +276,7 @@ namespace Vermillion.API.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error fetching public holidays");
-                return StatusCode(500, ApiResponse<object>.ErrorResponse("An error occurred", ex.Message));
+                return this.ServerError("An error occurred");
             }
         }
     }

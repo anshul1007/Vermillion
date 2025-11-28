@@ -3,15 +3,16 @@ using Vermillion.EntryExit.Domain.Models.DTOs;
 using Vermillion.EntryExit.Domain.Models.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Vermillion.Shared.Domain.Models.DTOs;
 
 namespace Vermillion.EntryExit.Domain.Services;
 
 public interface IVisitorService
 {
-    Task<AuthApiResponse<VisitorDto>> RegisterVisitorAsync(CreateVisitorDto dto, string registeredBy);
-    Task<AuthApiResponse<List<VisitorDto>>> SearchVisitorAsync(string? name, string? phone);
-    Task<AuthApiResponse<List<VisitorDto>>> GetVisitorsByProjectAsync(int projectId);
-    Task<AuthApiResponse<VisitorDto>> GetVisitorAsync(int id);
+    Task<ApiResponse<VisitorDto>> RegisterVisitorAsync(CreateVisitorDto dto, string registeredBy);
+    Task<ApiResponse<List<VisitorDto>>> SearchVisitorAsync(string? name, string? phone);
+    Task<ApiResponse<List<VisitorDto>>> GetVisitorsByProjectAsync(int projectId);
+    Task<ApiResponse<VisitorDto>> GetVisitorAsync(int id);
 }
 
 public class VisitorService : IVisitorService
@@ -30,12 +31,12 @@ public class VisitorService : IVisitorService
         _logger = logger;
     }
 
-    public async Task<AuthApiResponse<VisitorDto>> RegisterVisitorAsync(CreateVisitorDto dto, string registeredBy)
+    public async Task<ApiResponse<VisitorDto>> RegisterVisitorAsync(CreateVisitorDto dto, string registeredBy)
     {
         try
         {
-            if (string.IsNullOrEmpty(dto.PhotoBase64))
-                return new AuthApiResponse<VisitorDto>
+            if (string.IsNullOrWhiteSpace(dto.PhotoBase64))
+                return new ApiResponse<VisitorDto>
                 {
                     Success = false,
                     Message = "Photo is required for visitor registration"
@@ -45,7 +46,7 @@ public class VisitorService : IVisitorService
             var project = await _context.Projects.FindAsync(dto.ProjectId);
             if (project == null)
             {
-                return new AuthApiResponse<VisitorDto>
+                return new ApiResponse<VisitorDto>
                 {
                     Success = false,
                     Message = "Project not found"
@@ -70,7 +71,7 @@ public class VisitorService : IVisitorService
             _context.Visitors.Add(visitor);
             await _context.SaveChangesAsync();
 
-            return new AuthApiResponse<VisitorDto>
+            return new ApiResponse<VisitorDto>
             {
                 Success = true,
                 Message = "Visitor registered successfully",
@@ -80,7 +81,7 @@ public class VisitorService : IVisitorService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error registering visitor");
-            return new AuthApiResponse<VisitorDto>
+            return new ApiResponse<VisitorDto>
             {
                 Success = false,
                 Message = "An error occurred while registering visitor",
@@ -89,14 +90,14 @@ public class VisitorService : IVisitorService
         }
     }
 
-    public async Task<AuthApiResponse<List<VisitorDto>>> SearchVisitorAsync(string? name, string? phone)
+    public async Task<ApiResponse<List<VisitorDto>>> SearchVisitorAsync(string? name, string? phone)
     {
         try
         {
             _logger.LogInformation("SearchVisitorAsync called with name='{Name}' phone='{Phone}'", name, phone);
             var query = _context.Visitors.AsQueryable();
 
-            if (!string.IsNullOrEmpty(name))
+            if (!string.IsNullOrWhiteSpace(name))
             {
                 var nameLower = name.ToLower();
                 query = query.Where(v => v.Name != null && v.Name.ToLower().Contains(nameLower));
@@ -104,7 +105,7 @@ public class VisitorService : IVisitorService
 
             List<Visitor> results;
 
-            if (!string.IsNullOrEmpty(phone))
+            if (!string.IsNullOrWhiteSpace(phone))
             {
                 // Coarse DB filter: phone substring or name match
                 var phoneLower = phone.ToLower();
@@ -149,7 +150,7 @@ public class VisitorService : IVisitorService
 
             var dtos = results.Select(MapToDto).ToList();
 
-            return new AuthApiResponse<List<VisitorDto>>
+            return new ApiResponse<List<VisitorDto>>
             {
                 Success = true,
                 Message = $"Found {dtos.Count} visitor(s)",
@@ -159,7 +160,7 @@ public class VisitorService : IVisitorService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error searching visitors");
-            return new AuthApiResponse<List<VisitorDto>>
+            return new ApiResponse<List<VisitorDto>>
             {
                 Success = false,
                 Message = "An error occurred while searching",
@@ -168,20 +169,20 @@ public class VisitorService : IVisitorService
         }
     }
 
-    public async Task<AuthApiResponse<VisitorDto>> GetVisitorAsync(int id)
+    public async Task<ApiResponse<VisitorDto>> GetVisitorAsync(int id)
     {
         try
         {
             var visitor = await _context.Visitors.FindAsync(id);
 
             if (visitor == null)
-                return new AuthApiResponse<VisitorDto>
+                return new ApiResponse<VisitorDto>
                 {
                     Success = false,
                     Message = "Visitor not found"
                 };
 
-            return new AuthApiResponse<VisitorDto>
+            return new ApiResponse<VisitorDto>
             {
                 Success = true,
                 Data = MapToDto(visitor)
@@ -190,7 +191,7 @@ public class VisitorService : IVisitorService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error getting visitor");
-            return new AuthApiResponse<VisitorDto>
+            return new ApiResponse<VisitorDto>
             {
                 Success = false,
                 Message = "An error occurred",
@@ -199,7 +200,7 @@ public class VisitorService : IVisitorService
         }
     }
 
-    public async Task<AuthApiResponse<List<VisitorDto>>> GetVisitorsByProjectAsync(int projectId)
+    public async Task<ApiResponse<List<VisitorDto>>> GetVisitorsByProjectAsync(int projectId)
     {
         try
         {
@@ -214,7 +215,7 @@ public class VisitorService : IVisitorService
 
             var dtos = visitors.Select(MapToDto).ToList();
 
-            return new AuthApiResponse<List<VisitorDto>>
+            return new ApiResponse<List<VisitorDto>>
             {
                 Success = true,
                 Message = $"Found {dtos.Count} visitor(s) for project {projectId}",
@@ -224,7 +225,7 @@ public class VisitorService : IVisitorService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error getting visitors by project");
-            return new AuthApiResponse<List<VisitorDto>>
+            return new ApiResponse<List<VisitorDto>>
             {
                 Success = false,
                 Message = "An error occurred while retrieving visitors for the project",

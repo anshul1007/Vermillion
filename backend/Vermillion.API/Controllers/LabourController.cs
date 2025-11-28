@@ -3,6 +3,7 @@ using Vermillion.EntryExit.Domain.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
+using Vermillion.Shared.Domain.Models.DTOs;
 
 namespace Vermillion.API.Controllers;
 
@@ -21,7 +22,7 @@ public class LabourController : ControllerBase
     }
 
     [HttpPost("register")]
-    public async Task<ActionResult<AuthApiResponse<LabourDto>>> RegisterLabour([FromBody] CreateLabourDto dto)
+    public async Task<ActionResult<ApiResponse<LabourDto>>> RegisterLabour([FromBody] CreateLabourDto dto)
     {
         var userEmail = User.FindFirst(ClaimTypes.Name)?.Value ?? "System";
         var result = await _labourService.RegisterLabourAsync(dto, userEmail);
@@ -33,7 +34,7 @@ public class LabourController : ControllerBase
     }
 
     [HttpGet("search")]
-    public async Task<ActionResult<AuthApiResponse<List<LabourDto>>>> SearchLabour(
+    public async Task<ActionResult<ApiResponse<List<LabourDto>>>> SearchLabour(
         [FromQuery] string? query,
         [FromQuery] string? barcode,
         [FromQuery] string? name,
@@ -44,35 +45,18 @@ public class LabourController : ControllerBase
         if (!string.IsNullOrEmpty(query))
         {
             _logger.LogInformation("Searching labour with query: {Query}", query);
-
-            // Search by barcode first (most specific)
-            var barcodeResult = await _labourService.SearchLabourAsync(query, null, null, projectId);
-            if (barcodeResult.Success && barcodeResult.Data != null && barcodeResult.Data.Any())
+            var queryResult = await _labourService.SearchLabourByQueryAsync(query, projectId);
+            if (!queryResult.Success)
             {
-                return Ok(barcodeResult);
+                return BadRequest(queryResult);
             }
 
-            // Then search by name
-            var nameResult = await _labourService.SearchLabourAsync(null, query, null, projectId);
-            if (nameResult.Success && nameResult.Data != null && nameResult.Data.Any())
+            if (queryResult.Data == null || !queryResult.Data.Any())
             {
-                return Ok(nameResult);
+                return Ok(ApiResponse<List<LabourDto>>.SuccessResponse(new List<LabourDto>(), "No labour found matching the query"));
             }
 
-            // Finally search by phone
-            var phoneResult = await _labourService.SearchLabourAsync(null, null, query, projectId);
-            if (phoneResult.Success && phoneResult.Data != null && phoneResult.Data.Any())
-            {
-                return Ok(phoneResult);
-            }
-
-            // Return empty result if nothing found
-            return Ok(new AuthApiResponse<List<LabourDto>>
-            {
-                Success = true,
-                Data = new List<LabourDto>(),
-                Message = "No labour found matching the query"
-            });
+            return Ok(queryResult);
         }
 
         // Use specific parameters if provided
@@ -85,7 +69,7 @@ public class LabourController : ControllerBase
     }
 
     [HttpGet("{id}")]
-    public async Task<ActionResult<AuthApiResponse<LabourDto>>> GetLabourRegistration(int id)
+    public async Task<ActionResult<ApiResponse<LabourDto>>> GetLabourRegistration(int id)
     {
         var result = await _labourService.GetLabourAsync(id);
 
@@ -97,7 +81,7 @@ public class LabourController : ControllerBase
 
     [HttpGet("by-project/{projectId}")]
     [Authorize(Roles = "Guard,SystemAdmin,Admin")]
-    public async Task<ActionResult<AuthApiResponse<List<LabourDto>>>> GetLabourByProject(int projectId)
+    public async Task<ActionResult<ApiResponse<List<LabourDto>>>> GetLabourByProject(int projectId)
     {
         _logger.LogInformation("Getting labour for project: {ProjectId}", projectId);
         var result = await _labourService.GetLabourByProjectAsync(projectId);
@@ -110,10 +94,23 @@ public class LabourController : ControllerBase
 
     [HttpGet("by-contractor/{contractorId}")]
     [Authorize(Roles = "Guard,SystemAdmin,Admin")]
-    public async Task<ActionResult<AuthApiResponse<List<LabourDto>>>> GetLabourByContractor(int contractorId)
+    public async Task<ActionResult<ApiResponse<List<LabourDto>>>> GetLabourByContractor(int contractorId)
     {
         _logger.LogInformation("Getting labour for contractor: {ContractorId}", contractorId);
         var result = await _labourService.GetLabourByContractorAsync(contractorId);
+
+        if (!result.Success)
+            return BadRequest(result);
+
+        return Ok(result);
+    }
+
+    [HttpGet("by-project/{projectId}/contractor/{contractorId}")]
+    [Authorize(Roles = "Guard,SystemAdmin,Admin")]
+    public async Task<ActionResult<ApiResponse<List<LabourDto>>>> GetLabourByProjectAndContractor(int projectId, int contractorId)
+    {
+        _logger.LogInformation("Getting labour for project {ProjectId} and contractor {ContractorId}", projectId, contractorId);
+        var result = await _labourService.GetLabourByProjectAndContractorAsync(projectId, contractorId);
 
         if (!result.Success)
             return BadRequest(result);

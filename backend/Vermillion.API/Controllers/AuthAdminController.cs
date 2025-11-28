@@ -2,9 +2,10 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Vermillion.Auth.Domain.Services;
-using Vermillion.EntryExit.Domain.Models.DTOs;
 using Vermillion.Auth.Domain.Models.DTOs;
+using Vermillion.API.Extensions;
 using Vermillion.Auth.Domain.Data;
+using Vermillion.Shared.Domain.Models.DTOs;
 
 namespace Vermillion.API.Controllers;
 
@@ -39,7 +40,7 @@ public class AuthAdminController : ControllerBase
 							.ThenInclude(rp => rp.Permission)
 				.ToListAsync();
 
-			var result = new List<object>();
+			var result = new List<AdminUserSummaryDto>();
 
 			foreach (var user in users)
 			{
@@ -57,36 +58,36 @@ public class AuthAdminController : ControllerBase
 							.Select(rp => rp.Permission.Name)
 							.ToList() ?? new List<string>();
 
-						return new
+						return new AdminUserTenantAssignmentDto
 						{
-							tenantId = g.Key,
-							tenantName = tenant?.Name ?? string.Empty,
-							tenantDomain = tenant?.Domain ?? string.Empty,
-							roleId = role?.Id ?? 0,
-							roleName = role?.Name ?? string.Empty,
-							permissions = permissions,
-							isActive = ur0?.IsActive ?? false
+							TenantId = g.Key,
+							TenantName = tenant?.Name ?? string.Empty,
+							TenantDomain = tenant?.Domain ?? string.Empty,
+							RoleId = role?.Id ?? 0,
+							RoleName = role?.Name ?? string.Empty,
+							Permissions = permissions,
+							IsActive = ur0?.IsActive ?? false
 						};
 					})
 					.ToList();
 
-				result.Add(new
+				result.Add(new AdminUserSummaryDto
 				{
-					id = user.Id,
-					username = user.Username,
-					email = user.Email,
-					externalProvider = user.ExternalProvider,
-					createdAt = user.CreatedAt,
-					tenants = tenants
+					Id = user.Id,
+					Username = user.Username,
+					Email = user.Email,
+					ExternalProvider = user.ExternalProvider,
+					CreatedAt = user.CreatedAt,
+					Tenants = tenants
 				});
 			}
 
-			return Ok(new AuthApiResponse<object> { Success = true, Data = result, Message = null });
+			return Ok(ApiResponse<List<AdminUserSummaryDto>>.SuccessResponse(result));
 		}
 		catch (Exception ex)
 		{
 			_logger.LogError(ex, "Error fetching users");
-			return StatusCode(500, new AuthApiResponse<object> { Success = false, Data = null, Message = $"Error fetching users: {ex.Message}" });
+			return this.ServerError($"Error fetching users: {ex.Message}");
 		}
 	}
 
@@ -103,10 +104,10 @@ public class AuthAdminController : ControllerBase
 
 		if (user == null)
 		{
-			return NotFound(new ApiResponse<string>(false, null, $"User with email {email} not found"));
+			return NotFound(ApiResponse<string>.ErrorResponse($"User with email {email} not found"));
 		}
 
-		return Ok(new ApiResponse<int>(true, user.Id, null));
+		return Ok(ApiResponse<int>.SuccessResponse(user.Id));
 	}
 
 	/// <summary>
@@ -123,10 +124,10 @@ public class AuthAdminController : ControllerBase
 
 		if (userRole == null)
 		{
-			return NotFound(new ApiResponse<string>(false, null, $"No role found for user {userId} in {tenantDomain} tenant"));
+			return NotFound(ApiResponse<string>.ErrorResponse($"No role found for user {userId} in {tenantDomain} tenant"));
 		}
 
-		return Ok(new AuthApiResponse<object> { Success = true, Data = new { role = userRole.Role.Name } });
+		return Ok(ApiResponse<UserRoleResponse>.SuccessResponse(new UserRoleResponse { Role = userRole.Role.Name }));
 	}
 
 	/// <summary>
@@ -145,10 +146,10 @@ public class AuthAdminController : ControllerBase
 
 		if (user == null)
 		{
-			return NotFound(new ApiResponse<string>(false, null, $"User {userId} not found"));
+			return NotFound(ApiResponse<string>.ErrorResponse($"User {userId} not found"));
 		}
 
-		return Ok(new AuthApiResponse<object> { Success = true, Data = user, Message = null });
+		return Ok(ApiResponse<UserProfileResponse>.SuccessResponse(new UserProfileResponse { IsActive = user.IsActive }));
 	}
 
 	/// <summary>
@@ -164,10 +165,10 @@ public class AuthAdminController : ControllerBase
 
 		if (user == null)
 		{
-			return NotFound(new ApiResponse<string>(false, null, $"User {userId} not found"));
+			return NotFound(ApiResponse<string>.ErrorResponse($"User {userId} not found"));
 		}
 
-		return Ok(new ApiResponse<string>(true, user.Email, null));
+		return Ok(ApiResponse<string>.SuccessResponse(user.Email));
 	}
 
 	/// <summary>
@@ -183,10 +184,10 @@ public class AuthAdminController : ControllerBase
 
 		if (user == null)
 		{
-			return NotFound(new ApiResponse<string>(false, null, $"User {userId} not found"));
+			return NotFound(ApiResponse<string>.ErrorResponse($"User {userId} not found"));
 		}
 
-		return Ok(new ApiResponse<bool>(true, user.IsActive, null));
+		return Ok(ApiResponse<bool>.SuccessResponse(user.IsActive));
 	}
 
 	/// <summary>
@@ -197,20 +198,20 @@ public class AuthAdminController : ControllerBase
 	{
 		var role = await _context.Roles
 			.Where(r => r.Id == roleId)
-			.Select(r => new
+			.Select(r => new RoleDto
 			{
-				r.Id,
-				r.Name,
-				r.IsActive
+				Id = r.Id,
+				Name = r.Name,
+				IsActive = r.IsActive
 			})
 			.FirstOrDefaultAsync();
 
 		if (role == null)
 		{
-			return NotFound(new ApiResponse<string>(false, null, $"Role {roleId} not found"));
+			return NotFound(ApiResponse<string>.ErrorResponse($"Role {roleId} not found"));
 		}
 
-		return Ok(new AuthApiResponse<object> { Success = true, Data = role, Message = null });
+		return Ok(ApiResponse<RoleDto>.SuccessResponse(role));
 	}
 
 	/// <summary>
@@ -231,18 +232,37 @@ public class AuthAdminController : ControllerBase
 				e.FirstName,
 				e.LastName,
 				e.DepartmentId,
-				Department = e.Department != null ? new { e.Department.Id, e.Department.Name } : null,
+				Department = e.Department,
 				e.ManagerId,
-				Manager = e.Manager != null ? new { e.Manager.Id, e.Manager.EmployeeId, e.Manager.FirstName, e.Manager.LastName } : null
+				Manager = e.Manager
 			})
 			.FirstOrDefaultAsync();
 
 		if (employee == null)
 		{
-			return NotFound(new ApiResponse<string>(false, null, $"Employee record not found for user {userId}"));
+			return NotFound(ApiResponse<string>.ErrorResponse($"Employee record not found for user {userId}"));
 		}
 
-		return Ok(new AuthApiResponse<object> { Success = true, Data = employee, Message = null });
+		var employeeDto = new UserEmployeeDto
+		{
+			Id = employee.Id,
+			UserId = employee.UserId,
+			EmployeeId = employee.EmployeeId,
+			FirstName = employee.FirstName,
+			LastName = employee.LastName,
+			DepartmentId = employee.DepartmentId,
+			Department = employee.Department != null ? new UserDepartmentInfoDto { Id = employee.Department.Id, Name = employee.Department.Name } : null,
+			ManagerId = employee.ManagerId,
+			Manager = employee.Manager != null ? new UserManagerInfoDto
+			{
+				Id = employee.Manager.Id,
+				EmployeeId = employee.Manager.EmployeeId,
+				FirstName = employee.Manager.FirstName,
+				LastName = employee.Manager.LastName
+			} : null
+		};
+
+		return Ok(ApiResponse<UserEmployeeDto>.SuccessResponse(employeeDto));
 	}
 
 	/// <summary>
@@ -255,40 +275,41 @@ public class AuthAdminController : ControllerBase
 			.Include(e => e.User)
 			.Include(e => e.Department)
 			.Include(e => e.Manager)
-			.Select(e => new
-			{
-				e.Id,
-				e.UserId,
-				e.EmployeeId,
-				e.FirstName,
-				e.LastName,
-				e.User.Email,
-				e.User.IsActive,
-				e.PhoneNumber,
-				e.DepartmentId,
-				DepartmentName = e.Department != null ? e.Department.Name : null,
-				Department = e.Department != null ? new
-				{
-					Id = e.Department.Id.ToString(),
-					e.Department.Name,
-					e.Department.Description,
-					WeeklyOffDays = !string.IsNullOrEmpty(e.Department.WeeklyOffDays) 
-						? e.Department.WeeklyOffDays.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList() 
-						: new List<string>(),
-					e.Department.IsActive
-				} : null,
-				e.ManagerId,
-				Manager = e.Manager != null ? new
-				{
-					Id = e.Manager.Id.ToString(),
-					e.Manager.EmployeeId,
-					e.Manager.FirstName,
-					e.Manager.LastName
-				} : null
-			})
 			.ToListAsync();
 
-		return Ok(new AuthApiResponse<object> { Success = true, Data = employees, Message = null });
+		var employeeDtos = employees.Select(e => new UserEmployeeListDto
+		{
+			Id = e.Id,
+			UserId = e.UserId,
+			EmployeeId = e.EmployeeId,
+			FirstName = e.FirstName,
+			LastName = e.LastName,
+			Email = e.User?.Email ?? string.Empty,
+			IsActive = e.User?.IsActive ?? false,
+			PhoneNumber = e.PhoneNumber,
+			DepartmentId = e.DepartmentId,
+			DepartmentName = e.Department?.Name,
+			Department = e.Department != null ? new UserDepartmentDetailDto
+			{
+				Id = e.Department.Id.ToString(),
+				Name = e.Department.Name,
+				Description = e.Department.Description,
+				WeeklyOffDays = !string.IsNullOrEmpty(e.Department.WeeklyOffDays)
+					? e.Department.WeeklyOffDays.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList()
+					: new List<string>(),
+				IsActive = e.Department.IsActive
+			} : null,
+			ManagerId = e.ManagerId,
+			Manager = e.Manager != null ? new UserManagerInfoDto
+			{
+				Id = e.Manager.Id,
+				EmployeeId = e.Manager.EmployeeId,
+				FirstName = e.Manager.FirstName,
+				LastName = e.Manager.LastName
+			} : null
+		}).ToList();
+
+		return Ok(ApiResponse<List<UserEmployeeListDto>>.SuccessResponse(employeeDtos));
 	}
 
 	/// <summary>
@@ -299,17 +320,17 @@ public class AuthAdminController : ControllerBase
 	{
 		var departments = await _context.Departments
 			.Where(d => d.IsActive)
-			.Select(d => new
+			.Select(d => new UserDepartmentDto
 			{
-				d.Id,
-				d.Name,
-				d.Description,
-				d.WeeklyOffDays,
-				d.IsActive
+				Id = d.Id,
+				Name = d.Name,
+				Description = d.Description,
+				WeeklyOffDays = d.WeeklyOffDays,
+				IsActive = d.IsActive
 			})
 			.ToListAsync();
 
-		return Ok(new AuthApiResponse<object> { Success = true, Data = departments, Message = null });
+		return Ok(ApiResponse<List<UserDepartmentDto>>.SuccessResponse(departments));
 	}
 
 	/// <summary>
@@ -332,7 +353,7 @@ public class AuthAdminController : ControllerBase
 				.FirstOrDefaultAsync();
 
 			if (user == null)
-				return NotFound(new ApiResponse<object>(false, null, $"User {id} not found"));
+				return NotFound(ApiResponse<string>.ErrorResponse($"User {id} not found"));
 
 			// Build tenant information
 			var tenants = user.UserRoles
@@ -348,35 +369,35 @@ public class AuthAdminController : ControllerBase
 						.Select(rp => rp.Permission.Name)
 						.ToList() ?? new List<string>();
 
-					return new
+					return new AdminUserTenantAssignmentDto
 					{
-						tenantId = g.Key,
-						tenantName = tenant?.Name ?? string.Empty,
-						tenantDomain = tenant?.Domain ?? string.Empty,
-						roleId = role?.Id ?? 0,
-						roleName = role?.Name ?? string.Empty,
-						permissions = permissions,
-						isActive = ur0?.IsActive ?? false
+						TenantId = g.Key,
+						TenantName = tenant?.Name ?? string.Empty,
+						TenantDomain = tenant?.Domain ?? string.Empty,
+						RoleId = role?.Id ?? 0,
+						RoleName = role?.Name ?? string.Empty,
+						Permissions = permissions,
+						IsActive = ur0?.IsActive ?? false
 					};
 				})
 				.ToList();
 
-			var result = new
+			var result = new AdminUserSummaryDto
 			{
-				id = user.Id,
-				username = user.Username,
-				email = user.Email,
-				externalProvider = user.ExternalProvider,
-				createdAt = user.CreatedAt,
-				tenants = tenants
+				Id = user.Id,
+				Username = user.Username,
+				Email = user.Email,
+				ExternalProvider = user.ExternalProvider,
+				CreatedAt = user.CreatedAt,
+				Tenants = tenants
 			};
 
-			return Ok(new ApiResponse<object>(true, result, null));
+			return Ok(ApiResponse<AdminUserSummaryDto>.SuccessResponse(result));
 		}
 		catch (Exception ex)
 		{
 			_logger.LogError(ex, "Error fetching user {UserId}", id);
-			return StatusCode(500, new ApiResponse<object>(false, null, $"Error fetching user: {ex.Message}"));
+			return this.ServerError($"Error fetching user: {ex.Message}");
 		}
 	}
 
@@ -395,7 +416,7 @@ public class AuthAdminController : ControllerBase
 				.FirstOrDefaultAsync();
 
 			if (existingUser != null)
-				return BadRequest(new ApiResponse<object>(false, null, "User with this email or username already exists"));
+				return BadRequest(ApiResponse<string>.ErrorResponse("User with this email or username already exists"));
 
 			// Hash password
 			var passwordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
@@ -416,12 +437,17 @@ public class AuthAdminController : ControllerBase
 
 			_logger.LogInformation("User {Username} created with ID {UserId}", user.Username, user.Id);
 
-			return Ok(new AuthApiResponse<object> { Success = true, Data = new { id = user.Id, username = user.Username, email = user.Email }, Message = "User created successfully" });
+			return Ok(ApiResponse<UserSummaryDto>.SuccessResponse(new UserSummaryDto
+			{
+				Id = user.Id,
+				Username = user.Username,
+				Email = user.Email
+			}, "User created successfully"));
 		}
 		catch (Exception ex)
 		{
 			_logger.LogError(ex, "Error creating user");
-			return StatusCode(500, new ApiResponse<object>(false, null, $"Error creating user: {ex.Message}"));
+			return this.ServerError($"Error creating user: {ex.Message}");
 		}
 	}
 
@@ -439,7 +465,7 @@ public class AuthAdminController : ControllerBase
 
 			var user = await _context.Users.FindAsync(id);
 			if (user == null)
-				return NotFound(new ApiResponse<object>(false, null, $"User {id} not found"));
+				return NotFound(ApiResponse<string>.ErrorResponse($"User {id} not found"));
 
 			bool wasModified = false;
 
@@ -476,12 +502,17 @@ public class AuthAdminController : ControllerBase
 				_logger.LogWarning("No fields provided to update for user {UserId}", id);
 			}
 
-			return Ok(new AuthApiResponse<object> { Success = true, Data = new { id = user.Id, username = user.Username, email = user.Email }, Message = "User updated successfully" });
+			return Ok(ApiResponse<UserSummaryDto>.SuccessResponse(new UserSummaryDto
+			{
+				Id = user.Id,
+				Username = user.Username,
+				Email = user.Email
+			}, "User updated successfully"));
 		}
 		catch (Exception ex)
 		{
 			_logger.LogError(ex, "Error updating user {UserId}", id);
-			return StatusCode(500, new ApiResponse<object>(false, null, $"Error updating user: {ex.Message}"));
+			return this.ServerError($"Error updating user: {ex.Message}");
 		}
 	}
 
@@ -496,7 +527,7 @@ public class AuthAdminController : ControllerBase
 		{
 			var user = await _context.Users.FindAsync(id);
 			if (user == null)
-				return NotFound(new ApiResponse<object>(false, null, $"User {id} not found"));
+				return NotFound(ApiResponse<string>.ErrorResponse($"User {id} not found"));
 
 			// Soft delete by marking as inactive
 			user.IsActive = false;
@@ -504,12 +535,12 @@ public class AuthAdminController : ControllerBase
 
 			_logger.LogInformation("User {UserId} deleted (deactivated)", id);
 
-			return Ok(new ApiResponse<object>(true, null, "User deleted successfully"));
+			return Ok(ApiResponse<EmptyResponseDto>.SuccessResponse(new EmptyResponseDto(), "User deleted successfully"));
 		}
 		catch (Exception ex)
 		{
 			_logger.LogError(ex, "Error deleting user {UserId}", id);
-			return StatusCode(500, new ApiResponse<object>(false, null, $"Error deleting user: {ex.Message}"));
+			return this.ServerError($"Error deleting user: {ex.Message}");
 		}
 	}
 
@@ -525,15 +556,15 @@ public class AuthAdminController : ControllerBase
 			// Verify user, tenant, and role exist
 			var user = await _context.Users.FindAsync(userId);
 			if (user == null)
-				return NotFound(new ApiResponse<object>(false, null, $"User {userId} not found"));
+				return NotFound(ApiResponse<string>.ErrorResponse($"User {userId} not found"));
 
 			var tenant = await _context.Tenants.FindAsync(tenantId);
 			if (tenant == null)
-				return NotFound(new ApiResponse<object>(false, null, $"Tenant {tenantId} not found"));
+				return NotFound(ApiResponse<string>.ErrorResponse($"Tenant {tenantId} not found"));
 
 			var role = await _context.Roles.FindAsync(roleId);
 			if (role == null)
-				return NotFound(new ApiResponse<object>(false, null, $"Role {roleId} not found"));
+				return NotFound(ApiResponse<string>.ErrorResponse($"Role {roleId} not found"));
 
 			// Check if assignment already exists
 			var existing = await _context.UserRoles
@@ -547,9 +578,9 @@ public class AuthAdminController : ControllerBase
 				{
 					existing.IsActive = true;
 					await _context.SaveChangesAsync();
-					return Ok(new ApiResponse<object>(true, null, "User role assignment reactivated"));
+					return Ok(ApiResponse<EmptyResponseDto>.SuccessResponse(new EmptyResponseDto(), "User role assignment reactivated"));
 				}
-				return BadRequest(new ApiResponse<object>(false, null, "User is already assigned to this role in this tenant"));
+				return BadRequest(ApiResponse<string>.ErrorResponse("User is already assigned to this role in this tenant"));
 			}
 
 			// Create new assignment
@@ -567,12 +598,12 @@ public class AuthAdminController : ControllerBase
 
 			_logger.LogInformation("User {UserId} assigned to tenant {TenantId} with role {RoleId}", userId, tenantId, roleId);
 
-			return Ok(new ApiResponse<object>(true, null, "User assigned to tenant role successfully"));
+			return Ok(ApiResponse<EmptyResponseDto>.SuccessResponse(new EmptyResponseDto(), "User assigned to tenant role successfully"));
 		}
 		catch (Exception ex)
 		{
 			_logger.LogError(ex, "Error assigning user to tenant role");
-			return StatusCode(500, new ApiResponse<object>(false, null, $"Error assigning user: {ex.Message}"));
+			return this.ServerError($"Error assigning user: {ex.Message}");
 		}
 	}
 
@@ -590,7 +621,7 @@ public class AuthAdminController : ControllerBase
 				.FirstOrDefaultAsync();
 
 			if (userRole == null)
-				return NotFound(new ApiResponse<object>(false, null, "User role assignment not found"));
+				return NotFound(ApiResponse<string>.ErrorResponse("User role assignment not found"));
 
 			// Soft delete by marking as inactive
 			userRole.IsActive = false;
@@ -598,12 +629,12 @@ public class AuthAdminController : ControllerBase
 
 			_logger.LogInformation("User {UserId} removed from tenant {TenantId} role {RoleId}", userId, tenantId, roleId);
 
-			return Ok(new ApiResponse<object>(true, null, "User removed from tenant role successfully"));
+			return Ok(ApiResponse<EmptyResponseDto>.SuccessResponse(new EmptyResponseDto(), "User removed from tenant role successfully"));
 		}
 		catch (Exception ex)
 		{
 			_logger.LogError(ex, "Error removing user from tenant role");
-			return StatusCode(500, new ApiResponse<object>(false, null, $"Error removing user: {ex.Message}"));
+			return this.ServerError($"Error removing user: {ex.Message}");
 		}
 	}
 
@@ -618,19 +649,19 @@ public class AuthAdminController : ControllerBase
 		{
 			var userRole = await _context.UserRoles.FindAsync(id);
 			if (userRole == null)
-				return NotFound(new ApiResponse<object>(false, null, $"User role {id} not found"));
+				return NotFound(ApiResponse<string>.ErrorResponse($"User role {id} not found"));
 
 			userRole.IsActive = true;
 			await _context.SaveChangesAsync();
 
 			_logger.LogInformation("User role {UserRoleId} activated", id);
 
-			return Ok(new ApiResponse<object>(true, null, "User role activated successfully"));
+			return Ok(ApiResponse<EmptyResponseDto>.SuccessResponse(new EmptyResponseDto(), "User role activated successfully"));
 		}
 		catch (Exception ex)
 		{
 			_logger.LogError(ex, "Error activating user role {UserRoleId}", id);
-			return StatusCode(500, new ApiResponse<object>(false, null, $"Error activating user role: {ex.Message}"));
+			return this.ServerError($"Error activating user role: {ex.Message}");
 		}
 	}
 
@@ -645,19 +676,19 @@ public class AuthAdminController : ControllerBase
 		{
 			var userRole = await _context.UserRoles.FindAsync(id);
 			if (userRole == null)
-				return NotFound(new ApiResponse<object>(false, null, $"User role {id} not found"));
+				return NotFound(ApiResponse<string>.ErrorResponse($"User role {id} not found"));
 
 			userRole.IsActive = false;
 			await _context.SaveChangesAsync();
 
 			_logger.LogInformation("User role {UserRoleId} deactivated", id);
 
-			return Ok(new ApiResponse<object>(true, null, "User role deactivated successfully"));
+			return Ok(ApiResponse<EmptyResponseDto>.SuccessResponse(new EmptyResponseDto(), "User role deactivated successfully"));
 		}
 		catch (Exception ex)
 		{
 			_logger.LogError(ex, "Error deactivating user role {UserRoleId}", id);
-			return StatusCode(500, new ApiResponse<object>(false, null, $"Error deactivating user role: {ex.Message}"));
+			return this.ServerError($"Error deactivating user role: {ex.Message}");
 		}
 	}
 
@@ -672,29 +703,29 @@ public class AuthAdminController : ControllerBase
 			.Include(r => r.RolePermissions)
 				.ThenInclude(rp => rp.Permission)
 			.Where(r => r.IsActive)
-			.Select(r => new
+			.Select(r => new RoleWithPermissionsDto
 			{
-				r.Id,
-				r.Name,
-				r.Description,
-				r.IsActive,
-				r.CreatedAt,
+				Id = r.Id,
+				Name = r.Name,
+				Description = r.Description,
+				IsActive = r.IsActive,
+				CreatedAt = r.CreatedAt,
 				PermissionCount = r.RolePermissions.Count(rp => rp.Permission.IsActive),
 				Permissions = r.RolePermissions
 					.Where(rp => rp.Permission.IsActive)
-					.Select(rp => new
+					.Select(rp => new PermissionDetailDto
 					{
-						rp.Permission.Id,
-						rp.Permission.Name,
-						rp.Permission.Resource,
-						rp.Permission.Action,
-						rp.Permission.Description
+						Id = rp.Permission.Id,
+						Name = rp.Permission.Name,
+						Resource = rp.Permission.Resource,
+						Action = rp.Permission.Action,
+						Description = rp.Permission.Description
 					})
 					.ToList()
 			})
 			.ToListAsync();
 
-		return Ok(new ApiResponse<object>(true, roles, null));
+		return Ok(ApiResponse<List<RoleWithPermissionsDto>>.SuccessResponse(roles));
 	}
 
 	/// <summary>
@@ -712,7 +743,7 @@ public class AuthAdminController : ControllerBase
 				.FirstOrDefaultAsync();
 
 			if (existingRole != null)
-				return BadRequest(new ApiResponse<object>(false, null, "Role with this name already exists"));
+				return BadRequest(ApiResponse<string>.ErrorResponse("Role with this name already exists"));
 
 			var role = new Auth.Domain.Models.Entities.Role
 			{
@@ -727,12 +758,12 @@ public class AuthAdminController : ControllerBase
 
 			_logger.LogInformation("Role {RoleName} created with ID {RoleId}", role.Name, role.Id);
 
-			return Ok(new AuthApiResponse<object> { Success = true, Data = new { id = role.Id, name = role.Name }, Message = "Role created successfully" });
+			return Ok(ApiResponse<RoleSummaryDto>.SuccessResponse(new RoleSummaryDto { Id = role.Id, Name = role.Name }, "Role created successfully"));
 		}
 		catch (Exception ex)
 		{
 			_logger.LogError(ex, "Error creating role");
-			return StatusCode(500, new ApiResponse<object>(false, null, $"Error creating role: {ex.Message}"));
+				return this.ServerError($"Error creating role: {ex.Message}");
 		}
 	}
 
@@ -747,7 +778,7 @@ public class AuthAdminController : ControllerBase
 		{
 			var role = await _context.Roles.FindAsync(id);
 			if (role == null)
-				return NotFound(new ApiResponse<object>(false, null, $"Role {id} not found"));
+				return NotFound(ApiResponse<string>.ErrorResponse($"Role {id} not found"));
 
 			if (!string.IsNullOrEmpty(request.Name))
 				role.Name = request.Name;
@@ -759,12 +790,16 @@ public class AuthAdminController : ControllerBase
 
 			_logger.LogInformation("Role {RoleId} updated", id);
 
-			return Ok(new ApiResponse<object>(true, null, "Role updated successfully"));
+			return Ok(ApiResponse<RoleSummaryDto>.SuccessResponse(new RoleSummaryDto
+			{
+				Id = role.Id,
+				Name = role.Name
+			}, "Role updated successfully"));
 		}
 		catch (Exception ex)
 		{
 			_logger.LogError(ex, "Error updating role {RoleId}", id);
-			return StatusCode(500, new ApiResponse<object>(false, null, $"Error updating role: {ex.Message}"));
+			return this.ServerError($"Error updating role: {ex.Message}");
 		}
 	}
 
@@ -779,7 +814,7 @@ public class AuthAdminController : ControllerBase
 		{
 			var role = await _context.Roles.FindAsync(id);
 			if (role == null)
-				return NotFound(new ApiResponse<object>(false, null, $"Role {id} not found"));
+				return NotFound(ApiResponse<string>.ErrorResponse($"Role {id} not found"));
 
 			// Soft delete by marking as inactive
 			role.IsActive = false;
@@ -787,12 +822,12 @@ public class AuthAdminController : ControllerBase
 
 			_logger.LogInformation("Role {RoleId} deleted (deactivated)", id);
 
-			return Ok(new ApiResponse<object>(true, null, "Role deleted successfully"));
+			return Ok(ApiResponse<EmptyResponseDto>.SuccessResponse(new EmptyResponseDto(), "Role deleted successfully"));
 		}
 		catch (Exception ex)
 		{
 			_logger.LogError(ex, "Error deleting role {RoleId}", id);
-			return StatusCode(500, new ApiResponse<object>(false, null, $"Error deleting role: {ex.Message}"));
+			return this.ServerError($"Error deleting role: {ex.Message}");
 		}
 	}
 
@@ -807,19 +842,19 @@ public class AuthAdminController : ControllerBase
 		{
 			var role = await _context.Roles.FindAsync(id);
 			if (role == null)
-				return NotFound(new ApiResponse<object>(false, null, $"Role {id} not found"));
+				return NotFound(ApiResponse<string>.ErrorResponse($"Role {id} not found"));
 
 			role.IsActive = true;
 			await _context.SaveChangesAsync();
 
 			_logger.LogInformation("Role {RoleId} activated", id);
 
-			return Ok(new ApiResponse<object>(true, null, "Role activated successfully"));
+			return Ok(ApiResponse<EmptyResponseDto>.SuccessResponse(new EmptyResponseDto(), "Role activated successfully"));
 		}
 		catch (Exception ex)
 		{
 			_logger.LogError(ex, "Error activating role {RoleId}", id);
-			return StatusCode(500, new ApiResponse<object>(false, null, $"Error activating role: {ex.Message}"));
+			return this.ServerError($"Error activating role: {ex.Message}");
 		}
 	}
 
@@ -834,19 +869,19 @@ public class AuthAdminController : ControllerBase
 		{
 			var role = await _context.Roles.FindAsync(id);
 			if (role == null)
-				return NotFound(new ApiResponse<object>(false, null, $"Role {id} not found"));
+				return NotFound(ApiResponse<string>.ErrorResponse($"Role {id} not found"));
 
 			role.IsActive = false;
 			await _context.SaveChangesAsync();
 
 			_logger.LogInformation("Role {RoleId} deactivated", id);
 
-			return Ok(new ApiResponse<object>(true, null, "Role deactivated successfully"));
+			return Ok(ApiResponse<EmptyResponseDto>.SuccessResponse(new EmptyResponseDto(), "Role deactivated successfully"));
 		}
 		catch (Exception ex)
 		{
 			_logger.LogError(ex, "Error deactivating role {RoleId}", id);
-			return StatusCode(500, new ApiResponse<object>(false, null, $"Error deactivating role: {ex.Message}"));
+			return this.ServerError($"Error deactivating role: {ex.Message}");
 		}
 	}
 
@@ -859,18 +894,18 @@ public class AuthAdminController : ControllerBase
 	{
 		var permissions = await _context.Permissions
 			.Where(p => p.IsActive)
-			.Select(p => new
+			.Select(p => new PermissionDto
 			{
-				p.Id,
-				p.Name,
-				p.Resource,
-				p.Action,
-				p.Description,
-				p.IsActive
+				Id = p.Id,
+				Name = p.Name,
+				Resource = p.Resource,
+				Action = p.Action,
+				Description = p.Description,
+				IsActive = p.IsActive
 			})
 			.ToListAsync();
 
-		return Ok(new ApiResponse<object>(true, permissions, null));
+		return Ok(ApiResponse<List<PermissionDto>>.SuccessResponse(permissions));
 	}
 
 	/// <summary>
@@ -888,7 +923,7 @@ public class AuthAdminController : ControllerBase
 				.FirstOrDefaultAsync();
 
 			if (existingPermission != null)
-				return BadRequest(new ApiResponse<object>(false, null, "Permission with this name or resource/action combination already exists"));
+				return BadRequest(ApiResponse<string>.ErrorResponse("Permission with this name or resource/action combination already exists"));
 
 			var permission = new Auth.Domain.Models.Entities.Permission
 			{
@@ -905,12 +940,20 @@ public class AuthAdminController : ControllerBase
 
 			_logger.LogInformation("Permission {PermissionName} created with ID {PermissionId}", permission.Name, permission.Id);
 
-			return Ok(new AuthApiResponse<object> { Success = true, Data = new { id = permission.Id, name = permission.Name }, Message = "Permission created successfully" });
+			return Ok(ApiResponse<PermissionDto>.SuccessResponse(new PermissionDto
+			{
+				Id = permission.Id,
+				Name = permission.Name,
+				Resource = permission.Resource,
+				Action = permission.Action,
+				Description = permission.Description,
+				IsActive = permission.IsActive
+			}, "Permission created successfully"));
 		}
 		catch (Exception ex)
 		{
 			_logger.LogError(ex, "Error creating permission");
-			return StatusCode(500, new ApiResponse<object>(false, null, $"Error creating permission: {ex.Message}"));
+			return this.ServerError($"Error creating permission: {ex.Message}");
 		}
 	}
 
@@ -925,7 +968,7 @@ public class AuthAdminController : ControllerBase
 		{
 			var permission = await _context.Permissions.FindAsync(id);
 			if (permission == null)
-				return NotFound(new ApiResponse<object>(false, null, $"Permission {id} not found"));
+				return NotFound(ApiResponse<string>.ErrorResponse($"Permission {id} not found"));
 
 			if (!string.IsNullOrEmpty(request.Name))
 				permission.Name = request.Name;
@@ -943,12 +986,20 @@ public class AuthAdminController : ControllerBase
 
 			_logger.LogInformation("Permission {PermissionId} updated", id);
 
-			return Ok(new ApiResponse<object>(true, null, "Permission updated successfully"));
+			return Ok(ApiResponse<PermissionDto>.SuccessResponse(new PermissionDto
+			{
+				Id = permission.Id,
+				Name = permission.Name,
+				Resource = permission.Resource,
+				Action = permission.Action,
+				Description = permission.Description,
+				IsActive = permission.IsActive
+			}, "Permission updated successfully"));
 		}
 		catch (Exception ex)
 		{
 			_logger.LogError(ex, "Error updating permission {PermissionId}", id);
-			return StatusCode(500, new ApiResponse<object>(false, null, $"Error updating permission: {ex.Message}"));
+			return this.ServerError($"Error updating permission: {ex.Message}");
 		}
 	}
 
@@ -963,7 +1014,7 @@ public class AuthAdminController : ControllerBase
 		{
 			var permission = await _context.Permissions.FindAsync(id);
 			if (permission == null)
-				return NotFound(new ApiResponse<object>(false, null, $"Permission {id} not found"));
+				return NotFound(ApiResponse<string>.ErrorResponse($"Permission {id} not found"));
 
 			// Soft delete by marking as inactive
 			permission.IsActive = false;
@@ -971,12 +1022,12 @@ public class AuthAdminController : ControllerBase
 
 			_logger.LogInformation("Permission {PermissionId} deleted (deactivated)", id);
 
-			return Ok(new ApiResponse<object>(true, null, "Permission deleted successfully"));
+			return Ok(ApiResponse<EmptyResponseDto>.SuccessResponse(new EmptyResponseDto(), "Permission deleted successfully"));
 		}
 		catch (Exception ex)
 		{
 			_logger.LogError(ex, "Error deleting permission {PermissionId}", id);
-			return StatusCode(500, new ApiResponse<object>(false, null, $"Error deleting permission: {ex.Message}"));
+			return this.ServerError($"Error deleting permission: {ex.Message}");
 		}
 	}
 
@@ -992,11 +1043,11 @@ public class AuthAdminController : ControllerBase
 			// Verify role and permission exist
 			var role = await _context.Roles.FindAsync(roleId);
 			if (role == null)
-				return NotFound(new ApiResponse<object>(false, null, $"Role {roleId} not found"));
+				return NotFound(ApiResponse<string>.ErrorResponse($"Role {roleId} not found"));
 
 			var permission = await _context.Permissions.FindAsync(permissionId);
 			if (permission == null)
-				return NotFound(new ApiResponse<object>(false, null, $"Permission {permissionId} not found"));
+				return NotFound(ApiResponse<string>.ErrorResponse($"Permission {permissionId} not found"));
 
 			// Check if assignment already exists
 			var existing = await _context.RolePermissions
@@ -1004,7 +1055,7 @@ public class AuthAdminController : ControllerBase
 				.FirstOrDefaultAsync();
 
 			if (existing != null)
-				return BadRequest(new ApiResponse<object>(false, null, "Permission is already assigned to this role"));
+				return BadRequest(ApiResponse<string>.ErrorResponse("Permission is already assigned to this role"));
 
 			// Create new assignment
 			var rolePermission = new Auth.Domain.Models.Entities.RolePermission
@@ -1019,12 +1070,12 @@ public class AuthAdminController : ControllerBase
 
 			_logger.LogInformation("Permission {PermissionId} assigned to role {RoleId}", permissionId, roleId);
 
-			return Ok(new ApiResponse<object>(true, null, "Permission assigned to role successfully"));
+			return Ok(ApiResponse<EmptyResponseDto>.SuccessResponse(new EmptyResponseDto(), "Permission assigned to role successfully"));
 		}
 		catch (Exception ex)
 		{
 			_logger.LogError(ex, "Error assigning permission to role");
-			return StatusCode(500, new ApiResponse<object>(false, null, $"Error assigning permission: {ex.Message}"));
+			return this.ServerError($"Error assigning permission: {ex.Message}");
 		}
 	}
 
@@ -1042,19 +1093,19 @@ public class AuthAdminController : ControllerBase
 				.FirstOrDefaultAsync();
 
 			if (rolePermission == null)
-				return NotFound(new ApiResponse<object>(false, null, "Permission assignment not found"));
+				return NotFound(ApiResponse<string>.ErrorResponse("Permission assignment not found"));
 
 			_context.RolePermissions.Remove(rolePermission);
 			await _context.SaveChangesAsync();
 
 			_logger.LogInformation("Permission {PermissionId} removed from role {RoleId}", permissionId, roleId);
 
-			return Ok(new ApiResponse<object>(true, null, "Permission removed from role successfully"));
+			return Ok(ApiResponse<EmptyResponseDto>.SuccessResponse(new EmptyResponseDto(), "Permission removed from role successfully"));
 		}
 		catch (Exception ex)
 		{
 			_logger.LogError(ex, "Error removing permission from role");
-			return StatusCode(500, new ApiResponse<object>(false, null, $"Error removing permission: {ex.Message}"));
+			return this.ServerError($"Error removing permission: {ex.Message}");
 		}
 	}
 }

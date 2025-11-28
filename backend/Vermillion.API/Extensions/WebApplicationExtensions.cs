@@ -23,6 +23,9 @@ public static class WebApplicationExtensions
         // Global exception handler (must be first in pipeline)
         app.UseGlobalExceptionHandler();
 
+        // Response compression (early in pipeline for maximum benefit)
+        app.UseResponseCompression();
+
         // Swagger in development
         if (app.Environment.IsDevelopment())
         {

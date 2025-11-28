@@ -3,6 +3,8 @@ using Vermillion.EntryExit.Domain.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
+using Vermillion.API.Extensions;
+using Vermillion.Shared.Domain.Models.DTOs;
 
 namespace Vermillion.API.Controllers;
 
@@ -22,7 +24,7 @@ public class VisitorController : ControllerBase
 
     [HttpPost("register")]
     [Authorize(Roles = "Guard,Admin,SystemAdmin")]
-    public async Task<ActionResult<AuthApiResponse<VisitorDto>>> RegisterVisitor([FromBody] CreateVisitorDto dto)
+    public async Task<ActionResult<ApiResponse<VisitorDto>>> RegisterVisitor([FromBody] CreateVisitorDto dto)
     {
         try
         {
@@ -43,18 +45,13 @@ public class VisitorController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error in RegisterVisitor endpoint");
-            return StatusCode(500, new AuthApiResponse<VisitorDto>
-            {
-                Success = false,
-                Message = "An error occurred while registering visitor",
-                Errors = new List<string> { ex.Message }
-            });
+            return this.ServerError("An error occurred while registering visitor");
         }
     }
 
     [HttpGet("search")]
     [Authorize(Roles = "Guard,Admin,SystemAdmin")]
-    public async Task<ActionResult<AuthApiResponse<List<VisitorDto>>>> SearchVisitor(
+    public async Task<ActionResult<ApiResponse<List<VisitorDto>>>> SearchVisitor(
         [FromQuery] string? query,
         [FromQuery] string? name,
         [FromQuery] string? phone)
@@ -79,12 +76,7 @@ public class VisitorController : ControllerBase
             }
 
             // Return empty result if nothing found
-            return Ok(new AuthApiResponse<List<VisitorDto>>
-            {
-                Success = true,
-                Data = new List<VisitorDto>(),
-                Message = "No visitor found matching the query"
-            });
+            return Ok(ApiResponse<List<VisitorDto>>.SuccessResponse(new List<VisitorDto>(), "No visitor found matching the query"));
         }
 
         // Use specific parameters if provided
@@ -98,7 +90,7 @@ public class VisitorController : ControllerBase
 
     [HttpGet("{id}")]
     [Authorize(Roles = "Guard,Admin,SystemAdmin")]
-    public async Task<ActionResult<AuthApiResponse<VisitorDto>>> GetVisitor(int id)
+    public async Task<ActionResult<ApiResponse<VisitorDto>>> GetVisitor(int id)
     {
         var result = await _visitorService.GetVisitorAsync(id);
 
@@ -110,12 +102,15 @@ public class VisitorController : ControllerBase
 
     [HttpGet("by-project/{projectId}")]
     [Authorize(Roles = "Guard,Admin,SystemAdmin")]
-    public async Task<ActionResult<AuthApiResponse<List<VisitorDto>>>> GetVisitorsByProject(int projectId)
+    public async Task<ActionResult<ApiResponse<List<VisitorDto>>>> GetVisitorsByProject(int projectId)
     {
         var result = await _visitorService.GetVisitorsByProjectAsync(projectId);
 
         if (!result.Success)
-            return StatusCode(500, result);
+        {
+            _logger.LogWarning("Failed to fetch visitors for project {ProjectId}: {Message}", projectId, result.Message);
+            return this.ServiceUnavailable<List<VisitorDto>>(result.Message ?? "Failed to fetch visitors for project", result.Errors);
+        }
 
         return Ok(result);
     }

@@ -586,7 +586,9 @@ export class EntryExitDashboardComponent implements OnInit, OnDestroy {
     const projectId = this.labourFilterProjectId();
     const contractorId = this.labourFilterContractorId();
 
-    if (projectId > 0) {
+    if (projectId > 0 && contractorId > 0) {
+      this.loadLabourByProjectAndContractor(projectId, contractorId);
+    } else if (projectId > 0) {
       this.loadLabourByProject(projectId);
     } else if (contractorId > 0) {
       this.loadLabourByContractor(contractorId);
@@ -598,6 +600,21 @@ export class EntryExitDashboardComponent implements OnInit, OnDestroy {
       this.loading.set(false);
       this.showError('Please select a project or contractor to view labour');
     }
+  }
+
+  loadLabourByProjectAndContractor(projectId: number, contractorId: number): void {
+    this.loading.set(true);
+    this.entryExitService.getLabourByProjectAndContractor(projectId, contractorId).pipe(takeUntil(this.destroy$)).subscribe({
+      next: (labour) => {
+        this.labourRegistrations.set(labour);
+        this.applyLabourSearch();
+        this.loading.set(false);
+      },
+      error: () => {
+        this.showError('Failed to load labour');
+        this.loading.set(false);
+      }
+    });
   }
 
   loadLabourByProject(projectId: number): void {
@@ -694,20 +711,15 @@ export class EntryExitDashboardComponent implements OnInit, OnDestroy {
     // Build query parameters
     const fromDate = this.reportFromDate() ? new Date(this.reportFromDate()) : undefined;
     const toDate = this.reportToDate() ? new Date(this.reportToDate()) : undefined;
-    
-    this.entryExitService.getRecords(null, null, fromDate, toDate).pipe(takeUntil(this.destroy$)).subscribe({
+    const projectId = this.reportProjectId() > 0 ? this.reportProjectId() : null;
+
+    this.entryExitService.getRecords(null, null, projectId, fromDate, toDate).pipe(takeUntil(this.destroy$)).subscribe({
       next: (records: any[]) => {
         let filtered = records;
         
         // Filter by project if selected
         if (this.reportProjectId() > 0) {
-          filtered = records.filter(r => {
-            if (r.personType === 'Labour') {
-              return r.labour?.projectId === this.reportProjectId();
-            }
-            // For visitors, check projectId directly
-            return r.visitor?.projectId === this.reportProjectId();
-          });
+          filtered = records.filter(r => r.projectId === this.reportProjectId());
         }
         
         // Filter by person type if not 'All'

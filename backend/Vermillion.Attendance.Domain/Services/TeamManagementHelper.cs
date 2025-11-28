@@ -78,16 +78,17 @@ namespace Vermillion.Attendance.Domain.Services
 
         public async Task<HashSet<int>?> GetManagerTeamUserIdsAsync(Guid managerEmployeeId)
         {
-            var employees = await _userService.GetAllEmployeesAsync();
-            if (employees == null)
+            try
+            {
+                // Optimized: Query database directly instead of loading all employees into memory
+                var teamUserIds = await _userService.GetTeamUserIdsByManagerAsync(managerEmployeeId);
+                return teamUserIds;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error fetching team members for manager {ManagerId}", managerEmployeeId);
                 return null;
-
-            var teamUserIds = employees
-                .Where(e => e.ManagerId.HasValue && e.ManagerId.Value == managerEmployeeId)
-                .Select(e => e.UserId)
-                .ToHashSet();
-
-            return teamUserIds;
+            }
         }
 
         public async Task<List<TeamMemberDto>> BuildTeamMemberDtosExcludingSystemAdminsAsync(IEnumerable<EmployeeDto> employees)

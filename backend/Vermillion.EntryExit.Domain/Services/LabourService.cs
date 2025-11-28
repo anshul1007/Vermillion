@@ -1,6 +1,7 @@
 using Vermillion.EntryExit.Domain.Data;
 using Vermillion.EntryExit.Domain.Models.DTOs;
 using Vermillion.EntryExit.Domain.Models.Entities;
+using Vermillion.Shared.Domain.Models.DTOs;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -8,11 +9,14 @@ namespace Vermillion.EntryExit.Domain.Services;
 
 public interface ILabourService
 {
-    Task<AuthApiResponse<LabourDto>> RegisterLabourAsync(CreateLabourDto dto, string registeredBy);
-    Task<AuthApiResponse<List<LabourDto>>> SearchLabourAsync(string? barcode, string? name, string? phone, int? projectId);
-    Task<AuthApiResponse<LabourDto>> GetLabourAsync(int id);
-    Task<AuthApiResponse<List<LabourDto>>> GetLabourByProjectAsync(int projectId);
-    Task<AuthApiResponse<List<LabourDto>>> GetLabourByContractorAsync(int contractorId);
+    Task<ApiResponse<LabourDto>> RegisterLabourAsync(CreateLabourDto dto, string registeredBy);
+    Task<ApiResponse<List<LabourDto>>> SearchLabourAsync(string? barcode, string? name, string? phone, int? projectId);
+    Task<ApiResponse<List<LabourDto>>> SearchLabourByQueryAsync(string query, int? projectId);
+    Task<ApiResponse<List<LabourDto>>> SearchLabourByContractorNameAsync(string contractorName);
+    Task<ApiResponse<LabourDto>> GetLabourAsync(int id);
+    Task<ApiResponse<List<LabourDto>>> GetLabourByProjectAsync(int projectId);
+    Task<ApiResponse<List<LabourDto>>> GetLabourByContractorAsync(int contractorId);
+    Task<ApiResponse<List<LabourDto>>> GetLabourByProjectAndContractorAsync(int projectId, int contractorId);
 }
 
 public class LabourService : ILabourService
@@ -34,7 +38,7 @@ public class LabourService : ILabourService
         _logger = logger;
     }
 
-    public async Task<AuthApiResponse<LabourDto>> RegisterLabourAsync(CreateLabourDto dto, string registeredBy)
+    public async Task<ApiResponse<LabourDto>> RegisterLabourAsync(CreateLabourDto dto, string registeredBy)
     {
         try
         {
@@ -44,41 +48,23 @@ public class LabourService : ILabourService
             // Validate project and contractor exist
             var project = await _context.Projects.FindAsync(dto.ProjectId);
             if (project == null || !project.IsActive)
-                return new AuthApiResponse<LabourDto>
-                {
-                    Success = false,
-                    Message = "Invalid or inactive project"
-                };
+                return ApiResponse<LabourDto>.ErrorResponse("Invalid or inactive project");
 
             var contractor = await _context.Contractors.FindAsync(dto.ContractorId);
             if (contractor == null || !contractor.IsActive || contractor.ProjectId != dto.ProjectId)
-                return new AuthApiResponse<LabourDto>
-                {
-                    Success = false,
-                    Message = "Invalid contractor for this project"
-                };
+                return ApiResponse<LabourDto>.ErrorResponse("Invalid contractor for this project");
 
             // Check if barcode already exists for this project
             var existingBarcode = await _context.Labours
                 .AnyAsync(l => l.ProjectId == dto.ProjectId && l.Barcode == dto.Barcode);
 
             if (existingBarcode)
-                return new AuthApiResponse<LabourDto>
-                {
-                    Success = false,
-                    Message = "Barcode already registered for this project",
-                    Errors = new List<string> { "DUPLICATE_BARCODE" }
-                };
+                return ApiResponse<LabourDto>.ErrorResponse("Barcode already registered for this project", new List<string> { "DUPLICATE_BARCODE" });
 
             // Validate and process photo (required)
-            if (string.IsNullOrEmpty(dto.PhotoBase64))
+            if (string.IsNullOrWhiteSpace(dto.PhotoBase64))
             {
-                return new AuthApiResponse<LabourDto>
-                {
-                    Success = false,
-                    Message = "Photo is required for labour registration",
-                    Errors = new List<string> { "PHOTO_REQUIRED" }
-                };
+                return ApiResponse<LabourDto>.ErrorResponse("Photo is required for labour registration", new List<string> { "PHOTO_REQUIRED" });
             }
 
             string photoUrl = await _photoStorage.SavePhotoAsync(dto.PhotoBase64, "labour");
@@ -117,26 +103,16 @@ public class LabourService : ILabourService
 
             var result = MapToDto(fullLabour);
 
-            return new AuthApiResponse<LabourDto>
-            {
-                Success = true,
-                Message = "Labour registered successfully",
-                Data = result
-            };
+            return ApiResponse<LabourDto>.SuccessResponse(result, "Labour registered successfully");
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error registering labour");
-            return new AuthApiResponse<LabourDto>
-            {
-                Success = false,
-                Message = "An error occurred while registering labour",
-                Errors = new List<string> { ex.Message }
-            };
+            return ApiResponse<LabourDto>.ErrorResponse("An error occurred while registering labour", ex.Message);
         }
     }
 
-    public async Task<AuthApiResponse<List<LabourDto>>> SearchLabourAsync(string? barcode, string? name, string? phone, int? projectId)
+    public async Task<ApiResponse<List<LabourDto>>> SearchLabourAsync(string? barcode, string? name, string? phone, int? projectId)
     {
         try
         {
@@ -145,17 +121,17 @@ public class LabourService : ILabourService
                 .Include(l => l.Contractor)
                 .Where(l => l.IsActive);
 
-            if (!string.IsNullOrEmpty(barcode))
+            if (!string.IsNullOrWhiteSpace(barcode))
             {
                 query = query.Where(l => l.Barcode == barcode);
             }
 
-            if (!string.IsNullOrEmpty(name))
+            if (!string.IsNullOrWhiteSpace(name))
             {
                 query = query.Where(l => EF.Functions.Like(l.Name, $"%{name}%"));
             }
 
-            if (!string.IsNullOrEmpty(phone))
+            if (!string.IsNullOrWhiteSpace(phone))
             {
                 query = query.Where(l => EF.Functions.Like(l.PhoneNumber, $"%{phone}%"));
             }
@@ -168,26 +144,94 @@ public class LabourService : ILabourService
             var results = await query.Take(50).ToListAsync();
             var dtos = results.Select(MapToDto).ToList();
 
-            return new AuthApiResponse<List<LabourDto>>
-            {
-                Success = true,
-                Message = $"Found {dtos.Count} labour(s)",
-                Data = dtos
-            };
+            return ApiResponse<List<LabourDto>>.SuccessResponse(dtos, $"Found {dtos.Count} labour(s)");
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error searching labour");
-            return new AuthApiResponse<List<LabourDto>>
-            {
-                Success = false,
-                Message = "An error occurred while searching",
-                Errors = new List<string> { ex.Message }
-            };
+            return ApiResponse<List<LabourDto>>.ErrorResponse("An error occurred while searching", ex.Message);
         }
     }
 
-    public async Task<AuthApiResponse<LabourDto>> GetLabourAsync(int id)
+    public async Task<ApiResponse<List<LabourDto>>> SearchLabourByQueryAsync(string query, int? projectId)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            return ApiResponse<List<LabourDto>>.SuccessResponse(new List<LabourDto>(), "No query provided");
+        }
+
+        try
+        {
+            var trimmedQuery = query.Trim();
+
+            var labourQuery = _context.Labours
+                .AsNoTracking()
+                .Include(l => l.Project)
+                .Include(l => l.Contractor)
+                .Where(l => l.IsActive);
+
+            if (projectId.HasValue)
+            {
+                labourQuery = labourQuery.Where(l => l.ProjectId == projectId.Value);
+            }
+
+            labourQuery = labourQuery.Where(l =>
+                l.Barcode == trimmedQuery ||
+                (!string.IsNullOrEmpty(l.Name) && EF.Functions.Like(l.Name, $"%{trimmedQuery}%")) ||
+                (!string.IsNullOrEmpty(l.PhoneNumber) && EF.Functions.Like(l.PhoneNumber, $"%{trimmedQuery}%")));
+
+            var results = await labourQuery
+                .OrderBy(l => l.Barcode == trimmedQuery ? 0 : 1)
+                .ThenByDescending(l => l.RegisteredAt)
+                .Take(50)
+                .ToListAsync();
+
+            var dtos = results.Select(MapToDto).ToList();
+
+            return ApiResponse<List<LabourDto>>.SuccessResponse(dtos, $"Found {dtos.Count} labour(s)");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error searching labour by query");
+            return ApiResponse<List<LabourDto>>.ErrorResponse("An error occurred while searching", ex.Message);
+        }
+    }
+
+    public async Task<ApiResponse<List<LabourDto>>> SearchLabourByContractorNameAsync(string contractorName)
+    {
+        if (string.IsNullOrWhiteSpace(contractorName))
+        {
+            return ApiResponse<List<LabourDto>>.SuccessResponse(new List<LabourDto>(), "Contractor name is required");
+        }
+
+        try
+        {
+            var trimmedContractor = contractorName.Trim();
+
+            var labourQuery = _context.Labours
+                .AsNoTracking()
+                .Include(l => l.Project)
+                .Include(l => l.Contractor)
+                .Where(l => l.IsActive && l.Contractor != null && l.Contractor.Name != null)
+                .Where(l => EF.Functions.Like(l.Contractor!.Name!, $"%{trimmedContractor}%"));
+
+            var results = await labourQuery
+                .OrderByDescending(l => l.RegisteredAt)
+                .Take(100)
+                .ToListAsync();
+
+            var dtos = results.Select(MapToDto).ToList();
+
+            return ApiResponse<List<LabourDto>>.SuccessResponse(dtos, $"Found {dtos.Count} labour(s)");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error searching labour by contractor name");
+            return ApiResponse<List<LabourDto>>.ErrorResponse("An error occurred while searching", ex.Message);
+        }
+    }
+
+    public async Task<ApiResponse<LabourDto>> GetLabourAsync(int id)
     {
         try
         {
@@ -197,31 +241,18 @@ public class LabourService : ILabourService
                 .FirstOrDefaultAsync(l => l.Id == id);
 
             if (labour == null)
-                return new AuthApiResponse<LabourDto>
-                {
-                    Success = false,
-                    Message = "Labour not found"
-                };
+                return ApiResponse<LabourDto>.ErrorResponse("Labour not found");
 
-            return new AuthApiResponse<LabourDto>
-            {
-                Success = true,
-                Data = MapToDto(labour)
-            };
+            return ApiResponse<LabourDto>.SuccessResponse(MapToDto(labour));
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error getting labour");
-            return new AuthApiResponse<LabourDto>
-            {
-                Success = false,
-                Message = "An error occurred",
-                Errors = new List<string> { ex.Message }
-            };
+            return ApiResponse<LabourDto>.ErrorResponse("An error occurred", ex.Message);
         }
     }
 
-    public async Task<AuthApiResponse<List<LabourDto>>> GetLabourByProjectAsync(int projectId)
+    public async Task<ApiResponse<List<LabourDto>>> GetLabourByProjectAsync(int projectId)
     {
         try
         {
@@ -234,26 +265,16 @@ public class LabourService : ILabourService
 
             var dtos = labours.Select(MapToDto).ToList();
 
-            return new AuthApiResponse<List<LabourDto>>
-            {
-                Success = true,
-                Message = $"Found {dtos.Count} labour(s) for project",
-                Data = dtos
-            };
+            return ApiResponse<List<LabourDto>>.SuccessResponse(dtos, $"Found {dtos.Count} labour(s) for project");
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error getting labour by project");
-            return new AuthApiResponse<List<LabourDto>>
-            {
-                Success = false,
-                Message = "An error occurred",
-                Errors = new List<string> { ex.Message }
-            };
+            return ApiResponse<List<LabourDto>>.ErrorResponse("An error occurred", ex.Message);
         }
     }
 
-    public async Task<AuthApiResponse<List<LabourDto>>> GetLabourByContractorAsync(int contractorId)
+    public async Task<ApiResponse<List<LabourDto>>> GetLabourByContractorAsync(int contractorId)
     {
         try
         {
@@ -266,22 +287,34 @@ public class LabourService : ILabourService
 
             var dtos = labours.Select(MapToDto).ToList();
 
-            return new AuthApiResponse<List<LabourDto>>
-            {
-                Success = true,
-                Message = $"Found {dtos.Count} labour(s) for contractor",
-                Data = dtos
-            };
+            return ApiResponse<List<LabourDto>>.SuccessResponse(dtos, $"Found {dtos.Count} labour(s) for contractor");
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error getting labour by contractor");
-            return new AuthApiResponse<List<LabourDto>>
-            {
-                Success = false,
-                Message = "An error occurred",
-                Errors = new List<string> { ex.Message }
-            };
+            return ApiResponse<List<LabourDto>>.ErrorResponse("An error occurred", ex.Message);
+        }
+    }
+
+    public async Task<ApiResponse<List<LabourDto>>> GetLabourByProjectAndContractorAsync(int projectId, int contractorId)
+    {
+        try
+        {
+            var labours = await _context.Labours
+                .Include(l => l.Project)
+                .Include(l => l.Contractor)
+                .Where(l => l.ProjectId == projectId && l.ContractorId == contractorId && l.IsActive)
+                .OrderByDescending(l => l.RegisteredAt)
+                .ToListAsync();
+
+            var dtos = labours.Select(MapToDto).ToList();
+
+            return ApiResponse<List<LabourDto>>.SuccessResponse(dtos, $"Found {dtos.Count} labour(s) for project and contractor");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting labour by project {ProjectId} and contractor {ContractorId}", projectId, contractorId);
+            return ApiResponse<List<LabourDto>>.ErrorResponse("An error occurred", ex.Message);
         }
     }
 

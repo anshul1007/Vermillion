@@ -3,15 +3,18 @@ using Vermillion.EntryExit.Domain.Models.DTOs;
 using Vermillion.EntryExit.Domain.Models.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Vermillion.Shared.Domain.Models.DTOs;
 
 namespace Vermillion.EntryExit.Domain.Services;
 
 public interface IEntryExitRecordService
 {
-    Task<AuthApiResponse<EntryExitRecordDto>> CreateRecordAsync(CreateEntryExitRecordDto dto, string recordedBy);
-    Task<AuthApiResponse<List<OpenSessionDto>>> GetOpenSessionsAsync(int? labourId, int? visitorId, int? projectId);
-    Task<AuthApiResponse<SearchResultDto>> SearchAsync(SearchRequestDto request);
-    Task<AuthApiResponse<List<EntryExitRecordDto>>> GetRecordsAsync(int? labourId, int? visitorId, DateTime? fromDate, DateTime? toDate);
+    Task<ApiResponse<EntryExitRecordDto>> CreateRecordAsync(CreateEntryExitRecordDto dto, string recordedBy);
+    Task<ApiResponse<List<OpenSessionDto>>> GetOpenSessionsAsync(int? labourId, int? visitorId, int? projectId);
+    Task<Dictionary<int, bool>> HasOpenSessionsForLaboursAsync(IReadOnlyCollection<int> labourIds);
+    Task<Dictionary<int, bool>> HasOpenSessionsForVisitorsAsync(IReadOnlyCollection<int> visitorIds);
+    Task<ApiResponse<SearchResultDto>> SearchAsync(SearchRequestDto request);
+    Task<ApiResponse<List<EntryExitRecordDto>>> GetRecordsAsync(int? labourId, int? visitorId, int? projectId, DateTime? fromDate, DateTime? toDate);
 }
 
 public class EntryExitRecordService : IEntryExitRecordService
@@ -30,20 +33,20 @@ public class EntryExitRecordService : IEntryExitRecordService
         _encryption = encryption;
     }
 
-    public async Task<AuthApiResponse<EntryExitRecordDto>> CreateRecordAsync(CreateEntryExitRecordDto dto, string recordedBy)
+    public async Task<ApiResponse<EntryExitRecordDto>> CreateRecordAsync(CreateEntryExitRecordDto dto, string recordedBy)
     {
         try
         {
             // Validate person type and IDs match
             if (dto.PersonType == PersonType.Labour && !dto.LabourId.HasValue)
-                return new AuthApiResponse<EntryExitRecordDto>
+                return new ApiResponse<EntryExitRecordDto>
                 {
                     Success = false,
                     Message = "LabourId is required for Labour entry/exit"
                 };
 
             if (dto.PersonType == PersonType.Visitor && !dto.VisitorId.HasValue)
-                return new AuthApiResponse<EntryExitRecordDto>
+                return new ApiResponse<EntryExitRecordDto>
                 {
                     Success = false,
                     Message = "VisitorId is required for Visitor entry/exit"
@@ -58,7 +61,7 @@ public class EntryExitRecordService : IEntryExitRecordService
                 if (existingRecord != null)
                 {
                     // Already synced, return existing record
-                    return new AuthApiResponse<EntryExitRecordDto>
+                    return new ApiResponse<EntryExitRecordDto>
                     {
                         Success = true,
                         Message = "Record already exists (duplicate ClientId)",
@@ -83,7 +86,7 @@ public class EntryExitRecordService : IEntryExitRecordService
 
                 if (hasOpenSession)
                 {
-                    return new AuthApiResponse<EntryExitRecordDto>
+                    return new ApiResponse<EntryExitRecordDto>
                     {
                         Success = false,
                         Message = "Person already has an open entry session. Please record exit first.",
@@ -112,7 +115,7 @@ public class EntryExitRecordService : IEntryExitRecordService
 
             var recordDto = await MapToDtoAsync(record);
 
-            return new AuthApiResponse<EntryExitRecordDto>
+            return new ApiResponse<EntryExitRecordDto>
             {
                 Success = true,
                 Message = $"{dto.Action} recorded successfully",
@@ -122,7 +125,7 @@ public class EntryExitRecordService : IEntryExitRecordService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error creating entry/exit record");
-            return new AuthApiResponse<EntryExitRecordDto>
+            return new ApiResponse<EntryExitRecordDto>
             {
                 Success = false,
                 Message = "An error occurred while creating record",
@@ -131,7 +134,7 @@ public class EntryExitRecordService : IEntryExitRecordService
         }
     }
 
-    public async Task<AuthApiResponse<List<OpenSessionDto>>> GetOpenSessionsAsync(int? labourId, int? visitorId, int? projectId)
+    public async Task<ApiResponse<List<OpenSessionDto>>> GetOpenSessionsAsync(int? labourId, int? visitorId, int? projectId)
     {
         try
         {
@@ -194,7 +197,7 @@ public class EntryExitRecordService : IEntryExitRecordService
                 }
             }
 
-            return new AuthApiResponse<List<OpenSessionDto>>
+            return new ApiResponse<List<OpenSessionDto>>
             {
                 Success = true,
                 Message = $"Found {openSessions.Count} open session(s)",
@@ -204,7 +207,7 @@ public class EntryExitRecordService : IEntryExitRecordService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error getting open sessions");
-            return new AuthApiResponse<List<OpenSessionDto>>
+            return new ApiResponse<List<OpenSessionDto>>
             {
                 Success = false,
                 Message = "An error occurred",
@@ -213,12 +216,102 @@ public class EntryExitRecordService : IEntryExitRecordService
         }
     }
 
-    public async Task<AuthApiResponse<SearchResultDto>> SearchAsync(SearchRequestDto request)
+    public async Task<Dictionary<int, bool>> HasOpenSessionsForLaboursAsync(IReadOnlyCollection<int> labourIds)
+    {
+        var ids = labourIds?.Where(id => id > 0).Distinct().ToArray();
+        if (ids == null || ids.Length == 0)
+        {
+            return new Dictionary<int, bool>();
+        }
+
+        try
+        {
+            var result = ids.ToDictionary(id => id, _ => false);
+            var processed = new HashSet<int>();
+
+            var latestRecords = await _context.EntryExitRecords
+                .AsNoTracking()
+                .Where(r => r.PersonType == PersonType.Labour && r.LabourId.HasValue && ids.Contains(r.LabourId.Value))
+                .OrderByDescending(r => r.Timestamp)
+                .Select(r => new { r.LabourId, r.Action })
+                .ToListAsync();
+
+            foreach (var record in latestRecords)
+            {
+                if (!record.LabourId.HasValue)
+                {
+                    continue;
+                }
+
+                var labourId = record.LabourId.Value;
+                if (!processed.Add(labourId))
+                {
+                    continue;
+                }
+
+                result[labourId] = record.Action == RecordAction.Entry;
+            }
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error determining open sessions for labour IDs {Ids}", ids);
+            return ids.ToDictionary(id => id, _ => false);
+        }
+    }
+
+    public async Task<Dictionary<int, bool>> HasOpenSessionsForVisitorsAsync(IReadOnlyCollection<int> visitorIds)
+    {
+        var ids = visitorIds?.Where(id => id > 0).Distinct().ToArray();
+        if (ids == null || ids.Length == 0)
+        {
+            return new Dictionary<int, bool>();
+        }
+
+        try
+        {
+            var result = ids.ToDictionary(id => id, _ => false);
+            var processed = new HashSet<int>();
+
+            var latestRecords = await _context.EntryExitRecords
+                .AsNoTracking()
+                .Where(r => r.PersonType == PersonType.Visitor && r.VisitorId.HasValue && ids.Contains(r.VisitorId.Value))
+                .OrderByDescending(r => r.Timestamp)
+                .Select(r => new { r.VisitorId, r.Action })
+                .ToListAsync();
+
+            foreach (var record in latestRecords)
+            {
+                if (!record.VisitorId.HasValue)
+                {
+                    continue;
+                }
+
+                var visitorId = record.VisitorId.Value;
+                if (!processed.Add(visitorId))
+                {
+                    continue;
+                }
+
+                result[visitorId] = record.Action == RecordAction.Entry;
+            }
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error determining open sessions for visitor IDs {Ids}", ids);
+            return ids.ToDictionary(id => id, _ => false);
+        }
+    }
+
+    public async Task<ApiResponse<SearchResultDto>> SearchAsync(SearchRequestDto request)
     {
         try
         {
             // First try barcode search (labour only)
-            if (!string.IsNullOrEmpty(request.Barcode))
+            if (!string.IsNullOrWhiteSpace(request.Barcode))
             {
                 var labourReg = await _context.Labours
                     .Include(lr => lr.Project)
@@ -230,7 +323,7 @@ public class EntryExitRecordService : IEntryExitRecordService
                     var hasOpen = await HasOpenSessionAsync(labourReg.Id, null);
                     var lastEntry = await GetLastEntryAsync(labourReg.Id, null);
 
-                    return new AuthApiResponse<SearchResultDto>
+                    return new ApiResponse<SearchResultDto>
                     {
                         Success = true,
                         Data = new SearchResultDto
@@ -245,7 +338,7 @@ public class EntryExitRecordService : IEntryExitRecordService
             }
 
             // Search by name/phone
-            if (!string.IsNullOrEmpty(request.Name) || !string.IsNullOrEmpty(request.Phone))
+            if (!string.IsNullOrWhiteSpace(request.Name) || !string.IsNullOrWhiteSpace(request.Phone))
             {
                 // Search labour first
                 var labourQuery = _context.Labours
@@ -253,10 +346,10 @@ public class EntryExitRecordService : IEntryExitRecordService
                     .Include(lr => lr.Contractor)
                     .Where(lr => lr.IsActive);
 
-                if (!string.IsNullOrEmpty(request.Name))
+                if (!string.IsNullOrWhiteSpace(request.Name))
                     labourQuery = labourQuery.Where(lr => lr.Name.Contains(request.Name));
 
-                if (!string.IsNullOrEmpty(request.Phone))
+                if (!string.IsNullOrWhiteSpace(request.Phone))
                     labourQuery = labourQuery.Where(lr => lr.PhoneNumber.Contains(request.Phone));
 
                 if (request.ProjectId.HasValue)
@@ -269,7 +362,7 @@ public class EntryExitRecordService : IEntryExitRecordService
                     var hasOpen = await HasOpenSessionAsync(labour.Id, null);
                     var lastEntry = await GetLastEntryAsync(labour.Id, null);
 
-                    return new AuthApiResponse<SearchResultDto>
+                    return new ApiResponse<SearchResultDto>
                     {
                         Success = true,
                         Data = new SearchResultDto
@@ -285,10 +378,10 @@ public class EntryExitRecordService : IEntryExitRecordService
                 // Search visitors
                 var visitorQuery = _context.Visitors.AsQueryable();
 
-                if (!string.IsNullOrEmpty(request.Name))
+                if (!string.IsNullOrWhiteSpace(request.Name))
                     visitorQuery = visitorQuery.Where(v => v.Name.Contains(request.Name));
 
-                if (!string.IsNullOrEmpty(request.Phone))
+                if (!string.IsNullOrWhiteSpace(request.Phone))
                     visitorQuery = visitorQuery.Where(v => v.PhoneNumber.Contains(request.Phone));
 
                 var visitor = await visitorQuery
@@ -300,7 +393,7 @@ public class EntryExitRecordService : IEntryExitRecordService
                     var hasOpen = await HasOpenSessionAsync(null, visitor.Id);
                     var lastEntry = await GetLastEntryAsync(null, visitor.Id);
 
-                    return new AuthApiResponse<SearchResultDto>
+                    return new ApiResponse<SearchResultDto>
                     {
                         Success = true,
                         Data = new SearchResultDto
@@ -314,7 +407,7 @@ public class EntryExitRecordService : IEntryExitRecordService
                 }
             }
 
-            return new AuthApiResponse<SearchResultDto>
+            return new ApiResponse<SearchResultDto>
             {
                 Success = false,
                 Message = "No results found"
@@ -323,7 +416,7 @@ public class EntryExitRecordService : IEntryExitRecordService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error searching");
-            return new AuthApiResponse<SearchResultDto>
+            return new ApiResponse<SearchResultDto>
             {
                 Success = false,
                 Message = "An error occurred while searching",
@@ -332,7 +425,7 @@ public class EntryExitRecordService : IEntryExitRecordService
         }
     }
 
-    public async Task<AuthApiResponse<List<EntryExitRecordDto>>> GetRecordsAsync(int? labourId, int? visitorId, DateTime? fromDate, DateTime? toDate)
+    public async Task<ApiResponse<List<EntryExitRecordDto>>> GetRecordsAsync(int? labourId, int? visitorId, int? projectId, DateTime? fromDate, DateTime? toDate)
     {
         try
         {
@@ -354,6 +447,14 @@ public class EntryExitRecordService : IEntryExitRecordService
             if (visitorId.HasValue)
                 query = query.Where(r => r.VisitorId == visitorId.Value);
 
+            if (projectId.HasValue)
+            {
+                var projectFilter = projectId.Value;
+                query = query.Where(r =>
+                    (r.LabourId.HasValue && r.Labour != null && r.Labour.ProjectId == projectFilter) ||
+                    (r.VisitorId.HasValue && r.Visitor != null && r.Visitor.ProjectId == projectFilter));
+            }
+
             if (fromDate.HasValue)
                 query = query.Where(r => r.Timestamp >= new DateTimeOffset(fromDate.Value, TimeSpan.Zero));
 
@@ -371,7 +472,7 @@ public class EntryExitRecordService : IEntryExitRecordService
                 dtos.Add(await MapToDtoAsync(record));
             }
 
-            return new AuthApiResponse<List<EntryExitRecordDto>>
+            return new ApiResponse<List<EntryExitRecordDto>>
             {
                 Success = true,
                 Message = $"Found {dtos.Count} record(s)",
@@ -381,7 +482,7 @@ public class EntryExitRecordService : IEntryExitRecordService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error getting records");
-            return new AuthApiResponse<List<EntryExitRecordDto>>
+            return new ApiResponse<List<EntryExitRecordDto>>
             {
                 Success = false,
                 Message = "An error occurred",
@@ -446,6 +547,9 @@ public class EntryExitRecordService : IEntryExitRecordService
             Gate = record.Gate,
             Notes = record.Notes,
             RecordedBy = record.RecordedBy,
+            ProjectId = record.PersonType == PersonType.Labour
+                ? record.Labour?.ProjectId
+                : record.Visitor?.ProjectId,
             GuardName = record.RecordedBy,  // Guard who recorded the entry/exit
             PersonName = record.PersonType == PersonType.Labour
                 ? record.Labour?.Name

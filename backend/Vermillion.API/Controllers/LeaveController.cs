@@ -5,6 +5,8 @@ using Vermillion.Attendance.Domain.Data;
 using Vermillion.Attendance.Domain.Models.DTOs;
 using Vermillion.Attendance.Domain.Models.Entities;
 using Vermillion.Attendance.Domain.Services;
+using Vermillion.Shared.Domain.Models.DTOs;
+using Vermillion.API.Extensions;
 
 namespace Vermillion.API.Controllers
 {
@@ -48,13 +50,13 @@ namespace Vermillion.API.Controllers
                 var userId = _currentUserService.GetCurrentUserId();
                 if (!userId.HasValue)
                 {
-                    return Unauthorized(ApiResponse<object>.ErrorResponse("Invalid or missing user claim"));
+                    return Unauthorized(ApiResponse<string>.ErrorResponse("Invalid or missing user claim"));
                 }
 
                 // Validate dates
                 if (request.EndDate < request.StartDate)
                 {
-                    return BadRequest(ApiResponse<object>.ErrorResponse("End date cannot be before start date"));
+                    return BadRequest(ApiResponse<string>.ErrorResponse("End date cannot be before start date"));
                 }
 
                 // Calculate total days (including weekends)
@@ -63,7 +65,7 @@ namespace Vermillion.API.Controllers
                 // Validate leave type
                 if (!Enum.IsDefined(typeof(LeaveType), request.LeaveType))
                 {
-                    return BadRequest(ApiResponse<object>.ErrorResponse("Invalid leave type"));
+                    return BadRequest(ApiResponse<string>.ErrorResponse("Invalid leave type"));
                 }
 
                 var leaveType = (LeaveType)request.LeaveType;
@@ -103,7 +105,7 @@ namespace Vermillion.API.Controllers
 
                 if (availableBalance < totalDays)
                 {
-                    return BadRequest(ApiResponse<object>.ErrorResponse($"Insufficient leave balance. Available: {availableBalance}, Requested: {totalDays}"));
+                    return BadRequest(ApiResponse<string>.ErrorResponse($"Insufficient leave balance. Available: {availableBalance}, Requested: {totalDays}"));
                 }
 
                 // Check for overlapping leave requests
@@ -115,7 +117,7 @@ namespace Vermillion.API.Controllers
 
                 if (hasOverlap)
                 {
-                    return BadRequest(ApiResponse<object>.ErrorResponse("You already have a leave request for overlapping dates"));
+                    return BadRequest(ApiResponse<string>.ErrorResponse("You already have a leave request for overlapping dates"));
                 }
 
                 // Create leave request
@@ -159,7 +161,7 @@ namespace Vermillion.API.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error creating leave request");
-                return StatusCode(500, ApiResponse<object>.ErrorResponse("An error occurred while creating leave request", ex.Message));
+                    return this.ServerError("An error occurred while creating leave request");
             }
         }
 
@@ -169,7 +171,7 @@ namespace Vermillion.API.Controllers
             var userId = _currentUserService.GetCurrentUserId();
             if (!userId.HasValue)
             {
-                return Unauthorized(ApiResponse<object>.ErrorResponse("Invalid or missing user claim"));
+                return Unauthorized(ApiResponse<string>.ErrorResponse("Invalid or missing user claim"));
             }
 
             var ent = await _db.LeaveEntitlements
@@ -195,7 +197,7 @@ namespace Vermillion.API.Controllers
             var userId = _currentUserService.GetCurrentUserId();
             if (!userId.HasValue)
             {
-                return Unauthorized(ApiResponse<object>.ErrorResponse("Invalid or missing user claim"));
+                return Unauthorized(ApiResponse<string>.ErrorResponse("Invalid or missing user claim"));
             }
 
             var requests = await _db.LeaveRequests
@@ -233,7 +235,7 @@ namespace Vermillion.API.Controllers
                 var userId = _currentUserService.GetCurrentUserId();
                 if (!userId.HasValue)
                 {
-                    return Unauthorized(ApiResponse<object>.ErrorResponse("Invalid or missing user claim"));
+                    return Unauthorized(ApiResponse<string>.ErrorResponse("Invalid or missing user claim"));
                 }
 
                 var leaveRequest = await _db.LeaveRequests
@@ -242,18 +244,18 @@ namespace Vermillion.API.Controllers
 
                 if (leaveRequest == null)
                 {
-                    return NotFound(ApiResponse<object>.ErrorResponse("Leave request not found or you don't have permission to cancel it"));
+                    return NotFound(ApiResponse<string>.ErrorResponse("Leave request not found or you don't have permission to cancel it"));
                 }
 
                 // Only allow cancellation of pending or approved requests
                 if (leaveRequest.Status == ApprovalStatus.Cancelled)
                 {
-                    return BadRequest(ApiResponse<object>.ErrorResponse("Leave request is already cancelled"));
+                    return BadRequest(ApiResponse<string>.ErrorResponse("Leave request is already cancelled"));
                 }
 
                 if (leaveRequest.Status == ApprovalStatus.Rejected)
                 {
-                    return BadRequest(ApiResponse<object>.ErrorResponse("Cannot cancel a rejected leave request"));
+                    return BadRequest(ApiResponse<string>.ErrorResponse("Cannot cancel a rejected leave request"));
                 }
 
                 // If the leave was approved, return the days back to balance
@@ -309,7 +311,7 @@ namespace Vermillion.API.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error cancelling leave request");
-                return StatusCode(500, ApiResponse<object>.ErrorResponse("An error occurred while cancelling leave request", ex.Message));
+                return this.ServerError("An error occurred while cancelling leave request");
             }
         }
 
@@ -322,7 +324,7 @@ namespace Vermillion.API.Controllers
                 var userId = _currentUserService.GetCurrentUserId();
                 if (!userId.HasValue)
                 {
-                    return Unauthorized(ApiResponse<object>.ErrorResponse("Invalid or missing user claim"));
+                    return Unauthorized(ApiResponse<string>.ErrorResponse("Invalid or missing user claim"));
                 }
 
                 var query = _db.LeaveRequests
@@ -336,11 +338,11 @@ namespace Vermillion.API.Controllers
                 {
                     var managerEmployeeGuid = await GetEmployeeGuidFromUserIdAsync(userId.Value);
                     if (!managerEmployeeGuid.HasValue)
-                        return StatusCode(500, ApiResponse<object>.ErrorResponse("Failed to resolve manager employee record"));
+                        return this.ServerError("Failed to resolve manager employee record");
 
                     var teamUserIds = await _teamHelper.GetManagerTeamUserIdsAsync(managerEmployeeGuid.Value);
                     if (teamUserIds == null)
-                        return StatusCode(502, ApiResponse<object>.ErrorResponse("Failed to fetch team members"));
+                        return this.ServiceUnavailable<string>("Failed to fetch team members");
 
                     query = query.Where(l => teamUserIds.Contains(l.UserId));
                 }
@@ -370,7 +372,7 @@ namespace Vermillion.API.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error fetching pending leave approvals");
-                return StatusCode(500, ApiResponse<object>.ErrorResponse("An error occurred", ex.Message));
+                    return this.ServerError("An error occurred");
             }
         }
 
@@ -383,13 +385,13 @@ namespace Vermillion.API.Controllers
                 var userId = _currentUserService.GetCurrentUserId();
                 if (!userId.HasValue)
                 {
-                    return Unauthorized(ApiResponse<object>.ErrorResponse("Invalid or missing user claim"));
+                    return Unauthorized(ApiResponse<string>.ErrorResponse("Invalid or missing user claim"));
                 }
 
                 var leaveRequest = await _db.LeaveRequests.FindAsync(id);
                 if (leaveRequest == null)
                 {
-                    return NotFound(ApiResponse<object>.ErrorResponse("Leave request not found"));
+                    return NotFound(ApiResponse<string>.ErrorResponse("Leave request not found"));
                 }
 
                 // If Manager, verify the user is in their team
@@ -397,7 +399,7 @@ namespace Vermillion.API.Controllers
                 {
                     var managerEmployeeGuid = await GetEmployeeGuidFromUserIdAsync(userId.Value);
                     if (!managerEmployeeGuid.HasValue)
-                        return StatusCode(500, ApiResponse<object>.ErrorResponse("Failed to resolve manager employee record"));
+                        return this.ServerError("Failed to resolve manager employee record");
 
                     var teamUserIds = await _teamHelper.GetManagerTeamUserIdsAsync(managerEmployeeGuid.Value);
                     if (teamUserIds == null || !teamUserIds.Contains(leaveRequest.UserId))
@@ -408,7 +410,7 @@ namespace Vermillion.API.Controllers
 
                 if (leaveRequest.Status != ApprovalStatus.Pending)
                 {
-                    return BadRequest(ApiResponse<object>.ErrorResponse($"Cannot approve leave request with status: {leaveRequest.Status}"));
+                    return BadRequest(ApiResponse<string>.ErrorResponse($"Cannot approve leave request with status: {leaveRequest.Status}"));
                 }
 
                 // Deduct leave balance
@@ -440,12 +442,13 @@ namespace Vermillion.API.Controllers
 
                 await _db.SaveChangesAsync();
 
-                return Ok(ApiResponse<object>.SuccessResponse(new { }, "Leave request approved successfully"));
+                return Ok(ApiResponse<EmptyResponseDto>.SuccessResponse(new EmptyResponseDto(), "Leave request approved successfully"));
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error approving leave request");
-                return StatusCode(500, ApiResponse<object>.ErrorResponse("An error occurred", ex.Message));
+                _logger.LogError(ex, "Error approving leave request {LeaveRequestId}", id);
+                return this.ServerError("An error occurred while approving leave request");
             }
         }
 
@@ -458,13 +461,13 @@ namespace Vermillion.API.Controllers
                 var userId = _currentUserService.GetCurrentUserId();
                 if (!userId.HasValue)
                 {
-                    return Unauthorized(ApiResponse<object>.ErrorResponse("Invalid or missing user claim"));
+                    return Unauthorized(ApiResponse<string>.ErrorResponse("Invalid or missing user claim"));
                 }
 
                 var leaveRequest = await _db.LeaveRequests.FindAsync(id);
                 if (leaveRequest == null)
                 {
-                    return NotFound(ApiResponse<object>.ErrorResponse("Leave request not found"));
+                    return NotFound(ApiResponse<string>.ErrorResponse("Leave request not found"));
                 }
 
                 // If Manager, verify the user is in their team
@@ -472,7 +475,7 @@ namespace Vermillion.API.Controllers
                 {
                     var managerEmployeeGuid = await GetEmployeeGuidFromUserIdAsync(userId.Value);
                     if (!managerEmployeeGuid.HasValue)
-                        return StatusCode(500, ApiResponse<object>.ErrorResponse("Failed to resolve manager employee record"));
+                        return this.ServerError("Failed to resolve manager employee record");
 
                     var teamUserIds = await _teamHelper.GetManagerTeamUserIdsAsync(managerEmployeeGuid.Value);
                     if (teamUserIds == null || !teamUserIds.Contains(leaveRequest.UserId))
@@ -483,7 +486,7 @@ namespace Vermillion.API.Controllers
 
                 if (leaveRequest.Status != ApprovalStatus.Pending)
                 {
-                    return BadRequest(ApiResponse<object>.ErrorResponse($"Cannot reject leave request with status: {leaveRequest.Status}"));
+                    return BadRequest(ApiResponse<string>.ErrorResponse($"Cannot reject leave request with status: {leaveRequest.Status}"));
                 }
 
                 leaveRequest.Status = ApprovalStatus.Rejected;
@@ -494,12 +497,13 @@ namespace Vermillion.API.Controllers
 
                 await _db.SaveChangesAsync();
 
-                return Ok(ApiResponse<object>.SuccessResponse(new { }, "Leave request rejected successfully"));
+                return Ok(ApiResponse<EmptyResponseDto>.SuccessResponse(new EmptyResponseDto(), "Leave request rejected successfully"));
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error rejecting leave request");
-                return StatusCode(500, ApiResponse<object>.ErrorResponse("An error occurred", ex.Message));
+                _logger.LogError(ex, "Error rejecting leave request {LeaveRequestId}", id);
+                return this.ServerError("An error occurred while rejecting leave request");
             }
         }
     }

@@ -1,9 +1,10 @@
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Vermillion.EntryExit.Domain.Models.DTOs;
 using Vermillion.EntryExit.Domain.Models.Entities;
 using Vermillion.EntryExit.Domain.Services;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
-using System.Security.Claims;
+using Vermillion.Shared.Domain.Models.DTOs;
 
 namespace Vermillion.API.Controllers;
 
@@ -22,7 +23,7 @@ public class RecordsController : ControllerBase
     }
 
     [HttpPost]
-    public async Task<ActionResult<AuthApiResponse<EntryExitRecordDto>>> CreateRecord([FromBody] CreateEntryExitRecordDto dto)
+    public async Task<ActionResult<ApiResponse<EntryExitRecordDto>>> CreateRecord([FromBody] CreateEntryExitRecordDto dto)
     {
         var userEmail = User.FindFirst(ClaimTypes.Name)?.Value ?? "System";
         var result = await _recordService.CreateRecordAsync(dto, userEmail);
@@ -39,13 +40,14 @@ public class RecordsController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<AuthApiResponse<List<EntryExitRecordDto>>>> GetRecords(
+    public async Task<ActionResult<ApiResponse<List<EntryExitRecordDto>>>> GetRecords(
         [FromQuery] int? labourRegistrationId,
         [FromQuery] int? visitorId,
+        [FromQuery] int? projectId,
         [FromQuery] DateTime? fromDate,
         [FromQuery] DateTime? toDate)
     {
-        var result = await _recordService.GetRecordsAsync(labourRegistrationId, visitorId, fromDate, toDate);
+        var result = await _recordService.GetRecordsAsync(labourRegistrationId, visitorId, projectId, fromDate, toDate);
 
         if (!result.Success)
             return BadRequest(result);
@@ -54,14 +56,14 @@ public class RecordsController : ControllerBase
     }
 
     [HttpGet("today")]
-    public async Task<ActionResult<AuthApiResponse<List<EntryExitRecordDto>>>> GetTodayRecords()
+    public async Task<ActionResult<ApiResponse<List<EntryExitRecordDto>>>> GetTodayRecords([FromQuery] int? projectId)
     {
         var today = DateTime.UtcNow.Date;
         var tomorrow = today.AddDays(1);
 
         _logger.LogInformation("Fetching today's records from {FromDate} to {ToDate}", today, tomorrow);
 
-        var result = await _recordService.GetRecordsAsync(null, null, today, tomorrow);
+        var result = await _recordService.GetRecordsAsync(null, null, projectId, today, tomorrow);
 
         if (!result.Success)
             return BadRequest(result);
@@ -70,7 +72,7 @@ public class RecordsController : ControllerBase
     }
 
     [HttpGet("open-sessions")]
-    public async Task<ActionResult<AuthApiResponse<List<OpenSessionDto>>>> GetOpenSessions(
+    public async Task<ActionResult<ApiResponse<List<OpenSessionDto>>>> GetOpenSessions(
         [FromQuery] int? labourRegistrationId,
         [FromQuery] int? visitorId,
         [FromQuery] int? projectId)
@@ -84,7 +86,7 @@ public class RecordsController : ControllerBase
     }
 
     [HttpPost("search")]
-    public async Task<ActionResult<AuthApiResponse<SearchResultDto>>> Search([FromBody] SearchRequestDto request)
+    public async Task<ActionResult<ApiResponse<SearchResultDto>>> Search([FromBody] SearchRequestDto request)
     {
         var result = await _recordService.SearchAsync(request);
 
@@ -95,14 +97,10 @@ public class RecordsController : ControllerBase
     }
 
     [HttpGet("search-person")]
-    public async Task<ActionResult<AuthApiResponse<object>>> SearchPerson([FromQuery] string query)
+    public async Task<ActionResult<ApiResponse<List<PersonSearchResultDto>>>> SearchPerson([FromQuery] string query)
     {
         if (string.IsNullOrWhiteSpace(query))
-            return BadRequest(new AuthApiResponse<object>
-            {
-                Success = false,
-                Message = "Search query is required"
-            });
+            return BadRequest(ApiResponse<string>.ErrorResponse("Search query is required"));
 
         _logger.LogInformation("Searching for person with query: {Query}", query);
 
@@ -115,158 +113,118 @@ public class RecordsController : ControllerBase
         _logger.LogInformation("Visitor search result: success={Success} count={Count}", visitorResult?.Success, visitorResult?.Data?.Count ?? 0);
 
         _logger.LogInformation("Searching labour for query: {Query}", query);
+        var labourResult = await labourService.SearchLabourByQueryAsync(query, null);
+        _logger.LogInformation("Labour search result: success={Success} count={Count}", labourResult?.Success, labourResult?.Data?.Count ?? 0);
 
-        // Perform targeted searches and merge results to avoid AND-ing barcode/name/phone filters
-        var labourByBarcode = await labourService.SearchLabourAsync(query, null, null, null);
-        var labourByName = await labourService.SearchLabourAsync(null, query, null, null);
-        var labourByPhone = await labourService.SearchLabourAsync(null, null, query, null);
+        var combined = new List<PersonSearchResultDto>();
 
-        _logger.LogInformation("Labour search results: barcode={BCount} name={NCount} phone={PCount}",
-            labourByBarcode?.Data?.Count ?? 0,
-            labourByName?.Data?.Count ?? 0,
-            labourByPhone?.Data?.Count ?? 0);
+        var labourList = labourResult?.Success == true && labourResult.Data != null
+            ? labourResult.Data.Take(50).ToList()
+            : new List<LabourDto>();
 
-        var combined = new List<object>();
+        var visitorList = visitorResult?.Success == true && visitorResult.Data != null
+            ? visitorResult.Data.Take(50).ToList()
+            : new List<VisitorDto>();
 
-        // Merge labour results by Id to avoid duplicates
-        var labourDict = new Dictionary<int, LabourDto>();
+        var labourOpenSessionsTask = labourList.Count > 0
+            ? _recordService.HasOpenSessionsForLaboursAsync(labourList.Select(l => l.Id).ToArray())
+            : Task.FromResult(new Dictionary<int, bool>());
 
-        void AddLabourList(AuthApiResponse<List<LabourDto>>? resp)
+        var visitorOpenSessionsTask = visitorList.Count > 0
+            ? _recordService.HasOpenSessionsForVisitorsAsync(visitorList.Select(v => v.Id).ToArray())
+            : Task.FromResult(new Dictionary<int, bool>());
+
+        await Task.WhenAll(labourOpenSessionsTask, visitorOpenSessionsTask);
+
+        var labourOpenSessions = await labourOpenSessionsTask;
+        var visitorOpenSessions = await visitorOpenSessionsTask;
+
+        foreach (var labour in labourList)
         {
-            if (resp?.Success != true || resp.Data == null) return;
-            foreach (var l in resp.Data)
+            var hasOpenEntry = labourOpenSessions.TryGetValue(labour.Id, out var open) && open;
+
+            combined.Add(new PersonSearchResultDto
             {
-                if (!labourDict.ContainsKey(l.Id))
-                    labourDict[l.Id] = l;
-            }
-        }
-
-        AddLabourList(labourByBarcode);
-        AddLabourList(labourByName);
-        AddLabourList(labourByPhone);
-
-        foreach (var labour in labourDict.Values.Take(50))
-        {
-            var openSessions = await _recordService.GetOpenSessionsAsync(labour.Id, null, null);
-            var hasOpenEntry = openSessions.Success && openSessions.Data != null && openSessions.Data.Any();
-
-            combined.Add(new
-            {
-                id = labour.Id,
-                name = labour.Name,
-                phoneNumber = labour.PhoneNumber,
-                personType = "Labour",
-                barcode = labour.Barcode,
-                projectId = labour.ProjectId,
-                contractorId = labour.ContractorId,
-                photoUrl = string.IsNullOrEmpty(labour.PhotoUrl) ? string.Empty : (labour.PhotoUrl.StartsWith("/api/entryexit/photos/") ? labour.PhotoUrl : $"/api/entryexit/photos/{labour.PhotoUrl}"),
-                hasOpenEntry
+                Id = labour.Id,
+                Name = labour.Name,
+                PhoneNumber = labour.PhoneNumber,
+                PersonType = "Labour",
+                Barcode = labour.Barcode,
+                ProjectId = labour.ProjectId,
+                ContractorId = labour.ContractorId,
+                PhotoUrl = string.IsNullOrEmpty(labour.PhotoUrl) ? string.Empty : (labour.PhotoUrl.StartsWith("/api/entryexit/photos/") ? labour.PhotoUrl : $"/api/entryexit/photos/{labour.PhotoUrl}"),
+                HasOpenEntry = hasOpenEntry
             });
         }
 
-        if (visitorResult?.Success == true && visitorResult.Data != null && visitorResult.Data.Any())
+        foreach (var visitor in visitorList)
         {
-            foreach (var visitor in visitorResult.Data.Take(50))
-            {
-                var openSessions = await _recordService.GetOpenSessionsAsync(null, visitor.Id, null);
-                var hasOpenEntry = openSessions.Success && openSessions.Data != null && openSessions.Data.Any();
+            var hasOpenEntry = visitorOpenSessions.TryGetValue(visitor.Id, out var open) && open;
 
-                combined.Add(new
-                {
-                    id = visitor.Id,
-                    name = visitor.Name,
-                    phoneNumber = visitor.PhoneNumber,
-                    personType = "Visitor",
-                    companyName = visitor.CompanyName,
-                    purpose = visitor.Purpose,
-                    photoUrl = string.IsNullOrEmpty(visitor.PhotoUrl) ? string.Empty : (visitor.PhotoUrl.StartsWith("/api/entryexit/photos/") ? visitor.PhotoUrl : $"/api/entryexit/photos/{visitor.PhotoUrl}"),
-                    hasOpenEntry
-                });
-            }
+            combined.Add(new PersonSearchResultDto
+            {
+                Id = visitor.Id,
+                Name = visitor.Name,
+                PhoneNumber = visitor.PhoneNumber,
+                PersonType = "Visitor",
+                CompanyName = visitor.CompanyName,
+                Purpose = visitor.Purpose,
+                PhotoUrl = string.IsNullOrEmpty(visitor.PhotoUrl) ? string.Empty : (visitor.PhotoUrl.StartsWith("/api/entryexit/photos/") ? visitor.PhotoUrl : $"/api/entryexit/photos/{visitor.PhotoUrl}"),
+                HasOpenEntry = hasOpenEntry
+            });
         }
 
-        return Ok(new AuthApiResponse<object>
-        {
-            Success = true,
-            Data = combined,
-            Message = $"Found {combined.Count} person(s)"
-        });
+        return Ok(ApiResponse<List<PersonSearchResultDto>>.SuccessResponse(combined, $"Found {combined.Count} person(s)"));
     }
 
     [HttpGet("search-by-contractor")]
-    public async Task<ActionResult<AuthApiResponse<object>>> SearchByContractor([FromQuery] string contractorName)
+    public async Task<ActionResult<ApiResponse<List<PersonSearchResultDto>>>> SearchByContractor([FromQuery] string contractorName)
     {
         if (string.IsNullOrWhiteSpace(contractorName))
-            return BadRequest(new AuthApiResponse<object>
-            {
-                Success = false,
-                Message = "Contractor name is required"
-            });
+            return BadRequest(ApiResponse<string>.ErrorResponse("Contractor name is required"));
 
         _logger.LogInformation("Searching labour by contractor: {ContractorName}", contractorName);
 
         var labourService = HttpContext.RequestServices.GetRequiredService<ILabourService>();
 
-        // Search labour by contractor name
-        var labourResult = await labourService.SearchLabourAsync(null, null, null, null);
+        var labourResult = await labourService.SearchLabourByContractorNameAsync(contractorName);
 
-        if (labourResult?.Success != true || labourResult.Data == null)
+        if (labourResult?.Success != true || labourResult.Data == null || labourResult.Data.Count == 0)
         {
-            return Ok(new AuthApiResponse<object>
-            {
-                Success = true,
-                Data = new List<object>(),
-                Message = "No labour found for this contractor"
-            });
+            return Ok(ApiResponse<List<PersonSearchResultDto>>.SuccessResponse(new List<PersonSearchResultDto>(), "No labour found for this contractor"));
         }
 
-        // Filter by contractor name (case-insensitive partial match)
-        var filteredLabour = labourResult.Data
-            .Where(l => l.ContractorName.Contains(contractorName, StringComparison.OrdinalIgnoreCase))
-            .ToList();
+        var contractorLabourList = labourResult.Data.Take(100).ToList();
+        var openSessions = contractorLabourList.Count > 0
+            ? await _recordService.HasOpenSessionsForLaboursAsync(contractorLabourList.Select(l => l.Id).ToArray())
+            : new Dictionary<int, bool>();
 
-        var result = new List<object>();
-        foreach (var labour in filteredLabour)
+        var result = contractorLabourList.Select(labour => new PersonSearchResultDto
         {
-            var openSessions = await _recordService.GetOpenSessionsAsync(labour.Id, null, null);
-            var hasOpenEntry = openSessions.Success && openSessions.Data != null && openSessions.Data.Any();
+            Id = labour.Id,
+            Name = labour.Name,
+            PhoneNumber = labour.PhoneNumber,
+            PersonType = "Labour",
+            Barcode = labour.Barcode,
+            ProjectId = labour.ProjectId,
+            ProjectName = labour.ProjectName,
+            ContractorId = labour.ContractorId,
+            ContractorName = labour.ContractorName,
+            PhotoUrl = string.IsNullOrEmpty(labour.PhotoUrl) ? string.Empty : (labour.PhotoUrl.StartsWith("/api/entryexit/photos/") ? labour.PhotoUrl : $"/api/entryexit/photos/{labour.PhotoUrl}"),
+            HasOpenEntry = openSessions.TryGetValue(labour.Id, out var hasOpen) && hasOpen
+        }).ToList();
 
-            result.Add(new
-            {
-                id = labour.Id,
-                name = labour.Name,
-                phoneNumber = labour.PhoneNumber,
-                personType = "Labour",
-                barcode = labour.Barcode,
-                projectId = labour.ProjectId,
-                projectName = labour.ProjectName,
-                contractorId = labour.ContractorId,
-                contractorName = labour.ContractorName,
-                photoUrl = string.IsNullOrEmpty(labour.PhotoUrl) ? string.Empty : (labour.PhotoUrl.StartsWith("/api/entryexit/photos/") ? labour.PhotoUrl : $"/api/entryexit/photos/{labour.PhotoUrl}"),
-                hasOpenEntry
-            });
-        }
-
-        return Ok(new AuthApiResponse<object>
-        {
-            Success = true,
-            Data = result,
-            Message = $"Found {result.Count} labour from contractor"
-        });
+        return Ok(ApiResponse<List<PersonSearchResultDto>>.SuccessResponse(result, $"Found {result.Count} labour from contractor"));
     }
 
     [HttpPost("bulk-checkin")]
-    public async Task<ActionResult<AuthApiResponse<object>>> BulkCheckIn([FromBody] BulkCheckInDto dto)
+    public async Task<ActionResult<ApiResponse<BulkCheckInResultDto>>> BulkCheckIn([FromBody] BulkCheckInDto dto)
     {
         if (dto.LabourIds == null || !dto.LabourIds.Any())
-            return BadRequest(new AuthApiResponse<object>
-            {
-                Success = false,
-                Message = "At least one labour ID is required"
-            });
+            return BadRequest(ApiResponse<string>.ErrorResponse("At least one labour ID is required"));
 
         var userEmail = User.FindFirst(ClaimTypes.Name)?.Value ?? "System";
-        var results = new List<object>();
+        var results = new List<BulkCheckInItemResultDto>();
         var successCount = 0;
         var failureCount = 0;
 
@@ -288,26 +246,23 @@ public class RecordsController : ControllerBase
             if (result.Success)
             {
                 successCount++;
-                results.Add(new { labourId, success = true, message = "Recorded successfully" });
+                results.Add(new BulkCheckInItemResultDto { LabourId = labourId, Success = true, Message = "Recorded successfully" });
             }
             else
             {
                 failureCount++;
-                results.Add(new { labourId, success = false, message = result.Message, errors = result.Errors });
+                results.Add(new BulkCheckInItemResultDto { LabourId = labourId, Success = false, Message = result.Message ?? "Failed to record", Errors = result.Errors });
             }
         }
 
-        return Ok(new AuthApiResponse<object>
+        var response = new BulkCheckInResultDto
         {
-            Success = true,
-            Data = new
-            {
-                totalProcessed = dto.LabourIds.Count,
-                successCount,
-                failureCount,
-                results
-            },
-            Message = $"Processed {successCount} successful, {failureCount} failed"
-        });
+            TotalProcessed = dto.LabourIds.Count,
+            SuccessCount = successCount,
+            FailureCount = failureCount,
+            Results = results
+        };
+
+        return Ok(ApiResponse<BulkCheckInResultDto>.SuccessResponse(response, $"Processed {successCount} successful, {failureCount} failed"));
     }
 }

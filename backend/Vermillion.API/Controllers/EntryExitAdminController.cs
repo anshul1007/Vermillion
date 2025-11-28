@@ -3,6 +3,8 @@ using Vermillion.EntryExit.Domain.Services;
 using Vermillion.Auth.Domain.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Vermillion.Shared.Domain.Models.DTOs;
+using Vermillion.API.Extensions;
 
 namespace Vermillion.API.Controllers;
 
@@ -25,95 +27,49 @@ public class EntryExitAdminController : ControllerBase
     // Get users for EntryExit tenant (Guards)
     [HttpGet("users")]
     [Authorize(Roles = "SystemAdmin,Admin")]
-    public async Task<ActionResult> GetUsers()
+    public async Task<IActionResult> GetUsers()
     {
         try
         {
-            var employees = await _userService.GetAllEmployeesAsync(excludeGuards: false);
-            if (employees == null)
-                return StatusCode(502, new AuthApiResponse<object> { Success = false, Message = "Failed to fetch users" });
-
-            // Filter users with Guard role in EntryExit tenant
-            var guardsWithRoles = new List<GuardListItemDto>();
-
-            foreach (var emp in employees)
+            var guardList = await BuildGuardListAsync();
+            if (!guardList.Success)
             {
-                // Get role for EntryExit tenant
-                var roleName = await _userService.GetUserRoleAsync(emp.UserId, "entryexit");
-
-                // Only include users with Guard role in EntryExit tenant
-                if (roleName == "Guard")
-                {
-                    guardsWithRoles.Add(new GuardListItemDto
-                    {
-                        Id = emp.UserId.ToString(),
-                        EmployeeId = emp.EmployeeId,
-                        FirstName = emp.FirstName ?? string.Empty,
-                        LastName = emp.LastName ?? string.Empty,
-                        Email = emp.User?.Email ?? string.Empty,
-                        PhoneNumber = emp.PhoneNumber,
-                        IsActive = emp.User?.IsActive ?? false,
-                        Role = roleName
-                    });
-                }
+                return this.ServiceUnavailable<List<GuardListItemDto>>(guardList.Message ?? "Failed to fetch users", guardList.Errors);
             }
 
-            return Ok(new AuthApiResponse<List<GuardListItemDto>> { Success = true, Data = guardsWithRoles, Message = null });
+            return Ok(guardList);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error getting users");
-            return StatusCode(500, new AuthApiResponse<object> { Success = false, Message = "Error getting users", Errors = new List<string> { ex.Message } });
+            return this.ServerError("Error getting users");
         }
     }
 
     // Guards - simplified endpoints for guard management
     [HttpGet("guards/list")]
-    public async Task<ActionResult> GetGuardsList()
+    public async Task<IActionResult> GetGuardsList()
     {
         try
         {
-            var employees = await _userService.GetAllEmployeesAsync(excludeGuards: false);
-            if (employees == null)
-                return StatusCode(502, new AuthApiResponse<object> { Success = false, Message = "Failed to fetch users" });
-
-            // Filter users with Guard role in EntryExit tenant
-            var guardsWithRoles = new List<GuardListItemDto>();
-
-            foreach (var emp in employees)
+            var guardList = await BuildGuardListAsync();
+            if (!guardList.Success)
             {
-                // Get role for EntryExit tenant
-                var roleName = await _userService.GetUserRoleAsync(emp.UserId, "entryexit");
-
-                // Only include users with Guard role in EntryExit tenant
-                if (roleName == "Guard")
-                {
-                    guardsWithRoles.Add(new GuardListItemDto
-                    {
-                        Id = emp.UserId.ToString(),
-                        EmployeeId = emp.EmployeeId,
-                        FirstName = emp.FirstName ?? string.Empty,
-                        LastName = emp.LastName ?? string.Empty,
-                        Email = emp.User?.Email ?? string.Empty,
-                        PhoneNumber = emp.PhoneNumber,
-                        IsActive = emp.User?.IsActive ?? false,
-                        Role = roleName
-                    });
-                }
+                return this.ServiceUnavailable<List<GuardListItemDto>>(guardList.Message ?? "Failed to fetch users", guardList.Errors);
             }
 
-            return Ok(new AuthApiResponse<List<GuardListItemDto>> { Success = true, Data = guardsWithRoles, Message = null });
+            return Ok(guardList);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error getting guards list");
-            return StatusCode(500, new AuthApiResponse<object> { Success = false, Message = "Error getting guards list", Errors = new List<string> { ex.Message } });
+            return this.ServerError("Error getting guards list");
         }
     }
 
     [HttpPost("guards/create")]
     [Authorize(Roles = "SystemAdmin,Admin")]
-    public async Task<ActionResult> CreateGuard([FromBody] CreateGuardDto createDto)
+    public async Task<IActionResult> CreateGuard([FromBody] CreateGuardDto createDto)
     {
         try
         {
@@ -136,21 +92,21 @@ public class EntryExitAdminController : ControllerBase
 
             if (!success)
             {
-                return BadRequest(new AuthApiResponse<object> { Success = false, Message = "Failed to create guard", Errors = new List<string> { message } });
+                return BadRequest(ApiResponse<string>.ErrorResponse("Failed to create guard", new List<string> { message }));
             }
 
-            return Ok(new AuthApiResponse<object> { Success = true, Data = userId, Message = "Guard created successfully" });
+            return Ok(ApiResponse<IdResponseDto>.SuccessResponse(new IdResponseDto { Id = userId ?? 0 }, "Guard created successfully"));
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error creating guard");
-            return StatusCode(500, new AuthApiResponse<object> { Success = false, Message = "Error creating guard", Errors = new List<string> { ex.Message } });
+            return this.ServerError("Error creating guard");
         }
     }
 
     [HttpPut("guards/{authUserId:int}")]
     [Authorize(Roles = "SystemAdmin,Admin")]
-    public async Task<ActionResult> UpdateGuard(int authUserId, [FromBody] UpdateGuardDto updateDto)
+    public async Task<IActionResult> UpdateGuard(int authUserId, [FromBody] UpdateGuardDto updateDto)
     {
         try
         {
@@ -167,21 +123,21 @@ public class EntryExitAdminController : ControllerBase
             );
 
             if (!ok)
-                return BadRequest(new AuthApiResponse<object> { Success = false, Message = "Failed to update guard" });
+                return BadRequest(ApiResponse<string>.ErrorResponse("Failed to update guard"));
 
-            return Ok(new AuthApiResponse<object> { Success = true, Message = "Guard updated" });
+            return Ok(ApiResponse<EmptyResponseDto>.SuccessResponse(new EmptyResponseDto(), "Guard updated"));
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error updating guard");
-            return StatusCode(500, new AuthApiResponse<object> { Success = false, Message = "Error updating guard", Errors = new List<string> { ex.Message } });
+            return this.ServerError("Error updating guard");
         }
     }
 
     // Projects
     [HttpPost("projects")]
     [Authorize(Roles = "SystemAdmin,Admin")]
-    public async Task<ActionResult<AuthApiResponse<ProjectDto>>> CreateProject([FromBody] CreateProjectDto dto)
+    public async Task<ActionResult<ApiResponse<ProjectDto>>> CreateProject([FromBody] CreateProjectDto dto)
     {
         var result = await _adminService.CreateProjectAsync(dto);
 
@@ -193,7 +149,7 @@ public class EntryExitAdminController : ControllerBase
 
     [HttpGet("projects")]
     [Authorize(Roles = "Guard,SystemAdmin,Admin")]
-    public async Task<ActionResult<AuthApiResponse<List<ProjectDto>>>> GetProjects([FromQuery] bool? activeOnly = true)
+    public async Task<ActionResult<ApiResponse<List<ProjectDto>>>> GetProjects([FromQuery] bool? activeOnly = true)
     {
         var result = await _adminService.GetProjectsAsync(activeOnly);
 
@@ -205,7 +161,7 @@ public class EntryExitAdminController : ControllerBase
 
     [HttpPut("projects/{id}")]
     [Authorize(Roles = "SystemAdmin,Admin")]
-    public async Task<ActionResult<AuthApiResponse<ProjectDto>>> UpdateProject(int id, [FromBody] UpdateProjectDto dto)
+    public async Task<ActionResult<ApiResponse<ProjectDto>>> UpdateProject(int id, [FromBody] UpdateProjectDto dto)
     {
         var result = await _adminService.UpdateProjectAsync(id, dto);
 
@@ -217,7 +173,7 @@ public class EntryExitAdminController : ControllerBase
 
     [HttpDelete("projects/{id}")]
     [Authorize(Roles = "SystemAdmin,Admin")]
-    public async Task<ActionResult<AuthApiResponse<bool>>> DeleteProject(int id)
+    public async Task<ActionResult<ApiResponse<bool>>> DeleteProject(int id)
     {
         var result = await _adminService.DeleteProjectAsync(id);
 
@@ -230,7 +186,7 @@ public class EntryExitAdminController : ControllerBase
     // Contractors
     [HttpPost("contractors")]
     [Authorize(Roles = "SystemAdmin,Admin")]
-    public async Task<ActionResult<AuthApiResponse<ContractorDto>>> CreateContractor([FromBody] CreateContractorDto dto)
+    public async Task<ActionResult<ApiResponse<ContractorDto>>> CreateContractor([FromBody] CreateContractorDto dto)
     {
         var result = await _adminService.CreateContractorAsync(dto);
 
@@ -242,7 +198,7 @@ public class EntryExitAdminController : ControllerBase
 
     [HttpGet("contractors")]
     [Authorize(Roles = "Guard,SystemAdmin,Admin")]  // Allow Guards to view contractors
-    public async Task<ActionResult<AuthApiResponse<List<ContractorDto>>>> GetContractors(
+    public async Task<ActionResult<ApiResponse<List<ContractorDto>>>> GetContractors(
         [FromQuery] int? projectId,
         [FromQuery] bool? activeOnly = true)
     {
@@ -256,7 +212,7 @@ public class EntryExitAdminController : ControllerBase
 
     [HttpGet("projects/{projectId}/contractors")]
     [Authorize(Roles = "Guard,SystemAdmin,Admin")]  // Allow Guards to view contractors
-    public async Task<ActionResult<AuthApiResponse<List<ContractorDto>>>> GetContractorsByProject(int projectId)
+    public async Task<ActionResult<ApiResponse<List<ContractorDto>>>> GetContractorsByProject(int projectId)
     {
         _logger.LogInformation("Getting contractors for project {ProjectId}", projectId);
         var result = await _adminService.GetContractorsAsync(projectId, activeOnly: true);
@@ -269,7 +225,7 @@ public class EntryExitAdminController : ControllerBase
 
     [HttpPut("contractors/{id}")]
     [Authorize(Roles = "SystemAdmin,Admin")]
-    public async Task<ActionResult<AuthApiResponse<ContractorDto>>> UpdateContractor(int id, [FromBody] UpdateContractorDto dto)
+    public async Task<ActionResult<ApiResponse<ContractorDto>>> UpdateContractor(int id, [FromBody] UpdateContractorDto dto)
     {
         var result = await _adminService.UpdateContractorAsync(id, dto);
 
@@ -281,7 +237,7 @@ public class EntryExitAdminController : ControllerBase
 
     [HttpDelete("contractors/{id}")]
     [Authorize(Roles = "SystemAdmin,Admin")]
-    public async Task<ActionResult<AuthApiResponse<bool>>> DeleteContractor(int id)
+    public async Task<ActionResult<ApiResponse<bool>>> DeleteContractor(int id)
     {
         var result = await _adminService.DeleteContractorAsync(id);
 
@@ -294,7 +250,7 @@ public class EntryExitAdminController : ControllerBase
     // Guard Project Assignments
     [HttpPost("guards/assign")]
     [Authorize(Roles = "SystemAdmin,Admin")]
-    public async Task<ActionResult<AuthApiResponse<GuardDto>>> AssignGuardToProject([FromBody] AssignGuardToProjectDto dto)
+    public async Task<ActionResult<ApiResponse<GuardDto>>> AssignGuardToProject([FromBody] AssignGuardToProjectDto dto)
     {
         var userEmail = User.Identity?.Name ?? "System";
         var result = await _adminService.AssignGuardToProjectAsync(dto, userEmail);
@@ -307,7 +263,7 @@ public class EntryExitAdminController : ControllerBase
 
     [HttpPost("guards/unassign")]
     [Authorize(Roles = "SystemAdmin,Admin")]
-    public async Task<ActionResult<AuthApiResponse<bool>>> UnassignGuardFromProject([FromBody] UnassignGuardFromProjectDto dto)
+    public async Task<ActionResult<ApiResponse<bool>>> UnassignGuardFromProject([FromBody] UnassignGuardFromProjectDto dto)
     {
         var result = await _adminService.UnassignGuardFromProjectAsync(dto);
 
@@ -318,7 +274,7 @@ public class EntryExitAdminController : ControllerBase
     }
 
     [HttpGet("guards")]
-    public async Task<ActionResult<AuthApiResponse<List<GuardDto>>>> GetGuards(
+    public async Task<ActionResult<ApiResponse<List<GuardDto>>>> GetGuards(
         [FromQuery] int? projectId,
         [FromQuery] bool? activeOnly = true)
     {
@@ -331,7 +287,7 @@ public class EntryExitAdminController : ControllerBase
     }
 
     [HttpGet("guards/{authUserId}/assignments")]
-    public async Task<ActionResult<AuthApiResponse<List<GuardProjectInfo>>>> GetGuardAssignments(int authUserId)
+    public async Task<ActionResult<ApiResponse<List<GuardProjectInfo>>>> GetGuardAssignments(int authUserId)
     {
         var result = await _adminService.GetGuardAssignmentsAsync(authUserId);
 
@@ -343,16 +299,12 @@ public class EntryExitAdminController : ControllerBase
 
     [HttpGet("guards/my-assignments")]
     [Authorize(Roles = "Guard,SystemAdmin,Admin")]  // Allow Guards to access their own assignments
-    public async Task<ActionResult<AuthApiResponse<List<GuardProjectInfo>>>> GetMyAssignments()
+    public async Task<ActionResult<ApiResponse<List<GuardProjectInfo>>>> GetMyAssignments()
     {
         var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier) ?? User.FindFirst("sub");
         if (userIdClaim == null || !int.TryParse(userIdClaim.Value, out var authUserId))
         {
-            return Unauthorized(new AuthApiResponse<List<GuardProjectInfo>>
-            {
-                Success = false,
-                Message = "User not authenticated"
-            });
+            return Unauthorized(ApiResponse<List<GuardProjectInfo>>.ErrorResponse("User not authenticated"));
         }
 
         var result = await _adminService.GetGuardAssignmentsAsync(authUserId);
@@ -361,5 +313,51 @@ public class EntryExitAdminController : ControllerBase
             return NotFound(result);
 
         return Ok(result);
+    }
+
+    private async Task<ApiResponse<List<GuardListItemDto>>> BuildGuardListAsync()
+    {
+        var employees = await _userService.GetAllEmployeesAsync(excludeGuards: false);
+        if (employees == null)
+        {
+            return ApiResponse<List<GuardListItemDto>>.ErrorResponse("Failed to fetch users");
+        }
+
+        var employeeList = employees.ToList();
+        if (employeeList.Count == 0)
+        {
+            return ApiResponse<List<GuardListItemDto>>.SuccessResponse(new List<GuardListItemDto>());
+        }
+
+        var roleTasks = employeeList
+            .Select(emp => _userService.GetUserRoleAsync(emp.UserId, "entryexit"))
+            .ToList();
+
+        var roles = await Task.WhenAll(roleTasks);
+
+        var guardsWithRoles = new List<GuardListItemDto>();
+        for (var index = 0; index < employeeList.Count; index++)
+        {
+            var roleName = roles[index];
+            if (!string.Equals(roleName, "Guard", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var employee = employeeList[index];
+            guardsWithRoles.Add(new GuardListItemDto
+            {
+                Id = employee.UserId.ToString(),
+                EmployeeId = employee.EmployeeId,
+                FirstName = employee.FirstName ?? string.Empty,
+                LastName = employee.LastName ?? string.Empty,
+                Email = employee.User?.Email ?? string.Empty,
+                PhoneNumber = employee.PhoneNumber,
+                IsActive = employee.User?.IsActive ?? false,
+                Role = roleName ?? string.Empty
+            });
+        }
+
+        return ApiResponse<List<GuardListItemDto>>.SuccessResponse(guardsWithRoles);
     }
 }

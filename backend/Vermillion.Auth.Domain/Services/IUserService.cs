@@ -96,4 +96,10 @@ public interface IUserService
     /// Gets employees by manager ID (for team management)
     /// </summary>
     Task<List<Employee>> GetEmployeesByManagerIdAsync(Guid managerId);
+
+    /// <summary>
+    /// Gets user IDs for all employees reporting to a specific manager
+    /// Optimized method that queries only the needed data
+    /// </summary>
+    Task<HashSet<int>?> GetTeamUserIdsByManagerAsync(Guid managerEmployeeId);
 }

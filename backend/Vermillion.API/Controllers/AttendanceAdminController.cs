@@ -6,6 +6,8 @@ using Vermillion.Attendance.Domain.Models.Entities;
 using Microsoft.EntityFrameworkCore;
 using Vermillion.Attendance.Domain.Services;
 using Vermillion.Auth.Domain.Services;
+using Vermillion.Shared.Domain.Models.DTOs;
+using Vermillion.API.Extensions;
 
 namespace Vermillion.API.Controllers
 {
@@ -67,26 +69,37 @@ namespace Vermillion.API.Controllers
             {
                 var employees = await _teamHelper.GetAllEmployeesAsync();
                 if (employees == null)
-                    return StatusCode(502, new EntryExit.Domain.Models.DTOs.AuthApiResponse<List<EmployeeWithRoleDto>> { Success = false, Message = "Failed to fetch users", Data = null });
+                    return this.ServiceUnavailable<List<EmployeeWithRoleDto>>("Failed to fetch users");
 
-                // Filter out users based on their roles and include role information
-                var filteredEmployees = new List<EmployeeWithRoleDto>();
-
-                foreach (var employee in employees)
+                var employeeList = employees.ToList();
+                if (employeeList.Count == 0)
                 {
-                    // Get the user's role in the Attendance tenant
-                    var userRole = await _userService.GetUserRoleAsync(employee.UserId, "attendance");
+                    return Ok(ApiResponse<List<EmployeeWithRoleDto>>.SuccessResponse(new List<EmployeeWithRoleDto>()));
+                }
 
-                    // Skip if role fetch failed or user has no role
+                var roleTasks = employeeList
+                    .Select(employee => _userService.GetUserRoleAsync(employee.UserId, "attendance"))
+                    .ToArray();
+
+                var roles = await Task.WhenAll(roleTasks);
+
+                var filteredEmployees = new List<EmployeeWithRoleDto>(employeeList.Count);
+
+                for (var index = 0; index < employeeList.Count; index++)
+                {
+                    var userRole = roles[index];
                     if (string.IsNullOrEmpty(userRole))
+                    {
                         continue;
+                    }
 
-                    // Exclude Guards and SystemAdmins - they don't use attendance system
                     if (userRole.Equals("Guard", StringComparison.OrdinalIgnoreCase) ||
                         userRole.Equals("SystemAdmin", StringComparison.OrdinalIgnoreCase))
+                    {
                         continue;
+                    }
 
-                    // Create EmployeeWithRoleDto including the role information
+                    var employee = employeeList[index];
                     filteredEmployees.Add(new EmployeeWithRoleDto(
                         employee.Id,
                         employee.UserId,
@@ -105,12 +118,12 @@ namespace Vermillion.API.Controllers
                     ));
                 }
 
-                return Ok(new EntryExit.Domain.Models.DTOs.AuthApiResponse<List<EmployeeWithRoleDto>> { Success = true, Data = filteredEmployees });
+                return Ok(ApiResponse<List<EmployeeWithRoleDto>>.SuccessResponse(filteredEmployees));
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error fetching users");
-                return StatusCode(500, new EntryExit.Domain.Models.DTOs.AuthApiResponse<List<EmployeeWithRoleDto>> { Success = false, Message = "An error occurred", Errors = new List<string> { ex.Message } });
+                return this.ServerError("An error occurred");
             }
         }
 
@@ -126,11 +139,11 @@ namespace Vermillion.API.Controllers
                 // First, get the employee to find their actual User ID
                 var employees = await _teamHelper.GetAllEmployeesAsync();
                 if (employees == null)
-                    return StatusCode(502, new EntryExit.Domain.Models.DTOs.AuthApiResponse<EmployeeWithRoleDto> { Success = false, Message = "Failed to fetch employees", Data = null });
+                    return this.ServiceUnavailable<EmployeeWithRoleDto>("Failed to fetch employees");
 
                 var employee = employees.FirstOrDefault(e => e.Id == userId.ToString());
                 if (employee == null)
-                    return NotFound(new EntryExit.Domain.Models.DTOs.AuthApiResponse<EmployeeWithRoleDto> { Success = false, Message = $"Employee {userId} not found", Data = null });
+                    return NotFound(ApiResponse<EmployeeWithRoleDto>.ErrorResponse($"Employee {userId} not found"));
 
                 // Parse nullable Guid fields
                 Guid? managerId = request.ManagerId.HasValue && Guid.TryParse(request.ManagerId.ToString(), out var managerGuid)
@@ -155,16 +168,16 @@ namespace Vermillion.API.Controllers
                 );
 
                 if (!updateResponse)
-                    return StatusCode(502, new EntryExit.Domain.Models.DTOs.AuthApiResponse<EmployeeWithRoleDto> { Success = false, Message = "Failed to update user", Data = null });
+                    return this.ServiceUnavailable<EmployeeWithRoleDto>("Failed to update user");
 
                 // Fetch updated employee data
                 var updatedEmployees = await _teamHelper.GetAllEmployeesAsync();
                 if (updatedEmployees == null)
-                    return StatusCode(502, new EntryExit.Domain.Models.DTOs.AuthApiResponse<EmployeeWithRoleDto> { Success = false, Message = "Failed to fetch updated user", Data = null });
+                    return this.ServiceUnavailable<EmployeeWithRoleDto>("Failed to fetch updated user");
 
                 var updatedEmployee = updatedEmployees.FirstOrDefault(e => e.Id == userId.ToString());
                 if (updatedEmployee == null)
-                    return NotFound(new EntryExit.Domain.Models.DTOs.AuthApiResponse<EmployeeWithRoleDto> { Success = false, Message = $"User {userId} not found", Data = null });
+                    return NotFound(ApiResponse<EmployeeWithRoleDto>.ErrorResponse($"User {userId} not found"));
 
                 // Get the user's role
                 var userRole = await _userService.GetUserRoleAsync(updatedEmployee.UserId, "attendance");
@@ -187,12 +200,12 @@ namespace Vermillion.API.Controllers
                     userRole
                 );
 
-                return Ok(new EntryExit.Domain.Models.DTOs.AuthApiResponse<EmployeeWithRoleDto> { Success = true, Data = result });
+                return Ok(ApiResponse<EmployeeWithRoleDto>.SuccessResponse(result));
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error updating user {UserId}", userId);
-                return StatusCode(500, new EntryExit.Domain.Models.DTOs.AuthApiResponse<EmployeeWithRoleDto> { Success = false, Message = "An error occurred", Errors = new List<string> { ex.Message } });
+                return this.ServerError("An error occurred");
             }
         }
 
@@ -202,7 +215,7 @@ namespace Vermillion.API.Controllers
         {
             var departments = await _userService.GetAllDepartmentsAsync();
             if (departments == null)
-                return StatusCode(502, new EntryExit.Domain.Models.DTOs.AuthApiResponse<List<DepartmentDto>> { Success = false, Message = "Failed to fetch departments", Data = null });
+                return this.ServiceUnavailable<List<DepartmentDto>>("Failed to fetch departments");
 
             // Convert to DTOs
             var data = departments.Select(d => new DepartmentDto(
@@ -213,7 +226,7 @@ namespace Vermillion.API.Controllers
                 IsActive: d.IsActive
             )).ToList();
 
-            return Ok(new EntryExit.Domain.Models.DTOs.AuthApiResponse<List<DepartmentDto>> { Success = true, Data = data });
+            return Ok(ApiResponse<List<DepartmentDto>>.SuccessResponse(data));
         }
 
         // Accept weeklyOffDays as either array or comma-separated string
@@ -266,7 +279,7 @@ namespace Vermillion.API.Controllers
         public async Task<IActionResult> CreateDepartment([FromBody] DepartmentRequest request)
         {
             if (!ModelState.IsValid)
-                return BadRequest(new EntryExit.Domain.Models.DTOs.AuthApiResponse<DepartmentDto> { Success = false, Message = "Invalid request", Data = null });
+                return BadRequest(new ApiResponse<DepartmentDto> { Success = false, Message = "Invalid request", Data = null });
 
             var weekly = NormalizeWeeklyOffDays(request.WeeklyOffDays);
             string? weeklyOffDaysStr = weekly != null ? string.Join(",", weekly) : null;
@@ -289,7 +302,7 @@ namespace Vermillion.API.Controllers
                 IsActive: created.IsActive
             );
 
-                return Ok(new EntryExit.Domain.Models.DTOs.AuthApiResponse<DepartmentDto> { Success = true, Data = dto, Message = "Department created" });
+                return Ok(new ApiResponse<DepartmentDto> { Success = true, Data = dto, Message = "Department created" });
         }
 
         [HttpPut("departments/{id}")]
@@ -297,10 +310,10 @@ namespace Vermillion.API.Controllers
         public async Task<IActionResult> UpdateDepartment(string id, [FromBody] DepartmentDto request)
         {
             if (!ModelState.IsValid)
-                return BadRequest(new EntryExit.Domain.Models.DTOs.AuthApiResponse<DepartmentDto> { Success = false, Message = "Invalid request", Data = null });
+                return BadRequest(new ApiResponse<DepartmentDto> { Success = false, Message = "Invalid request", Data = null });
 
             if (!Guid.TryParse(id, out var departmentId))
-                return BadRequest(new EntryExit.Domain.Models.DTOs.AuthApiResponse<DepartmentDto> { Success = false, Message = "Invalid department ID", Data = null });
+                return BadRequest(new ApiResponse<DepartmentDto> { Success = false, Message = "Invalid department ID", Data = null });
 
             string? weeklyOffDaysStr = request.WeeklyOffDays != null ? string.Join(",", request.WeeklyOffDays) : null;
 
@@ -315,7 +328,7 @@ namespace Vermillion.API.Controllers
 
             var updated = await _userService.UpdateDepartmentAsync(departmentId, department);
             if (updated == null)
-                return NotFound(new EntryExit.Domain.Models.DTOs.AuthApiResponse<DepartmentDto> { Success = false, Message = "Department not found", Data = null });
+                return NotFound(new ApiResponse<DepartmentDto> { Success = false, Message = "Department not found", Data = null });
 
             var dto = new DepartmentDto(
                 Id: updated.Id.ToString(),
@@ -325,7 +338,7 @@ namespace Vermillion.API.Controllers
                 IsActive: updated.IsActive
             );
 
-            return Ok(new EntryExit.Domain.Models.DTOs.AuthApiResponse<DepartmentDto> { Success = true, Data = dto, Message = "Department updated" });
+            return Ok(new ApiResponse<DepartmentDto> { Success = true, Data = dto, Message = "Department updated" });
         }
 
         [HttpDelete("departments/{id}")]
@@ -333,13 +346,13 @@ namespace Vermillion.API.Controllers
         public async Task<IActionResult> DeleteDepartment(string id)
         {
             if (!Guid.TryParse(id, out var departmentId))
-                return BadRequest(new EntryExit.Domain.Models.DTOs.AuthApiResponse<DepartmentDto> { Success = false, Message = "Invalid department ID", Data = null });
+                return BadRequest(new ApiResponse<DepartmentDto> { Success = false, Message = "Invalid department ID", Data = null });
 
             var success = await _userService.DeleteDepartmentAsync(departmentId);
             if (!success)
-                return NotFound(new EntryExit.Domain.Models.DTOs.AuthApiResponse<DepartmentDto> { Success = false, Message = "Department not found", Data = null });
+                return NotFound(new ApiResponse<DepartmentDto> { Success = false, Message = "Department not found", Data = null });
 
-            return Ok(new EntryExit.Domain.Models.DTOs.AuthApiResponse<bool> { Success = true, Data = true, Message = "Department deleted" });
+            return Ok(new ApiResponse<bool> { Success = true, Data = true, Message = "Department deleted" });
         }
 
         // Public Holiday endpoints
@@ -365,12 +378,12 @@ namespace Vermillion.API.Controllers
                     IsActive = h.IsActive
                 }).ToList();
 
-                return Ok(new EntryExit.Domain.Models.DTOs.AuthApiResponse<List<PublicHolidayDto>> { Success = true, Data = dtos });
+                return Ok(new ApiResponse<List<PublicHolidayDto>> { Success = true, Data = dtos });
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error fetching public holidays");
-                return StatusCode(500, new EntryExit.Domain.Models.DTOs.AuthApiResponse<List<PublicHolidayDto>> { Success = false, Message = "An error occurred", Errors = new List<string> { ex.Message } });
+                return this.ServerError("An error occurred");
             }
         }
 
@@ -382,12 +395,12 @@ namespace Vermillion.API.Controllers
             try
             {
                 if (!ModelState.IsValid)
-                    return BadRequest(new EntryExit.Domain.Models.DTOs.AuthApiResponse<PublicHolidayDto> { Success = false, Message = "Invalid request", Data = null });
+                    return BadRequest(new ApiResponse<PublicHolidayDto> { Success = false, Message = "Invalid request", Data = null });
 
                 // Prevent duplicate by date
                 var exists = await _db.PublicHolidays.AnyAsync(h => h.Date == request.Date && h.IsActive);
                 if (exists)
-                    return Conflict(new EntryExit.Domain.Models.DTOs.AuthApiResponse<PublicHolidayDto> { Success = false, Message = "A public holiday already exists for the specified date", Data = null });
+                    return Conflict(new ApiResponse<PublicHolidayDto> { Success = false, Message = "A public holiday already exists for the specified date", Data = null });
 
                 var ph = new PublicHoliday
                 {
@@ -411,12 +424,12 @@ namespace Vermillion.API.Controllers
                     IsActive = ph.IsActive
                 };
 
-                return Ok(new EntryExit.Domain.Models.DTOs.AuthApiResponse<PublicHolidayDto> { Success = true, Data = dto, Message = "Public holiday created" });
+                return Ok(new ApiResponse<PublicHolidayDto> { Success = true, Data = dto, Message = "Public holiday created" });
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error creating public holiday");
-                return StatusCode(500, new EntryExit.Domain.Models.DTOs.AuthApiResponse<PublicHolidayDto> { Success = false, Message = "An error occurred", Errors = new List<string> { ex.Message } });
+                return this.ServerError("An error occurred");
             }
         }
 
@@ -429,19 +442,19 @@ namespace Vermillion.API.Controllers
             {
                 var ph = await _db.PublicHolidays.FindAsync(id);
                 if (ph == null)
-                    return NotFound(new EntryExit.Domain.Models.DTOs.AuthApiResponse<bool> { Success = false, Message = "Public holiday not found", Data = false });
+                    return NotFound(ApiResponse<bool>.ErrorResponse("Public holiday not found"));
 
                 // Mark as inactive instead of deleting to preserve history
                 ph.IsActive = false;
                 _db.PublicHolidays.Update(ph);
                 await _db.SaveChangesAsync();
 
-                return Ok(new EntryExit.Domain.Models.DTOs.AuthApiResponse<bool> { Success = true, Data = true, Message = "Public holiday deactivated" });
+                return Ok(ApiResponse<bool>.SuccessResponse(true, "Public holiday deactivated"));
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error deleting public holiday");
-                return StatusCode(500, new EntryExit.Domain.Models.DTOs.AuthApiResponse<bool> { Success = false, Message = "An error occurred", Errors = new List<string> { ex.Message } });
+                return this.ServerError("An error occurred");
             }
         }
 
@@ -464,7 +477,7 @@ namespace Vermillion.API.Controllers
                 {
                     var teamUserIds = await GetManagerTeamUserIdsAsync();
                     if (teamUserIds == null)
-                        return StatusCode(502, new EntryExit.Domain.Models.DTOs.AuthApiResponse<List<AttendanceDto>> { Success = false, Message = "Failed to fetch users from AuthAPI", Data = null });
+                        return this.ServiceUnavailable<List<AttendanceDto>>("Failed to fetch users from AuthAPI");
 
                     query = query.Where(a => teamUserIds.Contains(a.UserId));
                 }
@@ -485,15 +498,15 @@ namespace Vermillion.API.Controllers
                     Status = att.Status.ToString(),
                     ApproverName = null,
                     ApprovedAt = att.ApprovedAt,
-                    WorkDuration = att.LogoutTime.HasValue ? att.LogoutTime.Value - att.LoginTime : (TimeSpan?)null
+                    WorkDuration = att.LogoutTime.HasValue ? att.LogoutTime.Value - att.LoginTime : null
                 }).ToList();
 
-                return Ok(new EntryExit.Domain.Models.DTOs.AuthApiResponse<List<AttendanceDto>> { Success = true, Data = dtos });
+                return Ok(ApiResponse<List<AttendanceDto>>.SuccessResponse(dtos));
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error fetching pending attendance");
-                return StatusCode(500, new EntryExit.Domain.Models.DTOs.AuthApiResponse<List<AttendanceDto>> { Success = false, Message = "An error occurred", Errors = new List<string> { ex.Message } });
+                return this.ServerError("An error occurred");
             }
         }
 
@@ -508,16 +521,16 @@ namespace Vermillion.API.Controllers
             {
                 var attendance = await _db.Attendances.FindAsync(attendanceId);
                 if (attendance == null)
-                    return NotFound(new EntryExit.Domain.Models.DTOs.AuthApiResponse<bool> { Success = false, Message = $"Attendance record {attendanceId} not found", Data = false });
+                    return NotFound(new ApiResponse<bool> { Success = false, Message = $"Attendance record {attendanceId} not found", Data = false });
 
                 // Check if already processed
                 if (attendance.Status != ApprovalStatus.Pending)
-                    return BadRequest(new EntryExit.Domain.Models.DTOs.AuthApiResponse<bool> { Success = false, Message = $"Attendance already {attendance.Status}", Data = false });
+                    return BadRequest(new ApiResponse<bool> { Success = false, Message = $"Attendance already {attendance.Status}", Data = false });
 
                 // Get current user ID
                 var currentUserId = _currentUserService.GetCurrentUserId();
                 if (!currentUserId.HasValue)
-                    return Unauthorized(new EntryExit.Domain.Models.DTOs.AuthApiResponse<bool> { Success = false, Message = "Invalid or missing user claim", Data = false });
+                    return Unauthorized(ApiResponse<bool>.ErrorResponse("Invalid or missing user claim"));
 
                 // Approve the attendance
                 attendance.Status = ApprovalStatus.Approved;
@@ -526,12 +539,12 @@ namespace Vermillion.API.Controllers
 
                 await _db.SaveChangesAsync();
 
-                return Ok(new EntryExit.Domain.Models.DTOs.AuthApiResponse<bool> { Success = true, Data = true, Message = "Attendance approved successfully" });
+                return Ok(new ApiResponse<bool> { Success = true, Data = true, Message = "Attendance approved successfully" });
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error approving attendance {AttendanceId}", attendanceId);
-                return StatusCode(500, new EntryExit.Domain.Models.DTOs.AuthApiResponse<bool> { Success = false, Message = "An error occurred", Errors = new List<string> { ex.Message } });
+                return this.ServerError("An error occurred");
             }
         }
 
@@ -546,16 +559,16 @@ namespace Vermillion.API.Controllers
             {
                 var attendance = await _db.Attendances.FindAsync(attendanceId);
                 if (attendance == null)
-                    return NotFound(new EntryExit.Domain.Models.DTOs.AuthApiResponse<bool> { Success = false, Message = $"Attendance record {attendanceId} not found", Data = false });
+                    return NotFound(new ApiResponse<bool> { Success = false, Message = $"Attendance record {attendanceId} not found", Data = false });
 
                 // Check if already processed
                 if (attendance.Status != ApprovalStatus.Pending)
-                    return BadRequest(new EntryExit.Domain.Models.DTOs.AuthApiResponse<bool> { Success = false, Message = $"Attendance already {attendance.Status}", Data = false });
+                    return BadRequest(new ApiResponse<bool> { Success = false, Message = $"Attendance already {attendance.Status}", Data = false });
 
                 // Get current user ID
                 var currentUserId = _currentUserService.GetCurrentUserId();
                 if (!currentUserId.HasValue)
-                    return Unauthorized(new EntryExit.Domain.Models.DTOs.AuthApiResponse<bool> { Success = false, Message = "Invalid or missing user claim", Data = false });
+                    return Unauthorized(new ApiResponse<bool> { Success = false, Message = "Invalid or missing user claim", Data = false });
 
                 // Reject the attendance (note: Attendance entity doesn't have RejectionReason field)
                 attendance.Status = ApprovalStatus.Rejected;
@@ -564,12 +577,12 @@ namespace Vermillion.API.Controllers
 
                 await _db.SaveChangesAsync();
 
-                return Ok(new EntryExit.Domain.Models.DTOs.AuthApiResponse<bool> { Success = true, Data = true, Message = "Attendance rejected successfully" });
+                return Ok(ApiResponse<bool>.SuccessResponse(true, "Attendance rejected successfully"));
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error rejecting attendance {AttendanceId}", attendanceId);
-                return StatusCode(500, new EntryExit.Domain.Models.DTOs.AuthApiResponse<bool> { Success = false, Message = "An error occurred", Errors = new List<string> { ex.Message } });
+                return this.ServerError("An error occurred");
             }
         }
 
@@ -591,7 +604,7 @@ namespace Vermillion.API.Controllers
                 {
                     var teamUserIds = await GetManagerTeamUserIdsAsync();
                     if (teamUserIds == null)
-                        return StatusCode(502, new EntryExit.Domain.Models.DTOs.AuthApiResponse<object> { Success = false, Message = "Failed to fetch users from AuthAPI" });
+                        return this.ServiceUnavailable<string>("Failed to fetch users from AuthAPI");
 
                     query = query.Where(l => teamUserIds.Contains(l.UserId));
                 }
@@ -616,12 +629,12 @@ namespace Vermillion.API.Controllers
                     CreatedAt = l.CreatedAt
                 }).ToList();
 
-                return Ok(new EntryExit.Domain.Models.DTOs.AuthApiResponse<List<LeaveRequestResponse>> { Success = true, Data = dtos });
+                return Ok(ApiResponse<List<LeaveRequestResponse>>.SuccessResponse(dtos));
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error fetching pending leave requests");
-                return StatusCode(500, new EntryExit.Domain.Models.DTOs.AuthApiResponse<object> { Success = false, Message = "An error occurred", Errors = new List<string> { ex.Message } });
+                return this.ServerError("An error occurred");
             }
         }
 
@@ -635,20 +648,20 @@ namespace Vermillion.API.Controllers
             try
             {
                 if (!ModelState.IsValid)
-                    return BadRequest(new EntryExit.Domain.Models.DTOs.AuthApiResponse<object> { Success = false, Message = "Invalid request" });
+                    return BadRequest(ApiResponse<string>.ErrorResponse("Invalid request"));
 
                 var leaveRequest = await _db.LeaveRequests.FindAsync(request.LeaveRequestId);
                 if (leaveRequest == null)
-                    return NotFound(new EntryExit.Domain.Models.DTOs.AuthApiResponse<object> { Success = false, Message = $"Leave request {request.LeaveRequestId} not found" });
+                    return NotFound(ApiResponse<string>.ErrorResponse($"Leave request {request.LeaveRequestId} not found"));
 
                 // Check if already processed
                 if (leaveRequest.Status != ApprovalStatus.Pending)
-                    return BadRequest(new EntryExit.Domain.Models.DTOs.AuthApiResponse<object> { Success = false, Message = $"Leave request already {leaveRequest.Status}" });
+                    return BadRequest(ApiResponse<string>.ErrorResponse($"Leave request already {leaveRequest.Status}"));
 
                 // Get current user ID
                 var currentUserId = _currentUserService.GetCurrentUserId();
                 if (!currentUserId.HasValue)
-                    return Unauthorized(new EntryExit.Domain.Models.DTOs.AuthApiResponse<object> { Success = false, Message = "Invalid or missing user claim" });
+                    return Unauthorized(ApiResponse<string>.ErrorResponse("Invalid or missing user claim"));
 
                 // Update status
                 if (request.Approved)
@@ -690,12 +703,12 @@ namespace Vermillion.API.Controllers
                 leaveRequest.UpdatedAt = DateTime.UtcNow;
                 await _db.SaveChangesAsync();
 
-                return Ok(new EntryExit.Domain.Models.DTOs.AuthApiResponse<bool> { Success = true, Data = true, Message = $"Leave request {(request.Approved ? "approved" : "rejected")} successfully" });
+                return Ok(ApiResponse<bool>.SuccessResponse(true, $"Leave request {(request.Approved ? "approved" : "rejected")} successfully"));
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error processing leave request");
-                return StatusCode(500, new EntryExit.Domain.Models.DTOs.AuthApiResponse<object> { Success = false, Message = "An error occurred", Errors = new List<string> { ex.Message } });
+                return this.ServerError("An error occurred");
             }
         }
 
@@ -709,16 +722,16 @@ namespace Vermillion.API.Controllers
                 // Determine caller id from claims
                 var callerId = _currentUserService.GetCurrentUserId();
                 if (!callerId.HasValue)
-                        return Unauthorized(new EntryExit.Domain.Models.DTOs.AuthApiResponse<List<TeamMemberDto>> { Success = false, Message = "Invalid or missing user claim", Data = null });
+                    return Unauthorized(ApiResponse<List<TeamMemberDto>>.ErrorResponse("Invalid or missing user claim"));
 
                 var data = await _teamHelper.GetAllEmployeesAsync();
                 if (data == null)
-                    return StatusCode(502, new EntryExit.Domain.Models.DTOs.AuthApiResponse<List<TeamMemberDto>> { Success = false, Message = "Failed to fetch users", Data = null });
+                    return this.ServiceUnavailable<List<TeamMemberDto>>("Failed to fetch users");
 
                 if ((User.IsInRole("Admin") || User.IsInRole("SystemAdmin")) && string.IsNullOrEmpty(managerId))
                 {
                     var all = await BuildTeamMemberDtosExcludingSystemAdminsAsync(data);
-                    return Ok(new EntryExit.Domain.Models.DTOs.AuthApiResponse<List<TeamMemberDto>> { Success = true, Data = all });
+                    return Ok(ApiResponse<List<TeamMemberDto>>.SuccessResponse(all));
                 }
 
                 var effectiveManagerId = managerId ?? callerId.Value.ToString();
@@ -730,12 +743,12 @@ namespace Vermillion.API.Controllers
                 var filtered = data.Where(e => !string.IsNullOrEmpty(e.ManagerId) && e.ManagerId == effectiveManagerId);
                 var list = await BuildTeamMemberDtosExcludingSystemAdminsAsync(filtered);
 
-                return Ok(new EntryExit.Domain.Models.DTOs.AuthApiResponse<List<TeamMemberDto>> { Success = true, Data = list });
+                return Ok(ApiResponse<List<TeamMemberDto>>.SuccessResponse(list));
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error fetching team members");
-                return StatusCode(500, new EntryExit.Domain.Models.DTOs.AuthApiResponse<List<TeamMemberDto>> { Success = false, Message = "An error occurred", Errors = new List<string> { ex.Message } });
+                return this.ServerError("An error occurred");
             }
         }
 
@@ -757,7 +770,7 @@ namespace Vermillion.API.Controllers
                 {
                     var teamUserIds = await GetManagerTeamUserIdsAsync();
                     if (teamUserIds == null)
-                        return StatusCode(502, new EntryExit.Domain.Models.DTOs.AuthApiResponse<List<AttendanceDto>> { Success = false, Message = "Failed to fetch users from AuthAPI", Data = null });
+                        return this.ServiceUnavailable<List<AttendanceDto>>("Failed to fetch users from AuthAPI");
 
                     if (userId.HasValue)
                     {
@@ -799,15 +812,15 @@ namespace Vermillion.API.Controllers
                     Status = att.Status.ToString(),
                     ApproverName = null,
                     ApprovedAt = att.ApprovedAt,
-                    WorkDuration = att.LogoutTime.HasValue ? att.LogoutTime.Value - att.LoginTime : (TimeSpan?)null
+                    WorkDuration = att.LogoutTime.HasValue ? att.LogoutTime.Value - att.LoginTime : null
                 }).ToList();
 
-                return Ok(new EntryExit.Domain.Models.DTOs.AuthApiResponse<List<AttendanceDto>> { Success = true, Data = dtos });
+                return Ok(new ApiResponse<List<AttendanceDto>> { Success = true, Data = dtos });
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error fetching attendance history");
-                return StatusCode(500, new EntryExit.Domain.Models.DTOs.AuthApiResponse<List<AttendanceDto>> { Success = false, Message = "An error occurred", Errors = new List<string> { ex.Message } });
+                return this.ServerError("An error occurred");
             }
         }
 
@@ -829,7 +842,7 @@ namespace Vermillion.API.Controllers
                 {
                     var teamUserIds = await GetManagerTeamUserIdsAsync();
                     if (teamUserIds == null)
-                        return StatusCode(502, new EntryExit.Domain.Models.DTOs.AuthApiResponse<object> { Success = false, Message = "Failed to fetch users from AuthAPI" });
+                        return this.ServiceUnavailable<string>("Failed to fetch users from AuthAPI");
 
                     if (userId.HasValue)
                     {
@@ -873,12 +886,12 @@ namespace Vermillion.API.Controllers
                     CreatedAt = l.CreatedAt
                 }).ToList();
 
-                return Ok(new EntryExit.Domain.Models.DTOs.AuthApiResponse<List<LeaveRequestResponse>> { Success = true, Data = dtos });
+                return Ok(ApiResponse<List<LeaveRequestResponse>>.SuccessResponse(dtos));
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error fetching leave history");
-                return StatusCode(500, new EntryExit.Domain.Models.DTOs.AuthApiResponse<object> { Success = false, Message = "An error occurred", Errors = new List<string> { ex.Message } });
+                return this.ServerError("An error occurred");
             }
         }
 
@@ -890,7 +903,7 @@ namespace Vermillion.API.Controllers
             try
             {
                 if (!ModelState.IsValid)
-                    return BadRequest(new EntryExit.Domain.Models.DTOs.AuthApiResponse<bool> { Success = false, Message = "Invalid request", Data = false });
+                    return BadRequest(ApiResponse<bool>.ErrorResponse("Invalid request"));
 
                 int userId;
                 
@@ -900,17 +913,17 @@ namespace Vermillion.API.Controllers
                     // It's an Employee GUID, need to look up the User.Id
                     var employees = await _teamHelper.GetAllEmployeesAsync();
                     if (employees == null)
-                        return StatusCode(502, new EntryExit.Domain.Models.DTOs.AuthApiResponse<bool> { Success = false, Message = "Failed to fetch employees", Data = false });
+                        return this.ServiceUnavailable<bool>("Failed to fetch employees");
 
                     var employee = employees.FirstOrDefault(e => e.Id == request.UserId);
                     if (employee == null)
-                        return NotFound(new EntryExit.Domain.Models.DTOs.AuthApiResponse<bool> { Success = false, Message = $"Employee {request.UserId} not found", Data = false });
+                        return NotFound(ApiResponse<bool>.ErrorResponse($"Employee {request.UserId} not found"));
 
                     userId = employee.UserId;
                 }
                 else if (!int.TryParse(request.UserId, out userId))
                 {
-                    return BadRequest(new EntryExit.Domain.Models.DTOs.AuthApiResponse<bool> { Success = false, Message = "Invalid userId format", Data = false });
+                    return BadRequest(ApiResponse<bool>.ErrorResponse("Invalid userId format"));
                 }
 
                 // Upsert: try to find an existing entitlement row for the same user and year.
@@ -949,12 +962,12 @@ namespace Vermillion.API.Controllers
                 }
                 await _db.SaveChangesAsync();
 
-                return Ok(new EntryExit.Domain.Models.DTOs.AuthApiResponse<bool> { Success = true, Data = true, Message = "Leave entitlement allocated" });
+                return Ok(ApiResponse<bool>.SuccessResponse(true, "Leave entitlement allocated"));
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error allocating leave entitlement");
-                return StatusCode(500, new EntryExit.Domain.Models.DTOs.AuthApiResponse<bool> { Success = false, Message = "An error occurred", Errors = new List<string> { ex.Message } });
+                return this.ServerError("An error occurred");
             }
         }
 
@@ -966,7 +979,7 @@ namespace Vermillion.API.Controllers
             try
             {
                 if (!int.TryParse(userId, out var uid))
-                    return BadRequest(new EntryExit.Domain.Models.DTOs.AuthApiResponse<LeaveEntitlementDto> { Success = false, Message = "Invalid userId", Data = null });
+                    return BadRequest(ApiResponse<LeaveEntitlementDto>.ErrorResponse("Invalid userId"));
 
                 var targetYear = year ?? DateTime.UtcNow.Year;
 
@@ -988,7 +1001,7 @@ namespace Vermillion.API.Controllers
                         EarnedLeaveBalance = 0m,
                         CompensatoryOffBalance = 0m
                     };
-                    return Ok(new EntryExit.Domain.Models.DTOs.AuthApiResponse<LeaveEntitlementDto> { Success = true, Data = empty });
+                    return Ok(ApiResponse<LeaveEntitlementDto>.SuccessResponse(empty));
                 }
 
                 var dto = new LeaveEntitlementDto
@@ -1000,12 +1013,12 @@ namespace Vermillion.API.Controllers
                     CompensatoryOffBalance = ent.CompensatoryOffBalance
                 };
 
-                return Ok(new EntryExit.Domain.Models.DTOs.AuthApiResponse<LeaveEntitlementDto> { Success = true, Data = dto });
+                return Ok(ApiResponse<LeaveEntitlementDto>.SuccessResponse(dto));
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error fetching leave entitlement");
-                return StatusCode(500, new EntryExit.Domain.Models.DTOs.AuthApiResponse<LeaveEntitlementDto> { Success = false, Message = "An error occurred", Errors = new List<string> { ex.Message } });
+                return this.ServerError("An error occurred");
             }
         }
     }

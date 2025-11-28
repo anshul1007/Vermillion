@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Vermillion.Auth.Domain.Data;
 using Vermillion.Auth.Domain.Models.DTOs;
-using Vermillion.EntryExit.Domain.Models.DTOs;
+using Vermillion.Shared.Domain.Models.DTOs;
 
 namespace Vermillion.API.Controllers;
 
@@ -34,10 +34,10 @@ public class UsersController : ControllerBase
 
         if (user == null)
         {
-            return NotFound(new ApiResponse<string>(false, null, $"User with email {email} not found"));
+            return NotFound(ApiResponse<string>.ErrorResponse($"User with email {email} not found"));
         }
 
-        return Ok(new ApiResponse<int>(true, user.Id, null));
+        return Ok(ApiResponse<int>.SuccessResponse(user.Id));
     }
 
     /// <summary>
@@ -54,10 +54,10 @@ public class UsersController : ControllerBase
 
         if (userRole == null)
         {
-            return NotFound(new ApiResponse<string>(false, null, $"No role found for user {userId} in {tenantDomain} tenant"));
+            return NotFound(ApiResponse<string>.ErrorResponse($"No role found for user {userId} in {tenantDomain} tenant"));
         }
 
-        return Ok(new AuthApiResponse<object> { Success = true, Data = new { role = userRole.Role.Name } });
+        return Ok(ApiResponse<UserRoleResponse>.SuccessResponse(new UserRoleResponse { Role = userRole.Role.Name }));
     }
 
     /// <summary>
@@ -76,10 +76,10 @@ public class UsersController : ControllerBase
 
         if (user == null)
         {
-            return NotFound(new ApiResponse<string>(false, null, $"User {userId} not found"));
+            return NotFound(ApiResponse<string>.ErrorResponse($"User {userId} not found"));
         }
 
-        return Ok(new AuthApiResponse<object> { Success = true, Data = user, Message = null });
+        return Ok(ApiResponse<UserProfileResponse>.SuccessResponse(new UserProfileResponse { IsActive = user.IsActive }));
     }
 
     /// <summary>
@@ -95,10 +95,10 @@ public class UsersController : ControllerBase
 
         if (user == null)
         {
-            return NotFound(new ApiResponse<string>(false, null, $"User {userId} not found"));
+            return NotFound(ApiResponse<string>.ErrorResponse($"User {userId} not found"));
         }
 
-        return Ok(new ApiResponse<string>(true, user.Email, null));
+        return Ok(ApiResponse<string>.SuccessResponse(user.Email));
     }
 
     /// <summary>
@@ -114,10 +114,10 @@ public class UsersController : ControllerBase
 
         if (user == null)
         {
-            return NotFound(new ApiResponse<string>(false, null, $"User {userId} not found"));
+            return NotFound(ApiResponse<string>.ErrorResponse($"User {userId} not found"));
         }
 
-        return Ok(new ApiResponse<bool>(true, user.IsActive, null));
+        return Ok(ApiResponse<bool>.SuccessResponse(user.IsActive));
     }
 
     /// <summary>
@@ -138,10 +138,10 @@ public class UsersController : ControllerBase
 
         if (role == null)
         {
-            return NotFound(new ApiResponse<string>(false, null, $"Role {roleId} not found"));
+            return NotFound(ApiResponse<string>.ErrorResponse($"Role {roleId} not found"));
         }
 
-        return Ok(new AuthApiResponse<object> { Success = true, Data = role, Message = null });
+        return Ok(ApiResponse<RoleDto>.SuccessResponse(new RoleDto { Id = role.Id, Name = role.Name, IsActive = role.IsActive }));
     }
 
     /// <summary>
@@ -170,10 +170,21 @@ public class UsersController : ControllerBase
 
         if (employee == null)
         {
-            return NotFound(new ApiResponse<string>(false, null, $"Employee record not found for user {userId}"));
+            return NotFound(ApiResponse<string>.ErrorResponse($"Employee record not found for user {userId}"));
         }
 
-        return Ok(new AuthApiResponse<object> { Success = true, Data = employee, Message = null });
+        return Ok(ApiResponse<UserEmployeeDto>.SuccessResponse(new UserEmployeeDto
+        {
+            Id = employee.Id,
+            UserId = employee.UserId,
+            EmployeeId = employee.EmployeeId,
+            FirstName = employee.FirstName,
+            LastName = employee.LastName,
+            DepartmentId = employee.DepartmentId,
+            Department = employee.Department != null ? new UserDepartmentInfoDto { Id = employee.Department.Id, Name = employee.Department.Name } : null,
+            ManagerId = employee.ManagerId,
+            Manager = employee.Manager != null ? new UserManagerInfoDto { Id = employee.Manager.Id, EmployeeId = employee.Manager.EmployeeId, FirstName = employee.Manager.FirstName, LastName = employee.Manager.LastName } : null
+        }));
     }
 
     /// <summary>
@@ -219,7 +230,31 @@ public class UsersController : ControllerBase
             })
             .ToListAsync();
 
-        return Ok(new AuthApiResponse<object> { Success = true, Data = employees, Message = null });
+        var employeeDtos = employees.Select(e => new UserEmployeeListDto
+        {
+            Id = e.Id,
+            UserId = e.UserId,
+            EmployeeId = e.EmployeeId,
+            FirstName = e.FirstName,
+            LastName = e.LastName,
+            Email = e.Email,
+            IsActive = e.IsActive,
+            PhoneNumber = e.PhoneNumber,
+            DepartmentId = e.DepartmentId,
+            DepartmentName = e.DepartmentName,
+            Department = e.Department != null ? new UserDepartmentDetailDto 
+            { 
+                Id = e.Department.Id, 
+                Name = e.Department.Name, 
+                Description = e.Department.Description, 
+                WeeklyOffDays = e.Department.WeeklyOffDays, 
+                IsActive = e.Department.IsActive 
+            } : null,
+            ManagerId = e.ManagerId,
+            Manager = e.Manager != null ? new UserManagerInfoDto { Id = Guid.Parse(e.Manager.Id), EmployeeId = e.Manager.EmployeeId, FirstName = e.Manager.FirstName, LastName = e.Manager.LastName } : null
+        }).ToList();
+
+        return Ok(ApiResponse<List<UserEmployeeListDto>>.SuccessResponse(employeeDtos));
     }
 
     /// <summary>
@@ -240,6 +275,12 @@ public class UsersController : ControllerBase
             })
             .ToListAsync();
 
-        return Ok(new AuthApiResponse<object> { Success = true, Data = departments, Message = null });
+        var departmentDtos = departments.Select(d => new UserDepartmentDto
+        {
+            Id = d.Id,
+            Name = d.Name
+        }).ToList();
+
+        return Ok(ApiResponse<List<UserDepartmentDto>>.SuccessResponse(departmentDtos));
     }
 }
