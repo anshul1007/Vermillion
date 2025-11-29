@@ -218,20 +218,20 @@
             <label for="contractorProject">Assign to Project *</label>
             <select
               id="contractorProject"
-              formControlName="projectId"
+              formControlName="projectIds"
+              multiple
               class="form-control"
               [class.invalid]="
-                contractorForm.get('projectId')?.invalid && contractorForm.get('projectId')?.touched
+                contractorForm.get('projectIds')?.invalid && contractorForm.get('projectIds')?.touched
               "
             >
-              <option value="0">Select a project</option>
               @for (project of projects(); track project.id) {
-              <option [value]="project.id">{{ project.name }}</option>
+              <option [ngValue]="project.id">{{ project.name }}</option>
               }
             </select>
-            @if (contractorForm.get('projectId')?.invalid &&
-            contractorForm.get('projectId')?.touched) {
-            <span class="error-text">Please select a project</span>
+            @if (contractorForm.get('projectIds')?.invalid &&
+            contractorForm.get('projectIds')?.touched) {
+            <span class="error-text">Select at least one project</span>
             }
           </div>
         </div>
@@ -279,8 +279,17 @@
             <span>{{ contractor.phoneNumber }}</span>
           </div>
           <div class="info-row">
-            <span class="label">Project:</span>
-            <span class="badge badge-info">{{ getProjectName(contractor.projectId) }}</span>
+            <span class="label">Projects:</span>
+            @let projectNames = getContractorProjectNames(contractor);
+            <div class="badge-list">
+              @if (projectNames.length) {
+              @for (projectName of projectNames; track projectName) {
+              <span class="badge badge-info">{{ projectName }}</span>
+              }
+              } @else {
+              <span>No projects assigned</span>
+              }
+            </div>
           </div>
           <div class="info-row">
             <span class="label">Status:</span>

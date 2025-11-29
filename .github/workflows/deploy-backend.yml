@@ -51,6 +51,15 @@ jobs:
         echo "environment=$ENV" >> $GITHUB_OUTPUT
         echo "📌 Deploying to: $ENV"
 
+    - name: Ensure prod deploy runs on main
+      if: steps.env.outputs.environment == 'prod'
+      run: |
+        if [ "${GITHUB_REF}" != "refs/heads/main" ]; then
+          echo "❌ Production deployments are only permitted from the main branch. Current ref: ${GITHUB_REF}";
+          exit 1
+        fi
+        echo "✅ Production deployment confirmed on main branch."
+
     - name: Build & Deploy Unified API
       run: |
         set -e

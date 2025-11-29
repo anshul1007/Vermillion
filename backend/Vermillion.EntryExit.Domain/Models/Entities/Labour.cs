@@ -27,7 +27,6 @@ public class Labour
     [MaxLength(500)]
     public string PhotoUrl { get; set; } = string.Empty;
 
-    // Project assignment fields (merged from LabourRegistration)
     public int ProjectId { get; set; }
 
     public int ContractorId { get; set; }

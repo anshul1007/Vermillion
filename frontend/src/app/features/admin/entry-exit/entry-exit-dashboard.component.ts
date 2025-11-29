@@ -1,6 +1,6 @@
 import { Component, inject, signal, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
+import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators, AbstractControl, ValidatorFn } from '@angular/forms';
 import { EntryExitService, Project, Contractor, Guard, LabourRegistration, CreateProjectDto, CreateContractorDto, AssignGuardToProjectDto } from '../../../shared/services/entry-exit.service';
 import { Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
@@ -84,7 +84,7 @@ export class EntryExitDashboardComponent implements OnInit, OnDestroy {
       name: ['', Validators.required],
       contactPerson: ['', Validators.required],
       phoneNumber: ['', [Validators.required, Validators.pattern(/^\d{10}$/)]],
-      projectId: [0, [Validators.required, Validators.min(1)]]
+      projectIds: [[], [this.requireProjectSelection()]]
     });
 
     this.guardForm = this.fb.group({
@@ -317,30 +317,36 @@ export class EntryExitDashboardComponent implements OnInit, OnDestroy {
       name: contractor.name,
       contactPerson: contractor.contactPerson,
       phoneNumber: contractor.phoneNumber,
-      projectId: contractor.projectId
+      projectIds: this.extractProjectIds(contractor)
     });
     this.showContractorForm.set(true);
   }
 
   cancelContractorEdit(): void {
     this.editingContractorId.set(null);
-    this.contractorForm.reset({ projectId: 0 });
+    this.contractorForm.reset({ projectIds: [] });
   }
 
   submitContractorForm(): void {
     if (this.contractorForm.invalid) return;
 
     this.loading.set(true);
-    const dto: CreateContractorDto = this.contractorForm.value;
+    const raw = this.contractorForm.value as CreateContractorDto;
+    const payload: CreateContractorDto = {
+      name: raw.name,
+      contactPerson: raw.contactPerson,
+      phoneNumber: raw.phoneNumber,
+      projectIds: Array.isArray(raw.projectIds) ? raw.projectIds.map(id => Number(id)) : []
+    };
 
     const operation = this.editingContractorId()
-      ? this.entryExitService.updateContractor(this.editingContractorId()!, dto)
-      : this.entryExitService.createContractor(dto);
+      ? this.entryExitService.updateContractor(this.editingContractorId()!, payload)
+      : this.entryExitService.createContractor(payload);
 
     operation.pipe(takeUntil(this.destroy$)).subscribe({
       next: () => {
         this.showSuccess(this.editingContractorId() ? 'Contractor updated!' : 'Contractor created!');
-        this.contractorForm.reset({ projectId: 0 });
+        this.contractorForm.reset({ projectIds: [] });
         this.showContractorForm.set(false);
         this.editingContractorId.set(null);
         this.loadContractors();
@@ -856,6 +862,51 @@ export class EntryExitDashboardComponent implements OnInit, OnDestroy {
 
   getProjectName(projectId: number): string {
     return this.projects().find(p => p.id === projectId)?.name || 'Unknown';
+  }
+
+  private extractProjectIds(contractor: Contractor): number[] {
+    if (Array.isArray(contractor.projectIds) && contractor.projectIds.length > 0) {
+      return contractor.projectIds;
+    }
+
+    if (Array.isArray(contractor.projects) && contractor.projects.length > 0) {
+      return contractor.projects.map(project => project.id);
+    }
+
+    const legacyProjectId = (contractor as any).projectId;
+    if (typeof legacyProjectId === 'number' && legacyProjectId > 0) {
+      return [legacyProjectId];
+    }
+
+    return [];
+  }
+
+  private requireProjectSelection(): ValidatorFn {
+    return (control: AbstractControl) => {
+      const value = control.value;
+      if (Array.isArray(value) && value.length > 0) {
+        return null;
+      }
+
+      return { projectSelectionRequired: true };
+    };
+  }
+
+  getContractorProjectNames(contractor: Contractor): string[] {
+    if (Array.isArray(contractor.projects) && contractor.projects.length > 0) {
+      return contractor.projects.map(project => project.name);
+    }
+
+    if (Array.isArray(contractor.projectIds) && contractor.projectIds.length > 0) {
+      return contractor.projectIds.map(id => this.getProjectName(id));
+    }
+
+    const legacyProjectId = (contractor as any).projectId;
+    if (typeof legacyProjectId === 'number' && legacyProjectId > 0) {
+      return [this.getProjectName(legacyProjectId)];
+    }
+
+    return [];
   }
 
   getPhotoUrl(photoPath: string | undefined): string {

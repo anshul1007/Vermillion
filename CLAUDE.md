@@ -72,7 +72,7 @@ npm test
 ```bash
 cd frontend-mobile
 npm install
-npm start  # Dev server on http://localhost:8100
+npm start  # Dev server on http://localhost:4300
 
 # Capacitor sync and build
 npx cap sync android

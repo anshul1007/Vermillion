@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 
 namespace Vermillion.EntryExit.Domain.Models.DTOs;
@@ -107,7 +108,8 @@ public class ContractorDto
     public string Name { get; set; } = string.Empty;
     public string? ContactPerson { get; set; }
     public string? PhoneNumber { get; set; }
-    public int ProjectId { get; set; }
+    public List<int> ProjectIds { get; set; } = new();
+    public List<ProjectSummaryDto> Projects { get; set; } = new();
     public bool IsActive { get; set; }
 }
 
@@ -116,7 +118,7 @@ public class CreateContractorDto
     public string Name { get; set; } = string.Empty;
     public string? ContactPerson { get; set; }
     public string? PhoneNumber { get; set; }
-    public int ProjectId { get; set; }
+    public List<int> ProjectIds { get; set; } = new();
 }
 
 public class UpdateContractorDto
@@ -124,8 +126,14 @@ public class UpdateContractorDto
     public string? Name { get; set; }
     public string? ContactPerson { get; set; }
     public string? PhoneNumber { get; set; }
-    public int? ProjectId { get; set; }
+    public List<int>? ProjectIds { get; set; }
     public bool? IsActive { get; set; }
+}
+
+public class ProjectSummaryDto
+{
+    public int Id { get; set; }
+    public string Name { get; set; } = string.Empty;
 }
 
 // Guard Project Assignment DTOs

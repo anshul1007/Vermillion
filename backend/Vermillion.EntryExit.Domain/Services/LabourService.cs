@@ -1,3 +1,4 @@
+using System.Linq;
 using Vermillion.EntryExit.Domain.Data;
 using Vermillion.EntryExit.Domain.Models.DTOs;
 using Vermillion.EntryExit.Domain.Models.Entities;
@@ -50,8 +51,10 @@ public class LabourService : ILabourService
             if (project == null || !project.IsActive)
                 return ApiResponse<LabourDto>.ErrorResponse("Invalid or inactive project");
 
-            var contractor = await _context.Contractors.FindAsync(dto.ContractorId);
-            if (contractor == null || !contractor.IsActive || contractor.ProjectId != dto.ProjectId)
+            var contractor = await _context.Contractors
+                .Include(c => c.Projects)
+                .FirstOrDefaultAsync(c => c.Id == dto.ContractorId);
+            if (contractor == null || !contractor.IsActive || !contractor.Projects.Any(p => p.Id == dto.ProjectId))
                 return ApiResponse<LabourDto>.ErrorResponse("Invalid contractor for this project");
 
             // Check if barcode already exists for this project

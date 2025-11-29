@@ -37,6 +37,9 @@ Write-Host "Checking for existing processes on ports..." -ForegroundColor Yellow
 Stop-ProcessOnPort -Port 5000  # Vermillion.API (backend)
 Stop-ProcessOnPort -Port 4200  # Web App
 Stop-ProcessOnPort -Port 4300  # Mobile App
+Stop-ProcessOnPort -Port 10000 # Azurite Blob Service
+Stop-ProcessOnPort -Port 10001 # Azurite Queue Service
+Stop-ProcessOnPort -Port 10002 # Azurite Table Service
 Write-Host "  Ports cleared." -ForegroundColor Green
 Write-Host ""
 
@@ -47,7 +50,7 @@ $ng = Get-Command ng -ErrorAction SilentlyContinue
 if (-not $dotnet) { Write-Host "WARNING: dotnet not found in PATH" -ForegroundColor Red }
 if (-not $ng) { Write-Host "WARNING: ng not found in PATH" -ForegroundColor Yellow }
 
-# Function to start a service
+# Function to start a service in a separate PowerShell window
 function Start-Service {
     param(
         [string]$Name,
@@ -55,31 +58,61 @@ function Start-Service {
         [string]$Command,
         [string]$Color = "Green"
     )
-    
+
     Write-Host "Starting $Name..." -ForegroundColor $Color
-    
+
     $fullPath = Join-Path $rootDir $Path
-    
+
     if (-not (Test-Path $fullPath)) {
         Write-Host "ERROR: Directory not found: $fullPath" -ForegroundColor Red
         return $false
     }
-    
-    # Start in a new PowerShell window and set a descriptive title
-    # Use $Name as the window title to make it easy to identify running services
-    $escapedName = $Name -replace "'","''"
-    $scriptBlock = "Set-Location '$fullPath'; `$host.ui.RawUI.WindowTitle = '$escapedName'; Write-Host '=== $Name ===' -ForegroundColor $Color; $Command"
-    # Start the new PowerShell window; keep it simple and do not record PIDs
-    Start-Process powershell -ArgumentList "-NoExit", "-Command", $scriptBlock
-    
-    return $true
+
+    $escapedPath = $fullPath.Replace("'", "''")
+    $escapedCommand = $Command.Replace("'", "''")
+    $escapedName = $Name.Replace("'", "''")
+
+    $scriptToRun = @"
+& {{
+ `$Host.UI.RawUI.WindowTitle = '{0}';
+ Set-Location '{1}';
+ Write-Host '==== {0} ====';
+ Write-Host "`$ {2}" -ForegroundColor Yellow;
+    if ([type]::GetType('Microsoft.PowerShell.PSConsoleReadLine')) {{
+     try {{
+        [Microsoft.PowerShell.PSConsoleReadLine]::AddToHistory('{2}')
+     }} catch {{}}
+    }}
+ Invoke-Expression '{2}'
+}}
+"@ -f $escapedName, $escapedPath, $escapedCommand
+
+    try {
+        Start-Process -FilePath "powershell.exe" -ArgumentList "-NoExit", "-Command", $scriptToRun -WindowStyle Normal | Out-Null
+        return $true
+    } catch {
+        Write-Host ("Failed to start {0}: {1}" -f $Name, $_.Exception.Message) -ForegroundColor Red
+        return $false
+    }
 }
 
+# Step 0: Start Azurite storage emulator
+Write-Host "Step 0: Starting Storage Emulator..." -ForegroundColor Yellow
+Write-Host ""
+
+$azuriteCmd = "azurite --silent --location e:\azurite --debug e:\azurite\debug.log"
+$success = Start-Service -Name "Azurite Storage Emulator (Port 10000)" -Path "." -Command $azuriteCmd -Color "Cyan"
+if ($success) {
+    Write-Host "  Azurite starting..." -ForegroundColor Green
+    Start-Sleep -Seconds 2
+}
+
+Write-Host ""
 Write-Host "Step 1: Starting Backend APIs..." -ForegroundColor Yellow
 Write-Host ""
 
 
-$backendCmd = 'dotnet run --project "backend\Vermillion.API\Vermillion.API.csproj"'
+$backendCmd = "dotnet run"
 # Start the monolithic backend (Vermillion.API)
 $success = Start-Service -Name "Vermillion.API (Port 5000)" -Path "backend\Vermillion.API" -Command $backendCmd -Color "Magenta"
 if ($success) { 
@@ -99,7 +132,7 @@ if ($success) {
 }
 
 # Start Mobile Frontend
-$success = Start-Service -Name "Mobile App (Port 8100)" -Path "frontend-mobile" -Command "npm start -- --port 8100" -Color "Yellow"
+$success = Start-Service -Name "Mobile App (Port 4300)" -Path "frontend-mobile" -Command "npm start -- --port 4300" -Color "Yellow"
 if ($success) { 
     Write-Host "  Mobile App starting..." -ForegroundColor Green 
 }
@@ -122,5 +155,5 @@ Write-Host "  Web Manager: manager.attendance@vermillion.com / Manager@123" -For
 Write-Host "  Web Employee: employee1@vermillion.com / Employee@123" -ForegroundColor Green
 Write-Host "  Mobile Guard: guard1@vermillion.com / Guard@123" -ForegroundColor Yellow
 Write-Host ""
-Write-Host "Services are running in separate windows (backend is monolithic)." -ForegroundColor Gray
-Write-Host "Close those windows to stop the services, or run 'stop-all.ps1' to programmatically stop them." -ForegroundColor Gray
+Write-Host "Separate PowerShell windows have been opened for each service." -ForegroundColor Gray
+Write-Host "Close a window to stop that service, or run 'stop-all.ps1' from this terminal to stop everything." -ForegroundColor Gray

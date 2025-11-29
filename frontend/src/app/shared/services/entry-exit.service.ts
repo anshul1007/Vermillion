@@ -26,11 +26,16 @@ export interface Contractor {
   name: string;
   contactPerson: string;
   phoneNumber: string;
-  projectId: number;
-  projectName?: string;
+  projectIds: number[];
+  projects?: ContractorProjectSummary[];
   isActive: boolean;
   createdAt: string;
   updatedAt?: string;
+}
+
+export interface ContractorProjectSummary {
+  id: number;
+  name: string;
 }
 
 export interface Guard {
@@ -76,14 +81,14 @@ export interface CreateContractorDto {
   name: string;
   contactPerson: string;
   phoneNumber: string;
-  projectId: number;
+  projectIds: number[];
 }
 
 export interface UpdateContractorDto {
   name?: string;
   contactPerson?: string;
   phoneNumber?: string;
-  projectId?: number;
+  projectIds?: number[];
   isActive?: boolean;
 }
 

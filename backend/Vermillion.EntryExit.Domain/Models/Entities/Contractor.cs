@@ -16,8 +16,6 @@ public class Contractor
     [MaxLength(20)]
     public string? PhoneNumber { get; set; }
 
-    public int ProjectId { get; set; }
-
     public bool IsActive { get; set; } = true;
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
@@ -25,5 +23,5 @@ public class Contractor
     public DateTime? UpdatedAt { get; set; }
 
     // Navigation properties
-    public virtual Project Project { get; set; } = null!;
+    public virtual ICollection<Project> Projects { get; set; } = new List<Project>();
 }

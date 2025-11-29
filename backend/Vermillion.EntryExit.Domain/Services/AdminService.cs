@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Linq;
 using Vermillion.EntryExit.Domain.Data;
 using Vermillion.EntryExit.Domain.Models.DTOs;
 using Vermillion.EntryExit.Domain.Models.Entities;
@@ -176,7 +178,7 @@ public class AdminService : IAdminService
 
             // Check if project has contractors
             var hasContractors = await _context.Contractors
-                .AnyAsync(c => c.ProjectId == id);
+                .AnyAsync(c => c.Projects.Any(p => p.Id == id));
 
             if (hasContractors)
             {
@@ -209,10 +211,19 @@ public class AdminService : IAdminService
     {
         try
         {
-            var project = await _context.Projects.FindAsync(dto.ProjectId);
-            if (project == null || !project.IsActive)
+            if (dto.ProjectIds == null || dto.ProjectIds.Count == 0)
             {
-                return ApiResponse<ContractorDto>.ErrorResponse("Invalid or inactive project");
+                return ApiResponse<ContractorDto>.ErrorResponse("At least one project association is required");
+            }
+
+            var distinctProjectIds = dto.ProjectIds.Distinct().ToList();
+            var projects = await _context.Projects
+                .Where(p => distinctProjectIds.Contains(p.Id) && p.IsActive)
+                .ToListAsync();
+
+            if (projects.Count != distinctProjectIds.Count)
+            {
+                return ApiResponse<ContractorDto>.ErrorResponse("One or more projects are invalid or inactive");
             }
 
             var contractor = new Contractor
@@ -220,23 +231,19 @@ public class AdminService : IAdminService
                 Name = dto.Name,
                 ContactPerson = dto.ContactPerson,
                 PhoneNumber = dto.PhoneNumber,
-                ProjectId = dto.ProjectId,
                 IsActive = true,
                 CreatedAt = DateTime.UtcNow
             };
 
+            foreach (var project in projects)
+            {
+                contractor.Projects.Add(project);
+            }
+
             _context.Contractors.Add(contractor);
             await _context.SaveChangesAsync();
 
-            return ApiResponse<ContractorDto>.SuccessResponse(new ContractorDto
-            {
-                Id = contractor.Id,
-                Name = contractor.Name,
-                ContactPerson = contractor.ContactPerson,
-                PhoneNumber = contractor.PhoneNumber,
-                ProjectId = contractor.ProjectId,
-                IsActive = contractor.IsActive
-            }, "Contractor created successfully");
+            return ApiResponse<ContractorDto>.SuccessResponse(MapContractor(contractor), "Contractor created successfully");
         }
         catch (Exception ex)
         {
@@ -249,11 +256,13 @@ public class AdminService : IAdminService
     {
         try
         {
-            var query = _context.Contractors.AsQueryable();
+            var query = _context.Contractors
+                .Include(c => c.Projects)
+                .AsQueryable();
 
             if (projectId.HasValue)
             {
-                query = query.Where(c => c.ProjectId == projectId.Value);
+                query = query.Where(c => c.Projects.Any(p => p.Id == projectId.Value));
             }
 
             if (activeOnly == true)
@@ -263,15 +272,7 @@ public class AdminService : IAdminService
 
             var contractors = await query.OrderBy(c => c.Name).ToListAsync();
 
-            var dtos = contractors.Select(c => new ContractorDto
-            {
-                Id = c.Id,
-                Name = c.Name,
-                ContactPerson = c.ContactPerson,
-                PhoneNumber = c.PhoneNumber,
-                ProjectId = c.ProjectId,
-                IsActive = c.IsActive
-            }).ToList();
+            var dtos = contractors.Select(MapContractor).ToList();
 
             return new ApiResponse<List<ContractorDto>>
             {
@@ -296,7 +297,9 @@ public class AdminService : IAdminService
     {
         try
         {
-            var contractor = await _context.Contractors.FindAsync(id);
+            var contractor = await _context.Contractors
+                .Include(c => c.Projects)
+                .FirstOrDefaultAsync(c => c.Id == id);
             if (contractor == null)
             {
                 return ApiResponse<ContractorDto>.ErrorResponse("Contractor not found");
@@ -312,15 +315,28 @@ public class AdminService : IAdminService
             if (dto.PhoneNumber != null)
                 contractor.PhoneNumber = dto.PhoneNumber;
 
-            if (dto.ProjectId.HasValue)
+            if (dto.ProjectIds != null)
             {
-                // Verify new project exists and is active
-                var project = await _context.Projects.FindAsync(dto.ProjectId.Value);
-                if (project == null || !project.IsActive)
+                if (dto.ProjectIds.Count == 0)
                 {
-                    return ApiResponse<ContractorDto>.ErrorResponse("Invalid or inactive project");
+                    return ApiResponse<ContractorDto>.ErrorResponse("At least one project association is required");
                 }
-                contractor.ProjectId = dto.ProjectId.Value;
+
+                var distinctProjectIds = dto.ProjectIds.Distinct().ToList();
+                var projects = await _context.Projects
+                    .Where(p => distinctProjectIds.Contains(p.Id) && p.IsActive)
+                    .ToListAsync();
+
+                if (projects.Count != distinctProjectIds.Count)
+                {
+                    return ApiResponse<ContractorDto>.ErrorResponse("One or more projects are invalid or inactive");
+                }
+
+                contractor.Projects.Clear();
+                foreach (var project in projects)
+                {
+                    contractor.Projects.Add(project);
+                }
             }
 
             if (dto.IsActive.HasValue)
@@ -329,17 +345,7 @@ public class AdminService : IAdminService
             contractor.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
 
-            var resultDto = new ContractorDto
-            {
-                Id = contractor.Id,
-                Name = contractor.Name,
-                ContactPerson = contractor.ContactPerson,
-                PhoneNumber = contractor.PhoneNumber,
-                ProjectId = contractor.ProjectId,
-                IsActive = contractor.IsActive
-            };
-
-            return ApiResponse<ContractorDto>.SuccessResponse(resultDto
+            return ApiResponse<ContractorDto>.SuccessResponse(MapContractor(contractor)
             , "Contractor updated successfully");
         }
         catch (Exception ex)
@@ -499,5 +505,28 @@ public class AdminService : IAdminService
                 Errors = new List<string> { ex.Message }
             };
         }
+    }
+
+    private ContractorDto MapContractor(Contractor contractor)
+    {
+        var summaries = contractor.Projects?
+            .OrderBy(p => p.Name)
+            .Select(p => new ProjectSummaryDto
+            {
+                Id = p.Id,
+                Name = p.Name
+            })
+            .ToList() ?? new List<ProjectSummaryDto>();
+
+        return new ContractorDto
+        {
+            Id = contractor.Id,
+            Name = contractor.Name,
+            ContactPerson = contractor.ContactPerson,
+            PhoneNumber = contractor.PhoneNumber,
+            ProjectIds = summaries.Select(s => s.Id).ToList(),
+            Projects = summaries,
+            IsActive = contractor.IsActive
+        };
     }
 }

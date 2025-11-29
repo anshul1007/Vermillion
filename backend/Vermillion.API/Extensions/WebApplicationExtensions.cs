@@ -62,47 +62,22 @@ public static class WebApplicationExtensions
     {
         // Determine if we should run migrations
         var runMigrationsEnv = Environment.GetEnvironmentVariable("RUN_MIGRATIONS");
-        bool runMigrations;
+        bool runMigrations = false;
 
         if (!string.IsNullOrEmpty(runMigrationsEnv))
         {
             runMigrations = string.Equals(runMigrationsEnv, "true", StringComparison.OrdinalIgnoreCase);
             logger.LogInformation("RUN_MIGRATIONS environment variable detected: {RunMigrations}", runMigrationsEnv);
         }
-        else
-        {
-            var runMigrationsConfig = configuration.GetValue<bool?>("RunMigrations");
-            if (runMigrationsConfig.HasValue)
-            {
-                runMigrations = runMigrationsConfig.Value;
-                logger.LogInformation("RUN_MIGRATIONS configuration value detected: {RunMigrations}", runMigrations);
-            }
-            else
-            {
-                runMigrations = app.Environment.IsDevelopment();
-                logger.LogInformation("RUN_MIGRATIONS defaulting to environment (Development={IsDev}): {RunMigrations}", app.Environment.IsDevelopment(), runMigrations);
-            }
-        }
 
         // Determine if we should seed
         var seedOnStartupEnv = Environment.GetEnvironmentVariable("SeedOnStartup");
-        var seedOnStartupConfig = configuration.GetValue<bool?>("SeedOnStartup");
         bool shouldSeed = false;
 
         if (!string.IsNullOrEmpty(seedOnStartupEnv))
         {
             shouldSeed = string.Equals(seedOnStartupEnv, "true", StringComparison.OrdinalIgnoreCase);
             logger.LogInformation("SeedOnStartup environment variable detected: {SeedOnStartup}", seedOnStartupEnv);
-        }
-        else if (seedOnStartupConfig.HasValue)
-        {
-            shouldSeed = seedOnStartupConfig.Value;
-            logger.LogInformation("SeedOnStartup configuration value detected: {SeedOnStartup}", shouldSeed);
-        }
-        else
-        {
-            shouldSeed = false;
-            logger.LogInformation("SeedOnStartup defaulting to false (no configuration present).");
         }
 
         if (!runMigrations && !shouldSeed)

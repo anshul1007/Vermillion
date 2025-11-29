@@ -64,7 +64,7 @@ public class EntryExitSeeder
                     Name = "ABC Construction Co.",
                     ContactPerson = "Rajesh Kumar",
                     PhoneNumber = "9876543210",
-                    ProjectId = siteA.Id,
+                    Projects = new List<Project> { siteA, warehouse },
                     IsActive = true,
                     CreatedAt = DateTime.UtcNow
                 },
@@ -73,7 +73,7 @@ public class EntryExitSeeder
                     Name = "XYZ Builders",
                     ContactPerson = "Amit Shah",
                     PhoneNumber = "9876543211",
-                    ProjectId = siteA.Id,
+                    Projects = new List<Project> { siteA },
                     IsActive = true,
                     CreatedAt = DateTime.UtcNow
                 },
@@ -82,7 +82,7 @@ public class EntryExitSeeder
                     Name = "DEF Infrastructure",
                     ContactPerson = "Suresh Patel",
                     PhoneNumber = "9876543212",
-                    ProjectId = siteB.Id,
+                    Projects = new List<Project> { siteB },
                     IsActive = true,
                     CreatedAt = DateTime.UtcNow
                 },
@@ -91,7 +91,7 @@ public class EntryExitSeeder
                     Name = "PQR Logistics",
                     ContactPerson = "Ramesh Gupta",
                     PhoneNumber = "9876543213",
-                    ProjectId = warehouse.Id,
+                    Projects = new List<Project> { warehouse },
                     IsActive = true,
                     CreatedAt = DateTime.UtcNow
                 }

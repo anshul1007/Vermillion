@@ -179,7 +179,7 @@ cd frontend-mobile
 npm install
 ionic serve
 
-# Access at http://localhost:8100
+# Access at http://localhost:4300
 # Login as guard1 / Guard@123
 ```
 

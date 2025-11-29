@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Vermillion.EntryExit.Domain.Models.Entities;
 using Microsoft.EntityFrameworkCore;
 
@@ -37,14 +38,29 @@ public class EntryExitDbContext : DbContext
         {
             entity.ToTable("Contractors", "entryexit");
             entity.HasKey(e => e.Id);
-            entity.HasIndex(e => new { e.ProjectId, e.Name });
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
-
-            entity.HasOne(e => e.Project)
-                .WithMany(p => p.Contractors)
-                .HasForeignKey(e => e.ProjectId)
-                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasIndex(e => e.Name);
         });
+
+        modelBuilder.Entity<Project>()
+            .HasMany(p => p.Contractors)
+            .WithMany(c => c.Projects)
+            .UsingEntity<Dictionary<string, object>>(
+                "ProjectContractors",
+                j => j.HasOne<Contractor>()
+                    .WithMany()
+                    .HasForeignKey("ContractorId")
+                    .OnDelete(DeleteBehavior.Cascade),
+                j => j.HasOne<Project>()
+                    .WithMany()
+                    .HasForeignKey("ProjectId")
+                    .OnDelete(DeleteBehavior.Cascade),
+                j =>
+                {
+                    j.ToTable("ProjectContractors", "entryexit");
+                    j.HasKey("ProjectId", "ContractorId");
+                    j.Property<DateTime>("CreatedAt").HasDefaultValueSql("GETUTCDATE()");
+                });
 
         // Labour configuration
         modelBuilder.Entity<Labour>(entity =>
