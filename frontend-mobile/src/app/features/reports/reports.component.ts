@@ -1,5 +1,6 @@
 import { Component, inject, signal, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { IconComponent } from '../../shared/icon/icon.component';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { ApiService } from '../../core/services/api.service';
@@ -41,7 +42,7 @@ interface Statistics {
 @Component({
   selector: 'app-reports',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, IconComponent],
   template: `
     <div class="reports-page">
       <section class="reports-hero card">
@@ -84,11 +85,7 @@ interface Statistics {
           <div class="reports-stats__grid">
             <div class="reports-stat">
               <div class="reports-stat__icon">
-                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
-                  <path d="M10 17l5-5-5-5" />
-                  <path d="M13.8 12H3" />
-                </svg>
+                <app-icon name="entry" size="28"></app-icon>
               </div>
               <div class="reports-stat__content">
                 <span class="reports-stat__value">{{ statistics()!.totalEntries }}</span>
@@ -97,11 +94,7 @@ interface Statistics {
             </div>
             <div class="reports-stat">
               <div class="reports-stat__icon">
-                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                  <path d="M16 17l-5-5 5-5" />
-                  <path d="M21 12H9" />
-                </svg>
+                <app-icon name="exit" size="28"></app-icon>
               </div>
               <div class="reports-stat__content">
                 <span class="reports-stat__value">{{ statistics()!.totalExits }}</span>
@@ -110,10 +103,7 @@ interface Statistics {
             </div>
             <div class="reports-stat">
               <div class="reports-stat__icon">
-                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <circle cx="12" cy="12" r="10" />
-                  <polyline points="12 6 12 12 16 14" />
-                </svg>
+                <app-icon name="clock" size="28"></app-icon>
               </div>
               <div class="reports-stat__content">
                 <span class="reports-stat__value">{{ statistics()!.openSessions }}</span>
@@ -122,12 +112,7 @@ interface Statistics {
             </div>
             <div class="reports-stat">
               <div class="reports-stat__icon">
-                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-                  <circle cx="9" cy="7" r="4" />
-                  <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
-                  <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                </svg>
+                <app-icon name="user-group" size="28"></app-icon>
               </div>
               <div class="reports-stat__content">
                 <span class="reports-stat__value">{{ statistics()!.totalLabour }}</span>
@@ -136,10 +121,7 @@ interface Statistics {
             </div>
             <div class="reports-stat">
               <div class="reports-stat__icon">
-                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                  <circle cx="12" cy="7" r="4" />
-                </svg>
+                <app-icon name="user" size="28"></app-icon>
               </div>
               <div class="reports-stat__content">
                 <span class="reports-stat__value">{{ statistics()!.totalVisitors }}</span>
@@ -158,13 +140,7 @@ interface Statistics {
           @if (records().length === 0) {
             <div class="reports-empty">
               <div class="reports-empty__icon">
-                <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                  <polyline points="14 2 14 8 20 8" />
-                  <line x1="16" y1="13" x2="8" y2="13" />
-                  <line x1="16" y1="17" x2="8" y2="17" />
-                  <polyline points="10 9 9 9 8 9" />
-                </svg>
+                <app-icon name="logo" size="40"></app-icon>
               </div>
               <p>No records found for the selected range</p>
             </div>
@@ -187,16 +163,10 @@ interface Statistics {
                       <td class="col-status">
                         <span class="status-indicator" [class.active]="!session.exitTime">
                           @if (!session.exitTime || session.exitTime === '') {
-                            <svg class="active-dot" width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Active session">
-                              <title>Active session</title>
-                              <circle cx="8" cy="8" r="6" />
-                            </svg>
+                            <app-icon name="dot" size="16" class="active-dot" aria-label="Active session"></app-icon>
                           } @else {
                             <span class="checked-out-dot" title="Checked out">
-                              <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
-                                <circle cx="12" cy="12" r="10" />
-                                <path d="M9 12.5l1.8 1.8L15 11" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" />
-                              </svg>
+                              <app-icon name="dot-check" size="16"></app-icon>
                             </span>
                           }
                           <span class="type-badge" [class.labour]="session.personType === 'Labour'" [class.visitor]="session.personType === 'Visitor'">

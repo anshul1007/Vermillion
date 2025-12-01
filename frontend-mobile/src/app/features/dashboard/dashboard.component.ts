@@ -1,6 +1,7 @@
 import { Component, inject, signal, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { take } from 'rxjs/operators';
 import { CommonModule } from '@angular/common';
+import { IconComponent } from '../../shared/icon/icon.component';
 import { RouterModule } from '@angular/router';
 import { AuthService } from '../../core/auth/auth.service';
 import { ApiService } from '../../core/services/api.service';
@@ -9,17 +10,14 @@ import { RawEntryExitRecordDto } from '../../core/models/entry-exit.model';
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, RouterModule, IconComponent],
   template: `
     <div class="dashboard-page">
       <section class="dashboard-hero card">
         <div class="dashboard-hero__top">
           <div class="dashboard-hero__profile" *ngIf="guardProfile(); else noProfile">
             <div class="profile-avatar">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                <path d="M9 12l2 2 4-4" />
-              </svg>
+              <app-icon name="shield-check" size="40" class="profile-icon"></app-icon>
             </div>
             <div class="profile-details">
               <h2 class="profile-name">{{ guardProfile()!.firstName }} {{ guardProfile()!.lastName }}</h2>
@@ -43,12 +41,7 @@ import { RawEntryExitRecordDto } from '../../core/models/entry-exit.model';
         <div class="dashboard-hero__stats">
           <div class="dashboard-stat">
             <div class="dashboard-stat__icon icon-box icon-box--success">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-                <circle cx="9" cy="7" r="4" />
-                <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
-                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-              </svg>
+              <app-icon name="user-group" size="28"></app-icon>
             </div>
             <div class="dashboard-stat__content">
               <span class="stat-value">{{ stats().activeWorkers }}</span>
@@ -57,10 +50,7 @@ import { RawEntryExitRecordDto } from '../../core/models/entry-exit.model';
           </div>
           <div class="dashboard-stat">
             <div class="dashboard-stat__icon icon-box icon-box--info">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                <circle cx="12" cy="7" r="4" />
-              </svg>
+              <app-icon name="user" size="28"></app-icon>
             </div>
             <div class="dashboard-stat__content">
               <span class="stat-value">{{ stats().activeVisitors }}</span>
@@ -69,10 +59,7 @@ import { RawEntryExitRecordDto } from '../../core/models/entry-exit.model';
           </div>
           <div class="dashboard-stat">
             <div class="dashboard-stat__icon icon-box icon-box--warning">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M3 3v18h18" />
-                <path d="M19 17 13 11 9 15 5 11" />
-              </svg>
+              <app-icon name="trend-up" size="28"></app-icon>
             </div>
             <div class="dashboard-stat__content">
               <span class="stat-value">{{ stats().todayTotal }}</span>
@@ -81,10 +68,7 @@ import { RawEntryExitRecordDto } from '../../core/models/entry-exit.model';
           </div>
           <div class="dashboard-stat">
             <div class="dashboard-stat__icon icon-box icon-box--neutral">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="12" r="10" />
-                <polyline points="12 6 12 12 16 14" />
-              </svg>
+              <app-icon name="clock" size="28"></app-icon>
             </div>
             <div class="dashboard-stat__content">
               <span class="stat-value">{{ stats().activeTotal }}</span>
@@ -97,42 +81,25 @@ import { RawEntryExitRecordDto } from '../../core/models/entry-exit.model';
       <section class="dashboard-actions">
         <a class="dashboard-action" routerLink="/labour-registration">
           <div class="action-icon icon-box icon-box--success">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-              <circle cx="9" cy="7" r="4" />
-              <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
-              <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-            </svg>
+            <app-icon name="user-group" size="28"></app-icon>
           </div>
           <span class="action-label">Register Labour</span>
         </a>
         <a class="dashboard-action" routerLink="/visitor-registration">
           <div class="action-icon icon-box icon-box--info">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M8 3h8a2 2 0 0 1 2 2v15l-6-3-6 3V5a2 2 0 0 1 2-2z" />
-              <path d="M9 7h6" />
-              <path d="M9 11h6" />
-            </svg>
+            <app-icon name="user" size="28"></app-icon>
           </div>
           <span class="action-label">Register Visitor</span>
         </a>
         <a class="dashboard-action" routerLink="/entry-exit">
           <div class="action-icon icon-box icon-box--neutral">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M3 3h18" />
-              <path d="M3 21h18" />
-              <path d="M9 3v18" />
-              <path d="M9 12h6" />
-            </svg>
+            <app-icon name="entry" size="28"></app-icon>
           </div>
           <span class="action-label">Entry/Exit</span>
         </a>
         <a class="dashboard-action" routerLink="/reports">
           <div class="action-icon icon-box icon-box--warning">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M3 3v18h18" />
-              <path d="M7 14l4-4 4 4 5-5" />
-            </svg>
+            <app-icon name="report-trend" size="28"></app-icon>
           </div>
           <span class="action-label">Reports</span>
         </a>

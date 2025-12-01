@@ -1,11 +1,12 @@
 import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { IconComponent } from '../../../../shared/icon/icon.component';
 import { ContractorLabourResult } from '../../entry-exit.models';
 
 @Component({
   selector: 'app-entry-exit-photo-modal',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, IconComponent],
   template: `
     <div class="photo-verification-modal" *ngIf="visible">
       <div class="modal-overlay" (click)="cancel.emit()"></div>
@@ -34,12 +35,7 @@ import { ContractorLabourResult } from '../../entry-exit.models';
                 </ng-container>
                 <ng-template #placeholder>
                   <div class="photo-placeholder-large" aria-hidden="true">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-                      <circle cx="9" cy="7" r="4" />
-                      <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
-                      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                    </svg>
+                    <app-icon name="user-group" size="48"></app-icon>
                   </div>
                 </ng-template>
               </div>
@@ -63,21 +59,15 @@ import { ContractorLabourResult } from '../../entry-exit.models';
             [disabled]="submitting"
           >
             <span *ngIf="submitting">Processing...</span>
-            <span *ngIf="!submitting" class="btn-content">
+            <ng-container *ngIf="!submitting">
               <ng-container *ngIf="action !== 'exit'; else exitIcon">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <polyline points="5 12 9 16 19 6" />
-                </svg>
+                <app-icon name="check" size="18"></app-icon>
               </ng-container>
               <ng-template #exitIcon>
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <path d="M9 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h4" />
-                  <polyline points="16 17 21 12 16 7" />
-                  <line x1="21" y1="12" x2="9" y2="12" />
-                </svg>
+                <app-icon name="close" size="18"></app-icon>
               </ng-template>
-              {{ action === 'exit' ? 'Confirm Check-Out' : 'Confirm Check-In' }}
-            </span>
+              <span>{{ action === 'exit' ? 'Confirm Check-Out' : 'Confirm Check-In' }}</span>
+            </ng-container>
           </button>
         </div>
       </div>

@@ -1,11 +1,12 @@
 import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { IconComponent } from '../../../../shared/icon/icon.component';
 import { PersonSearchResult } from '../../entry-exit.models';
 
 @Component({
   selector: 'app-entry-exit-person-results',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, IconComponent],
   template: `
     <div class="card mb-2" *ngIf="results?.length">
       <div class="card-body">
@@ -25,9 +26,7 @@ import { PersonSearchResult } from '../../entry-exit.models';
               <tr *ngFor="let r of results; trackBy: trackById" class="result-row">
                 <td class="cell type">
                   <div class="type-with-dot">
-                    <svg *ngIf="r.hasOpenEntry" class="active-dot" width="16" height="16" viewBox="0 0 16 16" title="Active session">
-                      <circle cx="8" cy="8" r="6"></circle>
-                    </svg>
+                    <app-icon *ngIf="r.hasOpenEntry" name="dot" size="16" class="active-dot"></app-icon>
                     <div
                       class="type-badge"
                       [class.labour]="r.personType === 'Labour'"
