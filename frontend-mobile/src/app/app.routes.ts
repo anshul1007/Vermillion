@@ -34,7 +34,7 @@ export const routes: Routes = [
   {
     path: 'entry-exit',
     canActivate: [authGuard],
-    loadComponent: () => import('./features/entry-exit.component').then(m => m.EntryExitComponent)
+    loadChildren: () => import('./features/entry-exit/entry-exit.routes').then(m => m.ENTRY_EXIT_ROUTES)
   },
   {
     path: 'today-summary',

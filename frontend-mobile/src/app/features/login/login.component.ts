@@ -1,4 +1,5 @@
 import { Component, inject, signal } from '@angular/core';
+import { take } from 'rxjs/operators';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -93,7 +94,8 @@ export class LoginComponent {
     this.authService.login({
       email: this.email,
       password: this.password
-    }).subscribe({
+    }).pipe(take(1)).subscribe({
+    
       next: (response) => {
         this.loading.set(false);
 

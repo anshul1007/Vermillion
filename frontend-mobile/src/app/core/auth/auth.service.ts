@@ -2,6 +2,7 @@ import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { Observable, tap, map, forkJoin, throwError } from 'rxjs';
+import { take } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
 
 export interface LoginRequest {
@@ -82,7 +83,7 @@ export class AuthService {
         // Load guard profile after login
         const guardRole = response.user.tenants.find(t => t.roleName === 'Guard');
         if (guardRole) {
-          this.loadGuardProfile().subscribe();
+          this.loadGuardProfile().pipe(take(1)).subscribe();
         }
       })
     );

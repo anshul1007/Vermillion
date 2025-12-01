@@ -1,4 +1,5 @@
 import { Component, inject, signal } from '@angular/core';
+import { take } from 'rxjs/operators';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -169,8 +170,8 @@ export class SearchComponent {
     this.errorMessage.set('');
     this.searchResult.set(null);
 
-    this.apiService.search(query).subscribe({
-      next: (response) => {
+    this.apiService.search(query).pipe(take(1)).subscribe({
+      next: (response: any) => {
         this.searching.set(false);
 
         if (response.success && response.data) {

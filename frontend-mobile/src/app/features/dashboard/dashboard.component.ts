@@ -1,4 +1,5 @@
-import { Component, inject, signal, OnInit } from '@angular/core';
+import { Component, inject, signal, OnInit, ChangeDetectionStrategy } from '@angular/core';
+import { take } from 'rxjs/operators';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { AuthService } from '../../core/auth/auth.service';
@@ -10,126 +11,135 @@ import { RawEntryExitRecordDto } from '../../core/models/entry-exit.model';
   standalone: true,
   imports: [CommonModule, RouterModule],
   template: `
-    <div class="container">
-      <div class="row mb-2">
-        <div class="col-12">
-          <div *ngIf="guardProfile(); else noProfile" class="card card-accent">
-            <div class="card-body">
-              <h3 class="mb-1">
-                {{ guardProfile()!.firstName }} {{ guardProfile()!.lastName }} ({{
-                  guardProfile()!.guardId
-                }})
-              </h3>
-              <div class="text-muted">Phone: {{ guardProfile()!.phoneNumber }}</div>
-              <div class="text-muted">Project: {{ guardProfile()!.projectName }}</div>
+    <div class="dashboard-page">
+      <section class="dashboard-hero card">
+        <div class="dashboard-hero__top">
+          <div class="dashboard-hero__profile" *ngIf="guardProfile(); else noProfile">
+            <div class="profile-avatar">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                <path d="M9 12l2 2 4-4" />
+              </svg>
+            </div>
+            <div class="profile-details">
+              <h2 class="profile-name">{{ guardProfile()!.firstName }} {{ guardProfile()!.lastName }}</h2>
+              <div class="profile-meta">Guard ID: {{ guardProfile()!.guardId }}</div>
+              <div class="profile-meta">Phone: {{ guardProfile()!.phoneNumber }}</div>
+              <div class="profile-meta">Project: {{ guardProfile()!.projectName }}</div>
             </div>
           </div>
           <ng-template #noProfile>
-            <div class="card">
-              <div class="card-body">
-                <h3>No guard profile</h3>
-                <p class="text-muted">
-                  Guard profile is not loaded. Click below to fetch your profile.
-                </p>
-                <div *ngIf="profileError()" class="text-danger">{{ profileError() }}</div>
-                <button class="btn" (click)="loadGuardProfile()" [disabled]="loadingProfile()">
-                  <span *ngIf="loadingProfile(); else loadLabel">Loading...</span>
-                  <ng-template #loadLabel><span>Load Guard Profile</span></ng-template>
-                </button>
-              </div>
+            <div class="profile-details">
+              <h2 class="profile-name">No guard profile</h2>
+              <div class="profile-meta">Guard profile is not loaded.</div>
+              <div *ngIf="profileError()" class="text-danger">{{ profileError() }}</div>
+              <button class="btn" (click)="loadGuardProfile()" [disabled]="loadingProfile()">
+                <span *ngIf="loadingProfile(); else loadLabel">Loading...</span>
+                <ng-template #loadLabel><span>Load Guard Profile</span></ng-template>
+              </button>
             </div>
           </ng-template>
         </div>
-      </div>
-
-      <div class="row mb-2">
-        <div class="col-6">
-          <a class="card" routerLink="/labour-registration">
-            <h2>Register Labour</h2>
-            <p class="text-muted">Add new labour with barcode</p>
-          </a>
-        </div>
-        <div class="col-6">
-          <a class="card" routerLink="/visitor-registration">
-            <h2>Register Visitor</h2>
-            <p class="text-muted">Add new visitor</p>
-          </a>
-        </div>
-      </div>
-
-      <div class="row mb-2">
-        <div class="col-6">
-          <a class="card" routerLink="/entry-exit">
-            <h2>Entry/Exit</h2>
-            <p class="text-muted">Log entry or exit for labour/visitor</p>
-          </a>
-        </div>
-        <!-- <div class="col-6">
-          <a class="card" routerLink="/search">
-            <h2>Search</h2>
-            <p class="text-muted">Find labour or visitor</p>
-          </a>
-        </div> -->
-         <div class="col-6">
-          <a class="card" routerLink="/reports">
-            <h2>Reports</h2>
-            <p class="text-muted">View analytics & reports</p>
-          </a>
-        </div>
-      </div>
-
-      <!-- <div class="row mb-2">
-        <div class="col-6">
-          <a class="card" routerLink="/today-summary">
-            <h2>Today's Summary</h2>
-            <p class="text-muted">View today's records</p>
-          </a>
-        </div>
-        <div class="col-6">
-          <a class="card" routerLink="/reports">
-            <h2>Reports</h2>
-            <p class="text-muted">View analytics & reports</p>
-          </a>
-        </div>
-      </div> -->
-
-      <div class="row mb-2">
-        <div class="col-6">
-          <div class="stat-card">
-            <div class="stat-icon">👷</div>
-            <div class="stat-value">{{ stats().activeWorkers }}</div>
-            <div class="stat-label">Active Workers</div>
+        <div class="dashboard-hero__stats">
+          <div class="dashboard-stat">
+            <div class="dashboard-stat__icon icon-box icon-box--success">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+                <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+              </svg>
+            </div>
+            <div class="dashboard-stat__content">
+              <span class="stat-value">{{ stats().activeWorkers }}</span>
+              <span class="stat-label">Active Workers</span>
+            </div>
+          </div>
+          <div class="dashboard-stat">
+            <div class="dashboard-stat__icon icon-box icon-box--info">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                <circle cx="12" cy="7" r="4" />
+              </svg>
+            </div>
+            <div class="dashboard-stat__content">
+              <span class="stat-value">{{ stats().activeVisitors }}</span>
+              <span class="stat-label">Active Visitors</span>
+            </div>
+          </div>
+          <div class="dashboard-stat">
+            <div class="dashboard-stat__icon icon-box icon-box--warning">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 3v18h18" />
+                <path d="M19 17 13 11 9 15 5 11" />
+              </svg>
+            </div>
+            <div class="dashboard-stat__content">
+              <span class="stat-value">{{ stats().todayTotal }}</span>
+              <span class="stat-label">Today's Total</span>
+            </div>
+          </div>
+          <div class="dashboard-stat">
+            <div class="dashboard-stat__icon icon-box icon-box--neutral">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <polyline points="12 6 12 12 16 14" />
+              </svg>
+            </div>
+            <div class="dashboard-stat__content">
+              <span class="stat-value">{{ stats().activeTotal }}</span>
+              <span class="stat-label">Currently Active</span>
+            </div>
           </div>
         </div>
+      </section>
 
-        <div class="col-6">
-          <div class="stat-card">
-            <div class="stat-icon">👤</div>
-            <div class="stat-value">{{ stats().activeVisitors }}</div>
-            <div class="stat-label">Active Visitors</div>
+      <section class="dashboard-actions">
+        <a class="dashboard-action" routerLink="/labour-registration">
+          <div class="action-icon icon-box icon-box--success">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+              <circle cx="9" cy="7" r="4" />
+              <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+              <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+            </svg>
           </div>
-        </div>
-      </div>
-
-      <div class="row">
-        <div class="col-6">
-          <div class="stat-card">
-            <div class="stat-icon">📊</div>
-            <div class="stat-value">{{ stats().todayTotal }}</div>
-            <div class="stat-label">Today's Total</div>
+          <span class="action-label">Register Labour</span>
+        </a>
+        <a class="dashboard-action" routerLink="/visitor-registration">
+          <div class="action-icon icon-box icon-box--info">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M8 3h8a2 2 0 0 1 2 2v15l-6-3-6 3V5a2 2 0 0 1 2-2z" />
+              <path d="M9 7h6" />
+              <path d="M9 11h6" />
+            </svg>
           </div>
-        </div>
-
-        <div class="col-6">
-          <div class="stat-card">
-            <div class="stat-icon">✅</div>
-            <div class="stat-value">{{ stats().activeTotal }}</div>
-            <div class="stat-label">Currently Active</div>
+          <span class="action-label">Register Visitor</span>
+        </a>
+        <a class="dashboard-action" routerLink="/entry-exit">
+          <div class="action-icon icon-box icon-box--neutral">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 3h18" />
+              <path d="M3 21h18" />
+              <path d="M9 3v18" />
+              <path d="M9 12h6" />
+            </svg>
           </div>
-        </div>
-      </div>
+          <span class="action-label">Entry/Exit</span>
+        </a>
+        <a class="dashboard-action" routerLink="/reports">
+          <div class="action-icon icon-box icon-box--warning">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 3v18h18" />
+              <path d="M7 14l4-4 4 4 5-5" />
+            </svg>
+          </div>
+          <span class="action-label">Reports</span>
+        </a>
+      </section>
     </div>
   `,
+  changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class DashboardComponent implements OnInit {
   private authService = inject(AuthService);
@@ -156,7 +166,7 @@ export class DashboardComponent implements OnInit {
   loadGuardProfile(): void {
     this.loadingProfile.set(true);
     this.profileError.set('');
-    this.authService.loadGuardProfile().subscribe({
+    this.authService.loadGuardProfile().pipe(take(1)).subscribe({
       next: (profile) => {
         this.loadingProfile.set(false);
       },
@@ -169,7 +179,7 @@ export class DashboardComponent implements OnInit {
 
   loadTodaysStats(): void {
     // Get today's records to calculate statistics
-    this.apiService.getTodayRecords().subscribe({
+    this.apiService.getTodayRecords().pipe(take(1)).subscribe({
       next: (response) => {
         if (response.success && response.data) {
           const records = response.data as RawEntryExitRecordDto[];
@@ -223,7 +233,7 @@ export class DashboardComponent implements OnInit {
     });
 
     // Also load open sessions for more accurate active count
-    this.apiService.getOpenSessions().subscribe({
+    this.apiService.getOpenSessions().pipe(take(1)).subscribe({
       next: (response) => {
         if (response.success && response.data) {
           const openSessions = response.data as RawEntryExitRecordDto[];

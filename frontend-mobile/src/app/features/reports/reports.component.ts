@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { ApiService } from '../../core/services/api.service';
+import { take } from 'rxjs/operators';
 import { RawEntryExitRecordDto } from '../../core/models/entry-exit.model';
 
 interface EntryExitRecord {
@@ -42,125 +43,130 @@ interface Statistics {
   standalone: true,
   imports: [CommonModule, FormsModule],
   template: `
-    <div class="reports-container">
-      <div class="reports-header">
-        <button class="back-btn" (click)="goBack()">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M19 12H5M12 19l-7-7 7-7"/>
-          </svg>
-        </button>
-        <h1>Reports & Analytics</h1>
-      </div>
-
-      <div class="filters-card">
-        <h3>Date Range</h3>
-        <div class="date-filters">
-          <div class="date-input-group">
-            <label>From Date</label>
+    <div class="reports-page">
+      <section class="reports-hero card">
+        <div class="reports-hero__header">
+          <button type="button" class="chip-button" (click)="goBack()">Back</button>
+          <div class="reports-hero__title">
+            <h1>Reports & Analytics</h1>
+            <p class="reports-hero__subtitle">Monitor labour and visitor movement on site</p>
+            @if (fromDate && toDate) {
+              <p class="reports-hero__range">{{ fromDate }} - {{ toDate }}</p>
+            }
+          </div>
+        </div>
+        <div class="chip-actions reports-hero__quick">
+          <button type="button" class="chip-button" (click)="setDateRange('today')" [class.is-active]="selectedRange() === 'today'">Today</button>
+          <button type="button" class="chip-button" (click)="setDateRange('week')" [class.is-active]="selectedRange() === 'week'">This Week</button>
+          <button type="button" class="chip-button" (click)="setDateRange('month')" [class.is-active]="selectedRange() === 'month'">This Month</button>
+        </div>
+        <div class="reports-hero__dates">
+          <label class="form-field reports-date-field">
+            <span>From Date</span>
             <input type="date" [(ngModel)]="fromDate" (change)="loadRecords()" />
-          </div>
-          <div class="date-input-group">
-            <label>To Date</label>
+          </label>
+          <label class="form-field reports-date-field">
+            <span>To Date</span>
             <input type="date" [(ngModel)]="toDate" (change)="loadRecords()" />
-          </div>
+          </label>
         </div>
-        <div class="quick-filters">
-          <button (click)="setDateRange('today')" [class.active]="selectedRange() === 'today'">Today</button>
-          <button (click)="setDateRange('week')" [class.active]="selectedRange() === 'week'">This Week</button>
-          <button (click)="setDateRange('month')" [class.active]="selectedRange() === 'month'">This Month</button>
-        </div>
-      </div>
+      </section>
 
       @if (loading()) {
-        <div class="loading">
-          <div class="spinner"></div>
+        <section class="reports-loading card">
+          <div class="reports-loading__spinner"></div>
           <p>Loading reports...</p>
-        </div>
+        </section>
       }
 
       @if (!loading() && statistics()) {
-        <div class="statistics-grid">
-          <div class="stat-card entries">
-            <div class="stat-icon">
-              <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M13.8 12H3"/>
-              </svg>
+        <section class="reports-stats card">
+          <div class="reports-stats__grid">
+            <div class="reports-stat">
+              <div class="reports-stat__icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
+                  <path d="M10 17l5-5-5-5" />
+                  <path d="M13.8 12H3" />
+                </svg>
+              </div>
+              <div class="reports-stat__content">
+                <span class="reports-stat__value">{{ statistics()!.totalEntries }}</span>
+                <span class="reports-stat__label">Total Entries</span>
+              </div>
             </div>
-            <div class="stat-info">
-              <div class="stat-value">{{ statistics()!.totalEntries }}</div>
-              <div class="stat-label">Total Entries</div>
+            <div class="reports-stat">
+              <div class="reports-stat__icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                  <path d="M16 17l-5-5 5-5" />
+                  <path d="M21 12H9" />
+                </svg>
+              </div>
+              <div class="reports-stat__content">
+                <span class="reports-stat__value">{{ statistics()!.totalExits }}</span>
+                <span class="reports-stat__label">Total Exits</span>
+              </div>
+            </div>
+            <div class="reports-stat">
+              <div class="reports-stat__icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="10" />
+                  <polyline points="12 6 12 12 16 14" />
+                </svg>
+              </div>
+              <div class="reports-stat__content">
+                <span class="reports-stat__value">{{ statistics()!.openSessions }}</span>
+                <span class="reports-stat__label">Open Sessions</span>
+              </div>
+            </div>
+            <div class="reports-stat">
+              <div class="reports-stat__icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                  <circle cx="9" cy="7" r="4" />
+                  <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+                  <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                </svg>
+              </div>
+              <div class="reports-stat__content">
+                <span class="reports-stat__value">{{ statistics()!.totalLabour }}</span>
+                <span class="reports-stat__label">Labour Records</span>
+              </div>
+            </div>
+            <div class="reports-stat">
+              <div class="reports-stat__icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                  <circle cx="12" cy="7" r="4" />
+                </svg>
+              </div>
+              <div class="reports-stat__content">
+                <span class="reports-stat__value">{{ statistics()!.totalVisitors }}</span>
+                <span class="reports-stat__label">Visitor Records</span>
+              </div>
             </div>
           </div>
+        </section>
 
-          <div class="stat-card exits">
-            <div class="stat-icon">
-              <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l-5-5 5-5M21 12H9"/>
-              </svg>
-            </div>
-            <div class="stat-info">
-              <div class="stat-value">{{ statistics()!.totalExits }}</div>
-              <div class="stat-label">Total Exits</div>
-            </div>
-          </div>
-
-          <div class="stat-card open">
-            <div class="stat-icon">
-              <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="12" r="10"/>
-                <polyline points="12 6 12 12 16 14"/>
-              </svg>
-            </div>
-            <div class="stat-info">
-              <div class="stat-value">{{ statistics()!.openSessions }}</div>
-              <div class="stat-label">Open Sessions</div>
-            </div>
-          </div>
-
-          <div class="stat-card labour">
-            <div class="stat-icon">
-              <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
-                <circle cx="9" cy="7" r="4"/>
-                <path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>
-              </svg>
-            </div>
-            <div class="stat-info">
-              <div class="stat-value">{{ statistics()!.totalLabour }}</div>
-              <div class="stat-label">Labour Records</div>
-            </div>
-          </div>
-
-          <div class="stat-card visitors">
-            <div class="stat-icon">
-              <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-                <circle cx="12" cy="7" r="4"/>
-              </svg>
-            </div>
-            <div class="stat-info">
-              <div class="stat-value">{{ statistics()!.totalVisitors }}</div>
-              <div class="stat-label">Visitor Records</div>
-            </div>
-          </div>
-        </div>
-
-        <div class="records-section">
-            <div class="section-header">
+        <section class="reports-records card">
+          <div class="reports-records__header">
             <h3>Recent Records</h3>
-            <div class="record-count">{{ sessions().length }} records</div>
+            <span class="reports-records__count">{{ sessions().length }} records</span>
           </div>
 
           @if (records().length === 0) {
-            <div class="no-records">
-              <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                <polyline points="14 2 14 8 20 8"/>
-                <line x1="16" y1="13" x2="8" y2="13"/>
-                <line x1="16" y1="17" x2="8" y2="17"/>
-                <polyline points="10 9 9 9 8 9"/>
-              </svg>
-              <p>No records found for the selected date range</p>
+            <div class="reports-empty">
+              <div class="reports-empty__icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                  <line x1="16" y1="13" x2="8" y2="13" />
+                  <line x1="16" y1="17" x2="8" y2="17" />
+                  <polyline points="10 9 9 9 8 9" />
+                </svg>
+              </div>
+              <p>No records found for the selected range</p>
             </div>
           } @else {
             <div class="sessions-table-wrapper">
@@ -209,7 +215,7 @@ interface Statistics {
               </table>
             </div>
           }
-        </div>
+        </section>
       }
     </div>
   `
@@ -259,7 +265,7 @@ export class ReportsComponent implements OnInit {
 
     this.loading.set(true);
 
-    this.apiService.getRecords(this.fromDate, this.toDate).subscribe({
+    this.apiService.getRecords(this.fromDate, this.toDate).pipe(take(1)).subscribe({
       next: (response) => {
         this.loading.set(false);
 
@@ -451,7 +457,7 @@ export class ReportsComponent implements OnInit {
     // Set initial stats, then fetch current open sessions (like dashboard) to show live active count
     this.statistics.set(initialStats);
 
-    this.apiService.getOpenSessions().subscribe({
+    this.apiService.getOpenSessions().pipe(take(1)).subscribe({
       next: (resp) => {
         if (resp.success && resp.data) {
           const open = (resp.data as RawEntryExitRecordDto[]).length;

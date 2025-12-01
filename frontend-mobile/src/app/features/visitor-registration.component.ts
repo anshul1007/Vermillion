@@ -1,4 +1,5 @@
 import { Component, inject, signal, OnInit } from '@angular/core';
+import { take } from 'rxjs/operators';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -11,91 +12,91 @@ import { AuthService } from '../core/auth/auth.service';
   standalone: true,
   imports: [CommonModule, FormsModule],
   template: `
-    <div class="container">
-      <div class="row mb-2">
-        <div class="col-12">
-          <div class="row align-center">
-            <h1 class="mb-0">Register Visitor</h1>
-          </div>
+    <div class="visitor-registration-page">
+      <section class="registration-hero card">
+        <div class="registration-hero__heading">
+          <h1>Register Visitor</h1>
+          <p class="registration-hero__sub" *ngIf="guardProfile()">{{ guardProfile()!.projectName }}</p>
+          <p class="registration-hero__sub text-muted" *ngIf="!guardProfile()">No project assigned</p>
         </div>
-      </div>
+        <div class="chip-actions">
+          <button type="button" class="chip-button" (click)="resetForm()">Reset Form</button>
+          <button type="button" class="chip-button" (click)="takePhoto()">
+            <span *ngIf="photo(); else takeLabel">Retake Photo</span>
+            <ng-template #takeLabel>Capture Photo</ng-template>
+          </button>
+          <button type="button" class="chip-button" (click)="goBack()">Back to Dashboard</button>
+        </div>
+      </section>
 
-      <div class="row">
-        <div class="col-12">
-          <div class="card mb-2">
-            <div class="card-body">
-              <p class="text-muted mb-1">Registering for:</p>
-              <h3 class="mb-0">{{ guardProfile()?.projectName }}</h3>
+      <section class="registration-card card">
+        <form (ngSubmit)="submit()" class="registration-form">
+          <label class="form-field">
+            <span>Full Name *</span>
+            <input
+              id="name"
+              [(ngModel)]="name"
+              name="name"
+              placeholder="Full name"
+              required
+            />
+          </label>
+
+          <label class="form-field">
+            <span>Phone Number *</span>
+            <input
+              [(ngModel)]="phoneNumber"
+              placeholder="Phone number"
+              type="tel"
+              name="phone"
+              required
+            />
+          </label>
+
+          <label class="form-field">
+            <span>Company Name</span>
+            <input
+              [(ngModel)]="companyName"
+              placeholder="Company (optional)"
+              name="company"
+            />
+          </label>
+
+          <label class="form-field">
+            <span>Purpose of Visit *</span>
+            <textarea
+              [(ngModel)]="purpose"
+              rows="3"
+              placeholder="Purpose of visit"
+              name="purpose"
+              required
+            ></textarea>
+          </label>
+
+          <div class="form-field">
+            <span>Photo *</span>
+            <button type="button" class="btn btn-outline" (click)="takePhoto()">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 7h3l2-3h6l2 3h3a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2z" />
+                <circle cx="12" cy="13" r="4" />
+              </svg>
+              <span *ngIf="photo(); else photoLabel">Retake Photo</span>
+              <ng-template #photoLabel><span>Take Photo</span></ng-template>
+            </button>
+            <div *ngIf="photo()" class="photo-preview">
+              <img [src]="photo()" alt="Visitor photo" />
             </div>
           </div>
-        </div>
-      </div>
 
-      <div class="row">
-        <div class="col-12">
-          <div class="card mb-2">
-            <div class="card-body">
-              <div class="mb-2">
-                <label for="name">Full Name *</label>
-                <input
-                  id="name"
-                  [(ngModel)]="name"
-                  name="name"
-                  placeholder="Enter full name"
-                  required
-                />
-              </div>
+          <div class="form-message error" *ngIf="errorMessage()">{{ errorMessage() }}</div>
+          <div class="form-message success" *ngIf="successMessage()">{{ successMessage() }}</div>
 
-              <div class="mb-2">
-                <label>Phone Number *</label>
-                <input
-                  [(ngModel)]="phoneNumber"
-                  placeholder="Enter phone number"
-                  type="tel"
-                  required
-                />
-              </div>
-
-              <div class="mb-2">
-                <label>Company Name</label>
-                <input
-                  [(ngModel)]="companyName"
-                  placeholder="Company name (optional)"
-                />
-              </div>
-
-              <div class="mb-2">
-                <label>Purpose of Visit *</label>
-                <textarea
-                  [(ngModel)]="purpose"
-                  rows="3"
-                  placeholder="Enter purpose of visit"
-                  required
-                ></textarea>
-              </div>
-
-              <div class="mb-2">
-                <label>Photo *</label>
-                <button class="btn mb-1" (click)="takePhoto()">
-                  <span *ngIf="photo(); else takePhotoLabel">📸 Retake Photo</span>
-                  <ng-template #takePhotoLabel>📸 Take Photo</ng-template>
-                </button>
-                <div *ngIf="photo()" class="photo-preview">
-                  <img [src]="photo()" alt="Visitor photo" />
-                </div>
-              </div>
-
-              <div *ngIf="errorMessage()" class="text-danger mb-2">{{ errorMessage() }}</div>
-              <div *ngIf="successMessage()" class="text-success mb-2">{{ successMessage() }}</div>
-
-              <button class="btn" (click)="submit()" [disabled]="!isValid() || submitting()">
-                <span *ngIf="submitting(); else registerLabel">Registering...</span>
-                <ng-template #registerLabel>Register Visitor</ng-template>
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
+          <button class="btn" type="submit" [disabled]="!isValid() || submitting()">
+            <span *ngIf="submitting(); else registerLabel">Registering...</span>
+            <ng-template #registerLabel>Register Visitor</ng-template>
+          </button>
+        </form>
+      </section>
     </div>
   `,
 })
@@ -183,8 +184,8 @@ export class VisitorRegistrationComponent implements OnInit {
 
     console.log('Registering visitor with data:', visitorData);
 
-    this.api.registerVisitor(visitorData).subscribe({
-      next: (res) => {
+    this.api.registerVisitor(visitorData).pipe(take(1)).subscribe({
+      next: (res: any) => {
         console.log('Visitor registration response:', res);
         this.submitting.set(false);
         
