@@ -1,7 +1,9 @@
-import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output, inject, ChangeDetectorRef, OnChanges, SimpleChanges } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { IconComponent } from '../../../../shared/icon/icon.component';
 import { ContractorLabourResult } from '../../entry-exit.models';
+import { OfflineStorageService } from '../../../../core/services/offline-storage.service';
+import { LocalImageService } from '../../../../core/services/local-image.service';
 
 @Component({
   selector: 'app-entry-exit-photo-modal',
@@ -55,7 +57,7 @@ import { ContractorLabourResult } from '../../entry-exit.models';
             class="btn"
             [class.btn-exit]="action === 'exit'"
             type="button"
-            (click)="confirm.emit()"
+            (click)="onConfirm()"
             [disabled]="submitting"
           >
             <span *ngIf="submitting">Processing...</span>
@@ -75,7 +77,7 @@ import { ContractorLabourResult } from '../../entry-exit.models';
   `,
   changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class EntryExitPhotoModalComponent {
+export class EntryExitPhotoModalComponent implements OnChanges {
   @Input() visible = false;
   @Input() labour: ContractorLabourResult[] | null = null;
   @Input() action: 'entry' | 'exit' | null = null;
@@ -85,11 +87,98 @@ export class EntryExitPhotoModalComponent {
   @Output() confirm = new EventEmitter<void>();
   @Output() cancel = new EventEmitter<void>();
 
+  private offline = inject(OfflineStorageService);
+  private localImage = inject(LocalImageService);
+  private cdr = inject(ChangeDetectorRef);
+
+  // cache of resolved image src per labour id/key
+  resolvedImages: Record<string, string | null> = {};
+
+  async onConfirm() {
+    this.submitting = true;
+    try {
+      if (this.labour && this.labour.length) {
+        for (const item of this.labour) {
+          const key = item.id || item.barcode || `${Math.random()}`;
+          const cached = this.resolvedImages[key];
+          // If cached is a data URL or local path already, assume it is saved by LocalImageService
+          if (!cached) {
+            // fallback: try to resolve and save now
+            const original = this.imageResolver ? this.imageResolver(item) : null;
+            if (!original) continue;
+            try {
+              const saved = await this.localImage.resolveImage(original, `${item.id || item.barcode || 'photo'}.jpg`);
+              // ensure we have the saved value in cache
+              this.resolvedImages[key] = saved;
+            } catch (e) {
+              // ignore
+            }
+            continue;
+          }
+
+          if (typeof cached === 'string' && cached.startsWith('data:')) {
+            const blob = await (await fetch(cached)).blob();
+            await this.offline.savePhoto(blob, `${item.id || item.barcode || 'photo'}.jpg`, { labourId: item.id, action: this.action });
+          } else if (typeof cached === 'string') {
+            // For file paths or remote urls, attempt to fetch then store as blob
+            try {
+              const fetched = await fetch(cached);
+              if (fetched.ok) {
+                const blob = await fetched.blob();
+                await this.offline.savePhoto(blob, `${item.id || item.barcode || 'photo'}.jpg`, { labourId: item.id, action: this.action });
+              }
+            } catch (e) {
+              // ignore fetch failures for now
+            }
+          }
+        }
+      }
+
+      // emit so parent can proceed with server call if desired
+      this.confirm.emit();
+    } finally {
+      this.submitting = false;
+    }
+  }
+
   resolveImage(labour: ContractorLabourResult): string | null {
+    const key = labour.id || labour.barcode || null;
+    if (key && this.resolvedImages.hasOwnProperty(key)) {
+      return this.resolvedImages[key] || null;
+    }
     return this.imageResolver ? this.imageResolver(labour) : null;
   }
 
   trackById(_index: number, item: ContractorLabourResult) {
     return item.id;
+  }
+
+  ngOnChanges(changes: SimpleChanges) {
+    if (changes['labour']) {
+      this.prepareImages();
+    }
+  }
+
+  private async prepareImages() {
+    this.resolvedImages = {};
+    if (!this.labour || !this.labour.length) return;
+    for (let i = 0; i < this.labour.length; i++) {
+      const item: ContractorLabourResult = this.labour[i];
+      const key = item.id || item.barcode || `${i}`;
+      try {
+        const original = this.imageResolver ? this.imageResolver(item) : null;
+        if (!original) {
+          this.resolvedImages[key] = null;
+          this.cdr.markForCheck();
+          continue;
+        }
+        const resolved = await this.localImage.resolveImage(original, `${item.id || item.barcode || 'photo'}.jpg`);
+        this.resolvedImages[key] = resolved;
+        this.cdr.markForCheck();
+      } catch (e) {
+        this.resolvedImages[key] = null;
+        this.cdr.markForCheck();
+      }
+    }
   }
 }

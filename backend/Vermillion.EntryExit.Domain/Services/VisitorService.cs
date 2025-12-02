@@ -35,7 +35,7 @@ public class VisitorService : IVisitorService
     {
         try
         {
-            if (string.IsNullOrWhiteSpace(dto.PhotoBase64))
+            if (string.IsNullOrWhiteSpace(dto.PhotoPath) && string.IsNullOrWhiteSpace(dto.PhotoBase64))
                 return new ApiResponse<VisitorDto>
                 {
                     Success = false,
@@ -53,8 +53,16 @@ public class VisitorService : IVisitorService
                 };
             }
 
-            // Validate and process photo
-            string photoUrl = await _photoStorage.SavePhotoAsync(dto.PhotoBase64, "visitor");
+            // Validate and process photo: prefer PhotoPath if supplied by client (already uploaded), otherwise save base64
+            string photoUrl;
+            if (!string.IsNullOrWhiteSpace(dto.PhotoPath))
+            {
+                photoUrl = dto.PhotoPath;
+            }
+            else
+            {
+                photoUrl = await _photoStorage.SavePhotoAsync(dto.PhotoBase64, "visitor");
+            }
 
             var visitor = new Visitor
             {

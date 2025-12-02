@@ -36,7 +36,11 @@ public static class WebApplicationExtensions
             });
         }
 
-        app.UseHttpsRedirection();
+        // Only use HTTPS redirection in non-development environments
+        if (!app.Environment.IsDevelopment())
+        {
+            app.UseHttpsRedirection();
+        }
         
         // CORS must come before Authentication/Authorization
         app.UseCors("AllowConfiguredOrigins");

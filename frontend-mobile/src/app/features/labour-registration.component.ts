@@ -7,28 +7,35 @@ import { PhotoService } from '../core/services/photo.service';
 import { BarcodeService } from '../core/services/barcode.service';
 import { ApiService } from '../core/services/api.service';
 import { AuthService } from '../core/auth/auth.service';
+import { LocalImageService } from '../core/services/local-image.service';
+import { OfflineStorageService } from '../core/services/offline-storage.service';
+import { BarcodeButtonComponent } from '../shared/components/barcode-button.component';
 
 @Component({
   selector: 'app-labour-registration',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, BarcodeButtonComponent],
   template: `
     <div class="labour-registration-page">
+      <div class="scan-toast" *ngIf="successMessage() || errorMessage()">
+        <div class="toast success" *ngIf="successMessage()">{{ successMessage() }}</div>
+        <div class="toast error" *ngIf="errorMessage()">{{ errorMessage() }}</div>
+      </div>
       <section class="registration-hero card">
         <div class="registration-hero__heading">
           <h1>Register Labour</h1>
           <p class="registration-hero__sub" *ngIf="guardProfile()">{{ guardProfile()!.projectName }}</p>
           <p class="registration-hero__sub text-muted" *ngIf="!guardProfile()">No project assigned</p>
         </div>
-        <div class="chip-actions">
+        <!-- <div class="chip-actions">
           <button type="button" class="chip-button" (click)="resetForm()">Reset Form</button>
-          <button type="button" class="chip-button" (click)="scanBarcode()">Scan Barcode</button>
+          <div class="chip-button"><app-barcode-button (scanned)="onScanned($event)" (error)="onScanError($event)"></app-barcode-button></div>
           <button type="button" class="chip-button" (click)="takePhoto()">
             <span *ngIf="photo(); else takePhotoLabel">Retake Photo</span>
             <ng-template #takePhotoLabel>Capture Photo</ng-template>
           </button>
           <button type="button" class="chip-button" (click)="goBack()">Back to Dashboard</button>
-        </div>
+        </div> -->
       </section>
 
       <section class="registration-card card" *ngIf="!loading(); else loadingTpl">
@@ -60,18 +67,7 @@ import { AuthService } from '../core/auth/auth.service';
             <span>Barcode ID</span>
             <div class="form-inline">
               <input [(ngModel)]="barcode" placeholder="Scan or enter barcode" name="barcode" />
-              <button type="button" class="btn btn-outline" (click)="scanBarcode()">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M3 5h2" />
-                  <path d="M17 5h2" />
-                  <path d="M7 5v14" />
-                  <path d="M11 5v14" />
-                  <path d="M15 5v14" />
-                  <path d="M19 5v14" />
-                  <path d="M3 19h18" />
-                </svg>
-                <span>Scan</span>
-              </button>
+              <app-barcode-button (scanned)="barcode = $event"></app-barcode-button>
             </div>
           </div>
 
@@ -114,6 +110,8 @@ export class LabourRegistrationComponent implements OnInit {
   private api = inject(ApiService);
   private authService = inject(AuthService);
   private router = inject(Router);
+  private localImage = inject(LocalImageService);
+  private offline = inject(OfflineStorageService);
   
   guardProfile = this.authService.guardProfile;
   barcode = '';
@@ -127,6 +125,18 @@ export class LabourRegistrationComponent implements OnInit {
   contractors = signal<any[]>([]);
   loading = signal(false);
   submitting = signal(false);
+
+  onScanned(code: string) {
+    this.barcode = code;
+    this.successMessage.set('Barcode scanned');
+    setTimeout(() => this.successMessage.set(''), 1500);
+  }
+
+  onScanError(err: any) {
+    console.error('Scan error', err);
+    this.errorMessage.set('Barcode scan failed. Try again.');
+    setTimeout(() => this.errorMessage.set(''), 2000);
+  }
 
   ngOnInit(): void {
     const profile = this.guardProfile();
@@ -151,19 +161,18 @@ export class LabourRegistrationComponent implements OnInit {
     });
   }
 
-  async scanBarcode(): Promise<void> { 
-    try {
-      this.errorMessage.set('');
-      this.barcode = await this.barcodeSvc.scanBarcodeWithCamera(); 
-    } catch (err) {
-      this.errorMessage.set('Barcode scan failed. You can enter manually.');
-    }
-  }
+  // scanBarcode() deprecated — use app-barcode-button component
 
   async takePhoto(): Promise<void> { 
     try {
       this.errorMessage.set('');
-      this.photo.set(await this.photoSvc.takePhoto()); 
+      const photoData = await this.photoSvc.takePhoto();
+      try {
+        const resolved = await this.localImage.resolveImage(photoData, `labour_${Date.now()}.jpg`);
+        this.photo.set(resolved || photoData);
+      } catch (e) {
+        this.photo.set(photoData);
+      }
     } catch (err) {
       this.errorMessage.set('Photo capture failed. Please try again.');
     }
@@ -195,23 +204,63 @@ export class LabourRegistrationComponent implements OnInit {
     };
 
     this.api.registerLabour(labourData).pipe(take(1)).subscribe({
-      next: (response: any) => {
+      next: async (response: any) => {
         this.submitting.set(false);
         if (response.success) {
           this.successMessage.set('Labour registered successfully!');
-
-          // Navigate back to entry-exit after 1.5 seconds
-          setTimeout(() => {
-            this.router.navigate(['/entry-exit']);
-          }, 1000);
+          setTimeout(() => this.router.navigate(['/entry-exit']), 1000);
         } else {
           this.errorMessage.set(response.message || 'Failed to register labour');
         }
       },
-      error: (err) => {
-        this.submitting.set(false);
-        this.errorMessage.set('Failed to register labour. Please try again.');
-        console.error('Labour registration error:', err);
+      error: async (err) => {
+        // Network or server failure — fall back to offline queue
+        console.warn('Network registration failed, queuing for offline sync', err);
+        try {
+          // create a clientId and persist local person and photo
+          const clientId = `c_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+          // ensure photo is saved locally and get base64 if needed
+          let photoLocal = null as any;
+          if (this.photo()) {
+            // try to save the data url to offline storage; it dedupes by hash
+            try {
+              photoLocal = await this.offline.savePhotoFromDataUrl(this.photo(), `labour_${Date.now()}.jpg`, { clientId }) as { id: number; localRef: string };
+            } catch (e) {
+              console.warn('Failed to save photo locally', e);
+            }
+          }
+
+          // persist a local person record for mapping
+          await this.offline.saveLocalPerson({ clientId, name: this.name, phoneNumber: this.phone, photoLocalRef: photoLocal?.localRef });
+
+          // enqueue photo upload action (will run before registration)
+          if (photoLocal && photoLocal.id) {
+            await this.offline.enqueueAction('photoUpload', { photoLocalId: photoLocal.id, clientId });
+          }
+
+          // enqueue registration action referencing clientId (server id will be patched later)
+          const regPayload = {
+            clientId,
+            name: this.name,
+            phoneNumber: this.phone,
+            aadharNumber: this.aadharNumber || undefined,
+            // include pointer to photoLocalId so SyncService can replace with server photoPath after upload
+            photoLocalId: photoLocal?.id || null,
+            projectId: profile.projectId,
+            contractorId: this.contractorId,
+            barcode: this.barcode || `LAB-${Date.now()}`
+          };
+
+          await this.offline.enqueueAction('registerLabour', regPayload);
+
+          this.submitting.set(false);
+          this.successMessage.set('Worker saved offline and queued for sync');
+          setTimeout(() => this.router.navigate(['/entry-exit']), 800);
+        } catch (queueErr) {
+          this.submitting.set(false);
+          this.errorMessage.set('Failed to queue registration for offline sync');
+          console.error('Failed to enqueue offline registration', queueErr);
+        }
       }
     });
   }

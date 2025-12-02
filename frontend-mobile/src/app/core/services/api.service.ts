@@ -297,4 +297,12 @@ export class ApiService {
 
     return this.http.get(`${base}/photos/${safePath}`, { headers, responseType: 'blob' as 'blob' });
   }
+
+  // Upload a photo as base64; backend should return the stored path in data.path
+  uploadPhoto(base64Data: string, filename?: string): Observable<ApiResponse<{ path: string }>> {
+    const body = { base64: base64Data, filename: filename || `photo_${Date.now()}.jpg` };
+    return this.http.post<ApiResponse<{ path: string }>>(`${this.entryExitApiUrl}/photos/upload`, body, {
+      headers: this.getHeaders()
+    });
+  }
 }

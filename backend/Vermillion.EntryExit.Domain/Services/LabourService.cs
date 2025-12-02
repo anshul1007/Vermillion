@@ -1,4 +1,3 @@
-using System.Linq;
 using Vermillion.EntryExit.Domain.Data;
 using Vermillion.EntryExit.Domain.Models.DTOs;
 using Vermillion.EntryExit.Domain.Models.Entities;
@@ -64,13 +63,21 @@ public class LabourService : ILabourService
             if (existingBarcode)
                 return ApiResponse<LabourDto>.ErrorResponse("Barcode already registered for this project", new List<string> { "DUPLICATE_BARCODE" });
 
-            // Validate and process photo (required)
-            if (string.IsNullOrWhiteSpace(dto.PhotoBase64))
+            // Validate and process photo (required). Accept either PhotoBase64 or PhotoPath.
+            string photoUrl;
+            if (!string.IsNullOrWhiteSpace(dto.PhotoPath))
+            {
+                // client provided an already uploaded path
+                photoUrl = dto.PhotoPath;
+            }
+            else if (!string.IsNullOrWhiteSpace(dto.PhotoBase64))
+            {
+                photoUrl = await _photoStorage.SavePhotoAsync(dto.PhotoBase64, "labour");
+            }
+            else
             {
                 return ApiResponse<LabourDto>.ErrorResponse("Photo is required for labour registration", new List<string> { "PHOTO_REQUIRED" });
             }
-
-            string photoUrl = await _photoStorage.SavePhotoAsync(dto.PhotoBase64, "labour");
 
             // Create labour record
             var labour = new Labour

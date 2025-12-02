@@ -2,6 +2,7 @@ import { Injectable, OnDestroy, computed, inject, signal } from '@angular/core';
 import { take } from 'rxjs/operators';
 import { Router } from '@angular/router';
 import { ApiResponse, ApiService } from '../../../core/services/api.service';
+import { LocalImageService } from '../../../core/services/local-image.service';
 import { BarcodeService } from '../../../core/services/barcode.service';
 import { AuthService } from '../../../core/auth/auth.service';
 import { ContractorLabourResult, PersonSearchResult } from '../entry-exit.models';
@@ -15,6 +16,7 @@ export class EntryExitSearchStore implements OnDestroy {
 
   private readonly photoObjectUrlMap = new Map<string, string>();
   private readonly photoFetchPromises = new Map<string, Promise<void>>();
+  private readonly localImage = inject(LocalImageService);
 
   readonly guardProfile = this.authService.guardProfile;
   readonly placeholderUrl = 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=';
@@ -486,19 +488,34 @@ export class EntryExitSearchStore implements OnDestroy {
       return this.placeholderUrl;
     }
 
-    const promise = this.api
-      .getPhotoBlob(blobPath)
-      .toPromise()
-      .then((blob: Blob | null | undefined) => {
-        if (!blob) return;
-        const url = URL.createObjectURL(blob);
-        this.photoObjectUrlMap.set(blobPath, url);
-        this.photoCacheVersion.update(v => v + 1);
-      })
-      .catch((err: unknown) => console.error('Failed to fetch photo blob', err))
-      .finally(() => this.photoFetchPromises.delete(blobPath));
+    const promise = (async () => {
+      try {
+        // Try to resolve via local cache / storage first (this will download+save if not present)
+        const resolved = await this.localImage.resolveImage(photoUrl, blobPath);
+        if (resolved) {
+          this.photoObjectUrlMap.set(blobPath, resolved);
+          this.photoCacheVersion.update(v => v + 1);
+          return;
+        }
 
-    this.photoFetchPromises.set(blobPath, promise);
+        // Fallback: fetch blob from API and create object URL
+        try {
+          const blob = await this.api.getPhotoBlob(blobPath).toPromise();
+          if (!blob) return;
+          const url = URL.createObjectURL(blob);
+          this.photoObjectUrlMap.set(blobPath, url);
+          this.photoCacheVersion.update(v => v + 1);
+        } catch (err) {
+          console.error('Failed to fetch photo blob', err);
+        }
+      } catch (err) {
+        console.error('Failed to resolve photo', err);
+      } finally {
+        this.photoFetchPromises.delete(blobPath);
+      }
+    })();
+
+    this.photoFetchPromises.set(blobPath, promise as Promise<void>);
     return this.placeholderUrl;
   }
 

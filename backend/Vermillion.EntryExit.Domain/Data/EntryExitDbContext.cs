@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using Vermillion.EntryExit.Domain.Models.Entities;
 using Microsoft.EntityFrameworkCore;
 

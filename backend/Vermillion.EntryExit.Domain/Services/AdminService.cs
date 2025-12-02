@@ -1,5 +1,3 @@
-using System.Collections.Generic;
-using System.Linq;
 using Vermillion.EntryExit.Domain.Data;
 using Vermillion.EntryExit.Domain.Models.DTOs;
 using Vermillion.EntryExit.Domain.Models.Entities;

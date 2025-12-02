@@ -6,13 +6,20 @@ import { Router } from '@angular/router';
 import { ApiService } from '../core/services/api.service';
 import { PhotoService } from '../core/services/photo.service';
 import { AuthService } from '../core/auth/auth.service';
+import { LocalImageService } from '../core/services/local-image.service';
+import { OfflineStorageService } from '../core/services/offline-storage.service';
+import { BarcodeButtonComponent } from '../shared/components/barcode-button.component';
 
 @Component({
   selector: 'app-visitor-registration',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, BarcodeButtonComponent],
   template: `
     <div class="visitor-registration-page">
+      <div class="scan-toast" *ngIf="successMessage() || errorMessage()">
+        <div class="toast success" *ngIf="successMessage()">{{ successMessage() }}</div>
+        <div class="toast error" *ngIf="errorMessage()">{{ errorMessage() }}</div>
+      </div>
       <section class="registration-hero card">
         <div class="registration-hero__heading">
           <h1>Register Visitor</h1>
@@ -88,6 +95,14 @@ import { AuthService } from '../core/auth/auth.service';
             </div>
           </div>
 
+          <div class="form-field">
+            <span>Barcode (optional)</span>
+            <div class="form-inline">
+              <input [(ngModel)]="barcode" placeholder="Scan or enter barcode" name="barcode" />
+              <app-barcode-button (scanned)="barcode = $event" (error)="onScanError($event)"></app-barcode-button>
+            </div>
+          </div>
+
           <div class="form-message error" *ngIf="errorMessage()">{{ errorMessage() }}</div>
           <div class="form-message success" *ngIf="successMessage()">{{ successMessage() }}</div>
 
@@ -103,18 +118,27 @@ import { AuthService } from '../core/auth/auth.service';
 export class VisitorRegistrationComponent implements OnInit {
   private photoSvc = inject(PhotoService);
   private authService = inject(AuthService);
+  private localImage = inject(LocalImageService);
   private api = inject(ApiService);
+    private offline = inject(OfflineStorageService);
   private router = inject(Router);
 
   guardProfile = this.authService.guardProfile;
   name = '';
   phoneNumber = '';
   companyName = '';
+  barcode = '';
   purpose = '';
   photo = signal('');
   errorMessage = signal('');
   successMessage = signal('');
   submitting = signal(false);
+
+  onScanError(err: any) {
+    console.error('Scan error', err);
+    this.errorMessage.set('Barcode scan failed. Try again.');
+    setTimeout(() => this.errorMessage.set(''), 2000);
+  }
 
   ngOnInit(): void {
     if (!this.guardProfile()) {
@@ -138,7 +162,13 @@ export class VisitorRegistrationComponent implements OnInit {
     try {
       this.errorMessage.set('');
       const photoData = await this.photoSvc.takePhoto();
-      this.photo.set(photoData);
+      // Resolve and cache locally if needed
+      try {
+        const resolved = await this.localImage.resolveImage(photoData, `visitor_${Date.now()}.jpg`);
+        this.photo.set(resolved || photoData);
+      } catch (e) {
+        this.photo.set(photoData);
+      }
     } catch (err) {
       this.errorMessage.set('Photo capture failed. Please try again.');
     }
@@ -179,16 +209,17 @@ export class VisitorRegistrationComponent implements OnInit {
       companyName: this.companyName.trim() || undefined,
       purpose: this.purpose.trim(),
       photoBase64: this.photo(),
+      barcode: this.barcode || undefined,
       projectId: profile.projectId
     };
 
     console.log('Registering visitor with data:', visitorData);
 
-    this.api.registerVisitor(visitorData).pipe(take(1)).subscribe({
+    const handlers = {
       next: (res: any) => {
         console.log('Visitor registration response:', res);
         this.submitting.set(false);
-        
+
         if (res?.success) {
           this.successMessage.set('Visitor registered successfully!');
           setTimeout(() => {
@@ -199,15 +230,54 @@ export class VisitorRegistrationComponent implements OnInit {
           this.errorMessage.set(res?.message || 'Failed to register visitor');
         }
       },
-      error: (err) => {
+      error: async (err: any) => {
         console.error('Register visitor API error:', err);
-        console.error('Error details:', err.error);
+        console.error('Error details:', err?.error);
         this.submitting.set(false);
-        
-        const errorMsg = err.error?.message || err.error?.Message || err.message || 'Failed to register visitor. Please try again.';
-        this.errorMessage.set(errorMsg);
+        // On network failure, queue for offline sync
+        try {
+          const clientId = `c_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+          let photoLocal: any = null;
+          if (this.photo()) {
+            try {
+              photoLocal = await this.offline.savePhotoFromDataUrl(this.photo(), `visitor_${Date.now()}.jpg`, { clientId }) as { id: number; localRef: string };
+            } catch (e) {
+              console.warn('Failed to save visitor photo locally', e);
+            }
+          }
+
+          await this.offline.saveLocalPerson({ clientId, name: this.name, phoneNumber: this.phoneNumber, photoLocalRef: photoLocal?.localRef });
+
+          if (photoLocal && photoLocal.id) {
+            await this.offline.enqueueAction('photoUpload', { photoLocalId: photoLocal.id, clientId });
+          }
+
+          const payload = {
+            clientId,
+            name: this.name.trim(),
+            phoneNumber: this.phoneNumber.trim(),
+            companyName: this.companyName.trim() || undefined,
+            purpose: this.purpose.trim(),
+            photoLocalId: photoLocal?.id || null,
+            barcode: this.barcode || undefined,
+            projectId: profile.projectId
+          };
+          await this.offline.enqueueAction('registerVisitor', payload);
+
+          this.successMessage.set('Visitor saved offline and queued for sync');
+          setTimeout(() => {
+            this.resetForm();
+            this.router.navigate(['/entry-exit']);
+          }, 800);
+        } catch (qErr) {
+          const errorMsg = err?.error?.message || err?.error?.Message || err?.message || 'Failed to register visitor. Please try again.';
+          this.errorMessage.set(errorMsg);
+          console.error('Failed to enqueue offline visitor registration', qErr);
+        }
       }
-    });
+    };
+
+    this.api.registerVisitor(visitorData).pipe(take(1)).subscribe(handlers as any);
   }
 
   resetForm(): void {

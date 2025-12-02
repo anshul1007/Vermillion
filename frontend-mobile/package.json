@@ -6,7 +6,11 @@
     "start": "ng serve",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
-    "test": "ng test"
+    "test": "ng test",
+    "cap:sync:dev": "cross-env NODE_ENV=development npx cap sync",
+    "cap:sync:prod": "cross-env NODE_ENV=production npx cap sync",
+    "ionic:build": "npm run build",
+    "ionic:serve": "npm run watch"
   },
   "prettier": {
     "printWidth": 100,
@@ -33,11 +37,13 @@
     "@capacitor/camera": "^7.0.2",
     "@capacitor/cli": "^7.4.4",
     "@capacitor/core": "^7.4.4",
+    "@capacitor/filesystem": "^7.1.5",
     "@capacitor/geolocation": "^7.1.5",
     "@capacitor/ios": "^7.4.4",
     "@capacitor/network": "^7.0.2",
     "@zxing/browser": "^0.1.5",
     "@zxing/library": "^0.21.3",
+    "dexie": "^4.2.1",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0"
   },
@@ -46,6 +52,8 @@
     "@angular/cli": "^20.3.5",
     "@angular/compiler-cli": "^20.3.0",
     "@types/jasmine": "~5.1.0",
+    "@types/node": "^24.10.1",
+    "cross-env": "^10.1.0",
     "jasmine-core": "~5.9.0",
     "karma": "~6.4.0",
     "karma-chrome-launcher": "~3.2.0",

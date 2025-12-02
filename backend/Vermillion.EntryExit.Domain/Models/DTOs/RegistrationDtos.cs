@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 
 namespace Vermillion.EntryExit.Domain.Models.DTOs;
@@ -38,8 +37,9 @@ public class CreateLabourDto
     [RegularExpression(@"^\d{12}$", ErrorMessage = "Aadhar number must contain only digits")]
     public string? AadharNumber { get; set; }  // Will be encrypted before saving
 
-    [Required(ErrorMessage = "Photo is required")]
-    public string? PhotoBase64 { get; set; }  // Accepted in requests, converted to PhotoUrl
+    // Photo can be provided either as base64 (PhotoBase64) or as an already-uploaded server path (PhotoPath).
+    public string? PhotoBase64 { get; set; }
+    public string? PhotoPath { get; set; }
 
     [Required(ErrorMessage = "Project ID is required")]
     [Range(1, int.MaxValue, ErrorMessage = "Invalid project ID")]
@@ -77,6 +77,7 @@ public class CreateVisitorDto
     public string? CompanyName { get; set; }
     public string? Purpose { get; set; }
     public string PhotoBase64 { get; set; } = string.Empty;  // Accepted in requests, converted to PhotoUrl
+    public string? PhotoPath { get; set; }
     public int ProjectId { get; set; }
 }
 
