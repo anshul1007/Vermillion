@@ -2,6 +2,8 @@ import { CapacitorConfig } from '@capacitor/cli';
 
 const isProduction = process.env.NODE_ENV === 'production';
 
+console.log(`Capacitor config: Setting androidScheme to ${isProduction ? 'https' : 'http'}`);
+
 const config: CapacitorConfig = {
   appId: 'com.vermillion.entryexit',
   appName: 'EntryExit Mobile',

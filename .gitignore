@@ -400,8 +400,8 @@ FodyWeavers.xsd
 *.env.local
 
 # Capacitor / Android native build artifacts (frontend-mobile)
-# Ignore the Android platform folder and build outputs created by Capacitor/Android Studio
-frontend-mobile/android/
+# Keep the Android native project in source control, but ignore build outputs and local files.
+!frontend-mobile/android/
 frontend-mobile/android/**/build/
 frontend-mobile/android/**/app/build/
 frontend-mobile/android/**/.gradle/
@@ -558,3 +558,5 @@ sample-data/
 !NuGet.Config
 
 .azurite
+!frontend-mobile/android/
+!frontend-mobile/android/**

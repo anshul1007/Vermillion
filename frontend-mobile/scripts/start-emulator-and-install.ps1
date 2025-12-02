@@ -1,6 +1,13 @@
 <#
 Usage: 
-  .\start-emulator-and-install.ps1 -AvdName Medium_Phone_API_36 -ApkPath ..\app\build\outputs\apk\debug\app-debug.apk
+    .\start-emulator-and-install.ps1 -AvdName Medium_Phone_API_36 -ApkPath ..\app\build\outputs\apk\debug\*.apk
+Local: 
+        .\scripts\start-emulator-and-install.ps1 -MobileLocal
+Prod:
+        .\scripts\start-emulator-and-install.ps1    
+
+Run Android Studio emulator and install the built APK.
+    npx cap open android
 
 What it does:
   - Finds and kills any process holding TCP port 5037 (ADB daemon port)
@@ -14,10 +21,12 @@ Notes:
   - The script tries to locate the Android SDK via `ANDROID_SDK_ROOT`, `ANDROID_HOME`, or your LocalAppData default path.
 #>
 
-# Hard-coded configuration (change these values if you need a different AVD or APK)
-$AvdName = 'Medium_Phone_API_36'
-$ApkPath = 'e:\Vermillion\frontend-mobile\android\app\build\outputs\apk\debug\app-debug.apk'
-$WaitSeconds = 600
+param(
+    [string]$AvdName = 'Medium_Phone_API_36',
+    [string]$ApkPath = '',
+    [switch]$MobileLocal,
+    [int]$WaitSeconds = 120
+)
 
 function Find-AndroidSdkRoot {
     if ($env:ANDROID_SDK_ROOT -and (Test-Path $env:ANDROID_SDK_ROOT)) { return $env:ANDROID_SDK_ROOT }
@@ -53,11 +62,27 @@ $AndroidDir = Join-Path $ProjectRoot "android"
 Write-Output "Building web app (npm run build) in $ProjectRoot..."
 Push-Location $ProjectRoot | Out-Null
 if (-not (Get-Command npm -ErrorAction SilentlyContinue)) { Write-Error "npm not found on PATH"; Pop-Location | Out-Null; exit 9 }
-& npm run build -- --configuration production
 
-Write-Output "Syncing Capacitor native project (npm run cap:sync:dev) in $ProjectRoot..."
+if ($MobileLocal) {
+    Write-Output "Building for MOBILE_LOCAL (Angular configuration: mobile-local)."
+    # Ensure any leftover MOBILE_LOCAL is cleared for deterministic builds
+    if ($env:MOBILE_LOCAL) { Remove-Item Env:\MOBILE_LOCAL -ErrorAction SilentlyContinue }
+    & npm run build -- --configuration mobile-local
+} else {
+    Write-Output "Building for production (Angular configuration: production)."
+    & npm run build -- --configuration production
+}
+
+Write-Output "Syncing Capacitor native project in $ProjectRoot..."
 if (-not (Get-Command npx -ErrorAction SilentlyContinue)) { Write-Error "npx not found on PATH"; Pop-Location | Out-Null; exit 10 }
-& npm run cap:sync:dev
+if ($MobileLocal) {
+    & npm run cap:sync:dev
+} else {
+    & npm run cap:sync:prod
+}
+
+# Cleanup MOBILE_LOCAL env var so subsequent commands aren't affected
+if ($MobileLocal) { Remove-Item Env:\MOBILE_LOCAL -ErrorAction SilentlyContinue }
 
 # Build Android debug APK using Gradle wrapper in android subfolder
 if (-not (Test-Path $AndroidDir)) { Write-Error "Android directory not found at $AndroidDir"; Pop-Location | Out-Null; exit 12 }
@@ -72,7 +97,23 @@ if (Test-Path "gradlew.bat") {
 Pop-Location | Out-Null
 Pop-Location | Out-Null
 
-# Ensure APK path exists after build
+# Ensure APK path exists after build. If an explicit $ApkPath wasn't provided, locate the most recent APK in the outputs folder.
+if ([string]::IsNullOrWhiteSpace($ApkPath) -or -not (Test-Path $ApkPath)) {
+    Write-Warning "APK not found at specified path: $ApkPath. Attempting to locate APK in build outputs..."
+    $apkDir = Join-Path $ProjectRoot "android\app\build\outputs"
+    if (Test-Path $apkDir) {
+        $apk = Get-ChildItem -Path $apkDir -Include *.apk -File -Recurse | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+        if ($apk) {
+            $ApkPath = $apk.FullName
+            Write-Output "Located APK: $ApkPath"
+        } else {
+            Write-Warning "No .apk files found under $apkDir"
+        }
+    } else {
+        Write-Warning "APK output directory not found: $apkDir"
+    }
+}
+
 if (-not (Test-Path $ApkPath)) { Write-Error "APK not found at $ApkPath after build. Check Gradle output."; exit 11 }
 
 # Kill any process using port 5037

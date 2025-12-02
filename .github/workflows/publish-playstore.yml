@@ -1,0 +1,63 @@
+name: Build and Publish to Google Play
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    env:
+      NODE_OPTIONS: --max_old_space_size=4096
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Install dependencies
+        working-directory: frontend-mobile
+        run: |
+          npm ci
+
+      - name: Build web assets (production)
+        working-directory: frontend-mobile
+        run: |
+          npm run build -- --configuration production
+
+      - name: Setup Android keystore
+        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > /tmp/keystore.jks
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+
+      - name: Sync Capacitor
+        working-directory: frontend-mobile
+        run: |
+          npm run cap:sync:prod
+
+      - name: Build Android AAB
+        working-directory: frontend-mobile/android
+        run: |
+          ./gradlew bundleRelease -Pandroid.injected.testOnly=false
+
+      - name: Upload AAB to Google Play
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJson: ${{ secrets.PLAYSTORE_SERVICE_ACCOUNT_JSON }}
+          packageName: com.yourcompany.yourapp # <-- replace with your package name
+          releaseFile: ./frontend-mobile/android/app/build/outputs/bundle/release/app-release.aab
+          track: internal
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}

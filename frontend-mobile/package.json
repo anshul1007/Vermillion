@@ -5,6 +5,7 @@
     "ng": "ng",
     "start": "ng serve",
     "build": "ng build",
+    "build:mobile-local": "ng build --configuration mobile-local",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
     "cap:sync:dev": "cross-env NODE_ENV=development npx cap sync",
