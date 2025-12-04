@@ -648,7 +648,7 @@
           @if (labour.photoUrl) {
           <div class="info-row">
             <span class="label">Photo:</span>
-            <img [src]="labour.photoUrl" alt="Labour photo" style="max-width: 100px; border-radius: 4px;" />
+            <img [src]="getImageSrc(labour.photoUrl)" alt="Labour photo" style="max-width: 100px; border-radius: 4px;" />
           </div>
           }
         </div>
@@ -751,7 +751,7 @@
           @if (visitor.photoUrl) {
           <div class="info-row">
             <span class="label">Photo:</span>
-            <img [src]="visitor.photoUrl" alt="Visitor photo" style="max-width: 100px; border-radius: 4px;" />
+            <img [src]="getImageSrc(visitor.photoUrl)" alt="Visitor photo" style="max-width: 100px; border-radius: 4px;" />
           </div>
           }
         </div>

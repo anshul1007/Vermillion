@@ -11,16 +11,12 @@
             <p class="app-header__subtitle">Visitor Management</p>
           </div>
         </div>
-
         <div *ngIf="isGuard()" class="app-header__actions">
-          <button class="btn btn-outline" type="button" routerLink="/dashboard">
-            <app-icon name="dashboard" size="20"></app-icon>
-            <span>Dashboard</span>
-          </button>
-          <button class="btn" type="button" (click)="logout()">
-            <app-icon name="logout" size="20"></app-icon>
-            <span>Logout</span>
-          </button>
+          <div class="company">
+            <button class="btn btn-outline" type="button" routerLink="/dashboard" aria-label="Dashboard">
+              <app-icon name="dashboard" size="20" class="company-icon" aria-hidden="true"></app-icon>
+            </button>
+          </div>
         </div>
       </div>
     </div>

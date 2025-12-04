@@ -27,15 +27,6 @@ import { BarcodeButtonComponent } from '../shared/components/barcode-button.comp
           <p class="registration-hero__sub" *ngIf="guardProfile()">{{ guardProfile()!.projectName }}</p>
           <p class="registration-hero__sub text-muted" *ngIf="!guardProfile()">No project assigned</p>
         </div>
-        <!-- <div class="chip-actions">
-          <button type="button" class="chip-button" (click)="resetForm()">Reset Form</button>
-          <div class="chip-button"><app-barcode-button (scanned)="onScanned($event)" (error)="onScanError($event)"></app-barcode-button></div>
-          <button type="button" class="chip-button" (click)="takePhoto()">
-            <span *ngIf="photo(); else takePhotoLabel">Retake Photo</span>
-            <ng-template #takePhotoLabel>Capture Photo</ng-template>
-          </button>
-          <button type="button" class="chip-button" (click)="goBack()">Back to Dashboard</button>
-        </div> -->
       </section>
 
       <section class="registration-card card" *ngIf="!loading(); else loadingTpl">
@@ -67,7 +58,7 @@ import { BarcodeButtonComponent } from '../shared/components/barcode-button.comp
             <span>Barcode ID</span>
             <div class="form-inline">
               <input [(ngModel)]="barcode" placeholder="Scan or enter barcode" name="barcode" />
-              <app-barcode-button (scanned)="barcode = $event"></app-barcode-button>
+              <app-barcode-button (scanned)="onScanned($event)" (error)="onScanError($event)"></app-barcode-button>
             </div>
           </div>
 

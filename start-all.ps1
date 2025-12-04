@@ -1,6 +1,10 @@
 # Vermillion System - Start All Services (Monolithic)
 # This script starts the monolithic backend and frontend applications
 
+param(
+    [switch]$StartBackend
+)
+
 Write-Host "=====================================" -ForegroundColor Cyan
 Write-Host "  VERMILLION SYSTEM - START ALL     " -ForegroundColor Cyan
 Write-Host "=====================================" -ForegroundColor Cyan
@@ -114,10 +118,14 @@ Write-Host ""
 
 $backendCmd = "dotnet run"
 # Start the monolithic backend (Vermillion.API)
-$success = Start-Service -Name "Vermillion.API (Port 5000)" -Path "backend\Vermillion.API" -Command $backendCmd -Color "Magenta"
-if ($success) { 
-    Write-Host "  Vermillion.API starting..." -ForegroundColor Green 
-    Start-Sleep -Seconds 3
+if ($StartBackend) {
+    $success = Start-Service -Name "Vermillion.API (Port 5000)" -Path "backend\Vermillion.API" -Command $backendCmd -Color "Magenta" -Env $envVars
+    if ($success) { 
+        Write-Host "  Vermillion.API starting..." -ForegroundColor Green 
+        Start-Sleep -Seconds 3
+    }
+} else {
+    Write-Host "Backend startup skipped by default. Use -StartBackend to start it." -ForegroundColor Yellow
 }
 
 Write-Host ""

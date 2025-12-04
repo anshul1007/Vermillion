@@ -13,10 +13,4 @@ import { AuthService } from './core/auth/auth.service';
 export class App {
   private auth = inject(AuthService);
   isGuard = () => this.auth.hasRole('Guard');
-
-  logout(): void {
-    if (confirm('Are you sure you want to logout?')) {
-      this.auth.logout();
-    }
-  }
 }

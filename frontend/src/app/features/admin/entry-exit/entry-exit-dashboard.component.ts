@@ -1,6 +1,7 @@
-import { Component, inject, signal, OnInit, OnDestroy } from '@angular/core';
+import { Component, inject, signal, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators, AbstractControl, ValidatorFn } from '@angular/forms';
+import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { EntryExitService, Project, Contractor, Guard, LabourRegistration, CreateProjectDto, CreateContractorDto, AssignGuardToProjectDto } from '../../../shared/services/entry-exit.service';
 import { Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
@@ -24,6 +25,8 @@ export class EntryExitDashboardComponent implements OnInit, OnDestroy {
   private entryExitService = inject(EntryExitService);
   private adminService = inject(AdminService);
   private fb = inject(FormBuilder);
+  private http = inject(HttpClient);
+  private cdr = inject(ChangeDetectorRef);
 
   activeTab = signal<'projects' | 'contractors' | 'guards' | 'labour' | 'visitors' | 'reports'>('projects');
 
@@ -130,13 +133,15 @@ export class EntryExitDashboardComponent implements OnInit, OnDestroy {
     });
   }
 
-  setActiveTab(tab: 'projects' | 'contractors' | 'guards' | 'labour' | 'visitors'): void {
+  setActiveTab(tab: 'projects' | 'contractors' | 'guards' | 'labour' | 'visitors' | 'reports'): void {
     this.activeTab.set(tab);
     this.message.set('');
     if (tab === 'labour') {
       this.loadLabour();
     } else if (tab === 'visitors') {
       this.loadVisitors();
+    } else if (tab === 'reports') {
+      this.initReports();
     }
   }
 
@@ -917,5 +922,57 @@ export class EntryExitDashboardComponent implements OnInit, OnDestroy {
     }
     // Otherwise, prepend the base URL
     return `${environment.baseUrl}${photoPath}`;
+  }
+
+  // Authenticated image loader for protected photo endpoints
+  private imageCache = new Map<string, string>();
+  private loadingImage = new Set<string>();
+
+  getImageSrc(photoPath: string | undefined): string {
+    if (!photoPath) return '';
+    if (photoPath.startsWith('http://') || photoPath.startsWith('https://')) return photoPath;
+    // Protected API path - load with Authorization header
+    if (photoPath.startsWith('/api/entryexit/photos')) {
+      const cached = this.imageCache.get(photoPath);
+      if (cached) return cached;
+      if (!this.loadingImage.has(photoPath)) {
+        this.loadAuthImage(photoPath);
+      }
+      return '';
+    }
+    return this.getPhotoUrl(photoPath);
+  }
+
+  private loadAuthImage(photoPath: string): void {
+    if (this.loadingImage.has(photoPath)) return;
+    this.loadingImage.add(photoPath);
+
+    const token = localStorage.getItem('auth_token');
+    if (!token) {
+      console.warn('No auth token found; cannot load protected image', photoPath);
+      this.loadingImage.delete(photoPath);
+      return;
+    }
+
+    const url = `${environment.baseUrl}${photoPath}`;
+    const headers = new HttpHeaders({ 'Authorization': `Bearer ${token}` });
+
+    this.http.get(url, { headers, responseType: 'blob' }).subscribe({
+      next: (blob) => {
+        try {
+          const objUrl = URL.createObjectURL(blob);
+          this.imageCache.set(photoPath, objUrl);
+        } catch (err) {
+          console.error('Failed to create object URL for image', err);
+        }
+        this.loadingImage.delete(photoPath);
+        this.cdr.detectChanges();
+      },
+      error: (err) => {
+        console.error('Failed to load protected image', photoPath, err);
+        this.loadingImage.delete(photoPath);
+        this.cdr.detectChanges();
+      }
+    });
   }
 }

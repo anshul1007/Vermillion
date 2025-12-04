@@ -145,44 +145,43 @@ interface Statistics {
               <p>No records found for the selected range</p>
             </div>
           } @else {
-            <div class="sessions-table-wrapper">
-              <table class="sessions-table">
-                <thead>
-                  <tr>
-                    <th class="col-status">Type</th>
-                    <th class="col-name">Name</th>
-                    <th class="col-company">Company / Contractor</th>
-                    <th class="col-entry">Entry Time</th>
-                    <th class="col-exit">Exit Time</th>
-                    <th class="col-guard">Guard</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  @for (session of sessions(); track session.id) {
-                    <tr>
-                      <td class="col-status">
-                        <span class="status-indicator" [class.active]="!session.exitTime">
-                          @if (!session.exitTime || session.exitTime === '') {
-                            <app-icon name="dot" size="16" class="active-dot" aria-label="Active session"></app-icon>
-                          } @else {
-                            <span class="checked-out-dot" title="Checked out">
-                              <app-icon name="dot-check" size="16"></app-icon>
-                            </span>
-                          }
-                          <span class="type-badge" [class.labour]="session.personType === 'Labour'" [class.visitor]="session.personType === 'Visitor'">
-                            {{ session.personType }}
-                          </span>
+            <div class="sessions-list">
+              @for (session of sessions(); track session.id) {
+                <article class="session-card" [class.session-card--active]="!session.exitTime">
+                  <div class="session-card__header">
+                    <span class="status-indicator" [class.active]="!session.exitTime">
+                      @if (!session.exitTime || session.exitTime === '') {
+                        <app-icon name="dot" size="16" class="active-dot" aria-label="Active session"></app-icon>
+                      } @else {
+                        <span class="checked-out-dot" title="Checked out">
+                          <app-icon name="dot-check" size="16"></app-icon>
                         </span>
-                      </td>
-                      <td class="col-name">{{ session.name }}</td>
-                      <td class="col-company">{{ session.contractor || '-' }}</td>
-                      <td class="col-entry">{{ session.entryTime ? formatDateTime(session.entryTime) : '-' }}</td>
-                      <td class="col-exit">{{ session.exitTime ? formatDateTime(session.exitTime) : '-' }}</td>
-                      <td class="col-guard">{{ session.guardName || '-' }}</td>
-                    </tr>
-                  }
-                </tbody>
-              </table>
+                      }
+                      <span class="type-badge" [class.labour]="session.personType === 'Labour'" [class.visitor]="session.personType === 'Visitor'">
+                        {{ session.personType }}
+                      </span>
+                    </span>
+                    <div class="session-card__title">
+                      <h4>{{ session.name }}</h4>
+                      <span class="session-card__contractor">{{ session.contractor || '-' }}</span>
+                    </div>
+                  </div>
+                  <div class="session-card__body">
+                    <div class="session-card__item">
+                      <span class="label">Entry Time</span>
+                      <span class="value">{{ session.entryTime ? formatDateTime(session.entryTime) : '-' }}</span>
+                    </div>
+                    <div class="session-card__item">
+                      <span class="label">Exit Time</span>
+                      <span class="value">{{ session.exitTime ? formatDateTime(session.exitTime) : '-' }}</span>
+                    </div>
+                    <div class="session-card__item">
+                      <span class="label">Guard</span>
+                      <span class="value">{{ session.guardName || '-' }}</span>
+                    </div>
+                  </div>
+                </article>
+              }
             </div>
           }
         </section>
