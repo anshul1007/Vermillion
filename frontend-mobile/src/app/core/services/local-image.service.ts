@@ -35,8 +35,15 @@ export class LocalImageService {
     try {
       let blob: Blob | null = null;
 
+      // If src is a blob: URL, fetch it directly from the browser (it's a client-side object URL)
+      if (src.startsWith('blob:')) {
+        const resp = await fetch(src);
+        if (!resp.ok) throw new Error('fetch failed');
+        blob = await resp.blob();
+      }
+
       // If src is an absolute URL (http/https) decide whether to fetch directly
-      if (/^https?:\/\//i.test(src)) {
+      else if (/^https?:\/\//i.test(src)) {
         try {
           const parsed = new URL(src);
           const appOrigin = (typeof location !== 'undefined' && location.origin) ? location.origin : null;

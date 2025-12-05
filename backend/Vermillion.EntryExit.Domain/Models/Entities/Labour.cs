@@ -21,6 +21,18 @@ public class Labour
     public string? AadharNumberEncrypted { get; set; }
 
     /// <summary>
+    /// Encrypted PAN number (if provided)
+    /// </summary>
+    [MaxLength(500)]
+    public string? PanNumberEncrypted { get; set; }
+
+    /// <summary>
+    /// Residential address extracted from Aadhar OCR or provided by user
+    /// </summary>
+    [MaxLength(1000)]
+    public string? Address { get; set; }
+
+    /// <summary>
     /// Photo URL in Azure Blob Storage
     /// </summary>
     [Required]
@@ -30,6 +42,7 @@ public class Labour
     public int ProjectId { get; set; }
 
     public int ContractorId { get; set; }
+    public int ClassificationId { get; set; }
 
     [Required]
     [MaxLength(100)]
@@ -50,4 +63,5 @@ public class Labour
     public virtual Project Project { get; set; } = null!;
     public virtual Contractor Contractor { get; set; } = null!;
     public virtual ICollection<EntryExitRecord> EntryExitRecords { get; set; } = new List<EntryExitRecord>();
+    public virtual LabourClassification? Classification { get; set; }
 }

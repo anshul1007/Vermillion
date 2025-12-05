@@ -117,4 +117,15 @@ public class LabourController : ControllerBase
 
         return Ok(result);
     }
+
+    [HttpGet("classifications")]
+    [Authorize(Roles = "Guard,SystemAdmin,Admin")]
+    public async Task<ActionResult<ApiResponse<List<KeyValuePair<int, string>>>>> GetClassifications()
+    {
+        var result = await _labourService.GetClassificationsAsync();
+        if (!result.Success)
+            return BadRequest(result);
+
+        return Ok(result);
+    }
 }

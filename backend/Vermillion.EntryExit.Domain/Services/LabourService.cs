@@ -17,6 +17,7 @@ public interface ILabourService
     Task<ApiResponse<List<LabourDto>>> GetLabourByProjectAsync(int projectId);
     Task<ApiResponse<List<LabourDto>>> GetLabourByContractorAsync(int contractorId);
     Task<ApiResponse<List<LabourDto>>> GetLabourByProjectAndContractorAsync(int projectId, int contractorId);
+    Task<ApiResponse<List<KeyValuePair<int, string>>>> GetClassificationsAsync();
 }
 
 public class LabourService : ILabourService
@@ -36,6 +37,25 @@ public class LabourService : ILabourService
         _encryption = encryption;
         _photoStorage = photoStorage;
         _logger = logger;
+    }
+    public async Task<ApiResponse<List<KeyValuePair<int, string>>>> GetClassificationsAsync()
+    {
+        try
+        {
+            var list = await _context.LabourClassifications
+                .AsNoTracking()
+                .Where(c => c.IsActive)
+                .OrderBy(c => c.Name)
+                .Select(c => new KeyValuePair<int, string>(c.Id, c.Name))
+                .ToListAsync();
+
+            return ApiResponse<List<KeyValuePair<int, string>>>.SuccessResponse(list);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching labour classifications");
+            return ApiResponse<List<KeyValuePair<int, string>>>.ErrorResponse("Failed to fetch classifications", ex.Message);
+        }
     }
 
     public async Task<ApiResponse<LabourDto>> RegisterLabourAsync(CreateLabourDto dto, string registeredBy)
@@ -90,6 +110,7 @@ public class LabourService : ILabourService
                 PhotoUrl = photoUrl,
                 ProjectId = dto.ProjectId,
                 ContractorId = dto.ContractorId,
+                ClassificationId = dto.ClassificationId,
                 Barcode = dto.Barcode,
                 RegisteredBy = registeredBy,
                 RegisteredAt = DateTime.UtcNow,
@@ -109,6 +130,7 @@ public class LabourService : ILabourService
             var fullLabour = await _context.Labours
                 .Include(l => l.Project)
                 .Include(l => l.Contractor)
+                .Include(l => l.Classification)
                 .FirstAsync(l => l.Id == labour.Id);
 
             var result = MapToDto(fullLabour);
@@ -129,6 +151,7 @@ public class LabourService : ILabourService
             var query = _context.Labours
                 .Include(l => l.Project)
                 .Include(l => l.Contractor)
+                .Include(l => l.Classification)
                 .Where(l => l.IsActive);
 
             if (!string.IsNullOrWhiteSpace(barcode))
@@ -178,6 +201,7 @@ public class LabourService : ILabourService
                 .AsNoTracking()
                 .Include(l => l.Project)
                 .Include(l => l.Contractor)
+                .Include(l => l.Classification)
                 .Where(l => l.IsActive);
 
             if (projectId.HasValue)
@@ -222,6 +246,7 @@ public class LabourService : ILabourService
                 .AsNoTracking()
                 .Include(l => l.Project)
                 .Include(l => l.Contractor)
+                .Include(l => l.Classification)
                 .Where(l => l.IsActive && l.Contractor != null && l.Contractor.Name != null)
                 .Where(l => EF.Functions.Like(l.Contractor!.Name!, $"%{trimmedContractor}%"));
 
@@ -248,6 +273,7 @@ public class LabourService : ILabourService
             var labour = await _context.Labours
                 .Include(l => l.Project)
                 .Include(l => l.Contractor)
+                .Include(l => l.Classification)
                 .FirstOrDefaultAsync(l => l.Id == id);
 
             if (labour == null)
@@ -269,6 +295,7 @@ public class LabourService : ILabourService
             var labours = await _context.Labours
                 .Include(l => l.Project)
                 .Include(l => l.Contractor)
+                .Include(l => l.Classification)
                 .Where(l => l.ProjectId == projectId && l.IsActive)
                 .OrderByDescending(l => l.RegisteredAt)
                 .ToListAsync();
@@ -291,6 +318,7 @@ public class LabourService : ILabourService
             var labours = await _context.Labours
                 .Include(l => l.Project)
                 .Include(l => l.Contractor)
+                .Include(l => l.Classification)
                 .Where(l => l.ContractorId == contractorId && l.IsActive)
                 .OrderByDescending(l => l.RegisteredAt)
                 .ToListAsync();
@@ -313,6 +341,7 @@ public class LabourService : ILabourService
             var labours = await _context.Labours
                 .Include(l => l.Project)
                 .Include(l => l.Contractor)
+                .Include(l => l.Classification)
                 .Where(l => l.ProjectId == projectId && l.ContractorId == contractorId && l.IsActive)
                 .OrderByDescending(l => l.RegisteredAt)
                 .ToListAsync();
@@ -330,20 +359,31 @@ public class LabourService : ILabourService
 
     private LabourDto MapToDto(Labour labour)
     {
+        // Decrypt values first and normalize to non-null strings to avoid possible null reference assignments
+        var decryptedAadhar = !string.IsNullOrEmpty(labour.AadharNumberEncrypted)
+            ? _encryption.Decrypt(labour.AadharNumberEncrypted)
+            : null;
+
+        var decryptedPan = !string.IsNullOrEmpty(labour.PanNumberEncrypted)
+            ? _encryption.Decrypt(labour.PanNumberEncrypted)
+            : null;
+
         return new LabourDto
         {
             Id = labour.Id,
             Name = labour.Name,
             PhoneNumber = labour.PhoneNumber,
-            AadharNumber = !string.IsNullOrEmpty(labour.AadharNumberEncrypted)
-                ? _encryption.Decrypt(labour.AadharNumberEncrypted)
-                : null,
+            AadharNumber = decryptedAadhar ?? string.Empty,
+            PanNumber = decryptedPan ?? string.Empty,
             PhotoUrl = string.IsNullOrEmpty(labour.PhotoUrl) ? string.Empty : (labour.PhotoUrl.StartsWith("/api/entryexit/photos/") ? labour.PhotoUrl : $"/api/entryexit/photos/{labour.PhotoUrl}"),
             ProjectId = labour.ProjectId,
             ProjectName = labour.Project.Name,
             ContractorId = labour.ContractorId,
             ContractorName = labour.Contractor.Name,
+            ClassificationId = labour.ClassificationId,
+            ClassificationName = labour.Classification?.Name ?? string.Empty,
             Barcode = labour.Barcode,
+            Address = labour.Address ?? string.Empty,
             IsActive = labour.IsActive,
             RegisteredBy = labour.RegisteredBy,
             RegisteredAt = labour.RegisteredAt,

@@ -28,6 +28,11 @@
     </div>
   </main>
 
+  <div class="global-toast" [class.visible]="notifier.errorMessage() || notifier.successMessage()">
+    <div class="toast success" [class.visible]="notifier.successMessage()">{{ notifier.successMessage() }}</div>
+    <div class="toast error" [class.visible]="notifier.errorMessage()">{{ notifier.errorMessage() }}</div>
+  </div>
+
   <!-- <footer class="fixed-bottom app-footer">
 		<div class="row footer-row">
 			<div class="muted">© Vermillion</div>

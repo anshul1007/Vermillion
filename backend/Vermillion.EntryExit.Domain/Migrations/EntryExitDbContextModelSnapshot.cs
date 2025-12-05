@@ -8,7 +8,7 @@ using Vermillion.EntryExit.Domain.Data;
 
 #nullable disable
 
-namespace Vermillion.EntryExit.Domain.Migrations.EntryExit
+namespace Vermillion.EntryExit.Domain.Migrations
 {
     [DbContext(typeof(EntryExitDbContext))]
     partial class EntryExitDbContextModelSnapshot : ModelSnapshot
@@ -22,6 +22,27 @@ namespace Vermillion.EntryExit.Domain.Migrations.EntryExit
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
+
+            modelBuilder.Entity("ProjectContractors", b =>
+                {
+                    b.Property<int>("ProjectId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ContractorId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("GETUTCDATE()");
+
+                    b.HasKey("ProjectId", "ContractorId")
+                        .HasName("PK_ProjectContractors");
+
+                    b.HasIndex("ContractorId");
+
+                    b.ToTable("ProjectContractors", "entryexit");
+                });
 
             modelBuilder.Entity("Vermillion.EntryExit.Domain.Models.Entities.Contractor", b =>
                 {
@@ -55,9 +76,11 @@ namespace Vermillion.EntryExit.Domain.Migrations.EntryExit
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
 
-                    b.HasKey("Id");
+                    b.HasKey("Id")
+                        .HasName("PK_Contractors");
 
-                    b.HasIndex("Name");
+                    b.HasIndex("Name")
+                        .HasDatabaseName("IX_Contractors_Name");
 
                     b.ToTable("Contractors", "entryexit");
                 });
@@ -105,15 +128,19 @@ namespace Vermillion.EntryExit.Domain.Migrations.EntryExit
                     b.Property<int?>("VisitorId")
                         .HasColumnType("int");
 
-                    b.HasKey("Id");
+                    b.HasKey("Id")
+                        .HasName("PK_EntryExitRecords");
 
                     b.HasIndex("ClientId")
                         .IsUnique()
+                        .HasDatabaseName("IX_EntryExitRecords_ClientId")
                         .HasFilter("[ClientId] IS NOT NULL");
 
-                    b.HasIndex("LabourId", "Action", "Timestamp");
+                    b.HasIndex("LabourId", "Action", "Timestamp")
+                        .HasDatabaseName("IX_EntryExitRecords_LabourId_Action_Timestamp");
 
-                    b.HasIndex("VisitorId", "Action", "Timestamp");
+                    b.HasIndex("VisitorId", "Action", "Timestamp")
+                        .HasDatabaseName("IX_EntryExitRecords_VisitorId_Action_Timestamp");
 
                     b.ToTable("EntryExitRecords", "entryexit", t =>
                         {
@@ -150,12 +177,14 @@ namespace Vermillion.EntryExit.Domain.Migrations.EntryExit
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
 
-                    b.HasKey("Id");
+                    b.HasKey("Id")
+                        .HasName("PK_GuardProjectAssignments");
 
                     b.HasIndex("ProjectId");
 
                     b.HasIndex("AuthUserId", "ProjectId")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("IX_GuardProjectAssignments_AuthUserId_ProjectId");
 
                     b.ToTable("GuardProjectAssignments", "entryexit");
                 });
@@ -172,11 +201,17 @@ namespace Vermillion.EntryExit.Domain.Migrations.EntryExit
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
+                    b.Property<string>("Address")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
                     b.Property<string>("Barcode")
                         .IsRequired()
                         .HasMaxLength(100)
-
                         .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("ClassificationId")
+                        .HasColumnType("int");
 
                     b.Property<int>("ContractorId")
                         .HasColumnType("int");
@@ -193,6 +228,10 @@ namespace Vermillion.EntryExit.Domain.Migrations.EntryExit
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("PanNumberEncrypted")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<string>("PhoneNumber")
                         .IsRequired()
@@ -219,16 +258,55 @@ namespace Vermillion.EntryExit.Domain.Migrations.EntryExit
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
 
-                    b.HasKey("Id");
+                    b.HasKey("Id")
+                        .HasName("PK_Labours");
+
+                    b.HasIndex("ClassificationId");
 
                     b.HasIndex("ContractorId");
 
-                    b.HasIndex("PhoneNumber");
+                    b.HasIndex("PhoneNumber")
+                        .HasDatabaseName("IX_Labours_PhoneNumber");
 
                     b.HasIndex("ProjectId", "Barcode")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("IX_Labours_ProjectId_Barcode");
 
                     b.ToTable("Labours", "entryexit");
+                });
+
+            modelBuilder.Entity("Vermillion.EntryExit.Domain.Models.Entities.LabourClassification", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("GETUTCDATE()");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id")
+                        .HasName("PK_LabourClassifications");
+
+                    b.HasIndex("Name")
+                        .IsUnique()
+                        .HasDatabaseName("IX_LabourClassifications_Name");
+
+                    b.ToTable("LabourClassifications", "entryexit");
                 });
 
             modelBuilder.Entity("Vermillion.EntryExit.Domain.Models.Entities.Project", b =>
@@ -259,47 +337,14 @@ namespace Vermillion.EntryExit.Domain.Migrations.EntryExit
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
 
-                    b.HasKey("Id");
+                    b.HasKey("Id")
+                        .HasName("PK_Projects");
 
                     b.HasIndex("Name")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("IX_Projects_Name");
 
                     b.ToTable("Projects", "entryexit");
-                });
-
-            modelBuilder.Entity("ProjectContractors", b =>
-                {
-                    b.Property<int>("ProjectId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("ContractorId")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("datetime2")
-                        .HasDefaultValueSql("GETUTCDATE()");
-
-                    b.HasKey("ProjectId", "ContractorId");
-
-                    b.HasIndex("ContractorId");
-
-                    b.ToTable("ProjectContractors", "entryexit");
-                });
-
-            modelBuilder.Entity("ProjectContractors", b =>
-                {
-                    b.HasOne("Vermillion.EntryExit.Domain.Models.Entities.Contractor", null)
-                        .WithMany()
-                        .HasForeignKey("ContractorId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("Vermillion.EntryExit.Domain.Models.Entities.Project", null)
-                        .WithMany()
-                        .HasForeignKey("ProjectId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
                 });
 
             modelBuilder.Entity("Vermillion.EntryExit.Domain.Models.Entities.Visitor", b =>
@@ -348,13 +393,33 @@ namespace Vermillion.EntryExit.Domain.Migrations.EntryExit
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
 
-                    b.HasKey("Id");
+                    b.HasKey("Id")
+                        .HasName("PK_Visitors");
 
-                    b.HasIndex("PhoneNumber");
+                    b.HasIndex("PhoneNumber")
+                        .HasDatabaseName("IX_Visitors_PhoneNumber");
 
-                    b.HasIndex("ProjectId");
+                    b.HasIndex("ProjectId")
+                        .HasDatabaseName("IX_Visitors_ProjectId");
 
                     b.ToTable("Visitors", "entryexit");
+                });
+
+            modelBuilder.Entity("ProjectContractors", b =>
+                {
+                    b.HasOne("Vermillion.EntryExit.Domain.Models.Entities.Contractor", null)
+                        .WithMany()
+                        .HasForeignKey("ContractorId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("FK_ProjectContractors_Contractors_ContractorId");
+
+                    b.HasOne("Vermillion.EntryExit.Domain.Models.Entities.Project", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("FK_ProjectContractors_Projects_ProjectId");
                 });
 
             modelBuilder.Entity("Vermillion.EntryExit.Domain.Models.Entities.EntryExitRecord", b =>
@@ -362,12 +427,14 @@ namespace Vermillion.EntryExit.Domain.Migrations.EntryExit
                     b.HasOne("Vermillion.EntryExit.Domain.Models.Entities.Labour", "Labour")
                         .WithMany("EntryExitRecords")
                         .HasForeignKey("LabourId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("FK_EntryExitRecords_Labours_LabourId");
 
                     b.HasOne("Vermillion.EntryExit.Domain.Models.Entities.Visitor", "Visitor")
                         .WithMany("EntryExitRecords")
                         .HasForeignKey("VisitorId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("FK_EntryExitRecords_Visitors_VisitorId");
 
                     b.Navigation("Labour");
 
@@ -380,24 +447,36 @@ namespace Vermillion.EntryExit.Domain.Migrations.EntryExit
                         .WithMany()
                         .HasForeignKey("ProjectId")
                         .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("FK_GuardProjectAssignments_Projects_ProjectId");
 
                     b.Navigation("Project");
                 });
 
             modelBuilder.Entity("Vermillion.EntryExit.Domain.Models.Entities.Labour", b =>
                 {
+                    b.HasOne("Vermillion.EntryExit.Domain.Models.Entities.LabourClassification", "Classification")
+                        .WithMany("Labours")
+                        .HasForeignKey("ClassificationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_Labours_LabourClassifications_ClassificationId");
+
                     b.HasOne("Vermillion.EntryExit.Domain.Models.Entities.Contractor", "Contractor")
                         .WithMany()
                         .HasForeignKey("ContractorId")
                         .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("FK_Labours_Contractors_ContractorId");
 
                     b.HasOne("Vermillion.EntryExit.Domain.Models.Entities.Project", "Project")
                         .WithMany()
                         .HasForeignKey("ProjectId")
                         .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("FK_Labours_Projects_ProjectId");
+
+                    b.Navigation("Classification");
 
                     b.Navigation("Contractor");
 
@@ -410,7 +489,8 @@ namespace Vermillion.EntryExit.Domain.Migrations.EntryExit
                         .WithMany()
                         .HasForeignKey("ProjectId")
                         .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("FK_Visitors_Projects_ProjectId");
 
                     b.Navigation("Project");
                 });
@@ -420,14 +500,9 @@ namespace Vermillion.EntryExit.Domain.Migrations.EntryExit
                     b.Navigation("EntryExitRecords");
                 });
 
-            modelBuilder.Entity("Vermillion.EntryExit.Domain.Models.Entities.Contractor", b =>
+            modelBuilder.Entity("Vermillion.EntryExit.Domain.Models.Entities.LabourClassification", b =>
                 {
-                    b.Navigation("Projects");
-                });
-
-            modelBuilder.Entity("Vermillion.EntryExit.Domain.Models.Entities.Project", b =>
-                {
-                    b.Navigation("Contractors");
+                    b.Navigation("Labours");
                 });
 
             modelBuilder.Entity("Vermillion.EntryExit.Domain.Models.Entities.Visitor", b =>

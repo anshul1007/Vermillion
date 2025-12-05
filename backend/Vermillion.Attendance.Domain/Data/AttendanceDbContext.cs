@@ -25,33 +25,42 @@ public class AttendanceDbContext : DbContext
         modelBuilder.Entity<Models.Entities.Attendance>(entity =>
         {
             entity.ToTable("Attendance", "attendance");
-            entity.HasIndex(e => new { e.UserId, e.Date });
-            entity.HasIndex(e => e.Date);
-            entity.HasIndex(e => e.Status);
+            entity.HasIndex(e => new { e.UserId, e.Date })
+                .HasDatabaseName("IX_Attendance_UserId_Date");
+            entity.HasIndex(e => e.Date)
+                .HasDatabaseName("IX_Attendance_Date");
+            entity.HasIndex(e => e.Status)
+                .HasDatabaseName("IX_Attendance_Status");
         });
 
         // LeaveRequest configuration
         modelBuilder.Entity<Models.Entities.LeaveRequest>(entity =>
         {
             entity.ToTable("LeaveRequests", "attendance");
-            entity.HasIndex(e => e.UserId);
-            entity.HasIndex(e => e.Status);
-            entity.HasIndex(e => new { e.StartDate, e.EndDate });
+            entity.HasIndex(e => e.UserId)
+                .HasDatabaseName("IX_LeaveRequests_UserId");
+            entity.HasIndex(e => e.Status)
+                .HasDatabaseName("IX_LeaveRequests_Status");
+            entity.HasIndex(e => new { e.StartDate, e.EndDate })
+                .HasDatabaseName("IX_LeaveRequests_StartDate_EndDate");
         });
 
         // LeaveEntitlement configuration
         modelBuilder.Entity<Models.Entities.LeaveEntitlement>(entity =>
         {
             entity.ToTable("LeaveEntitlements", "attendance");
-            entity.HasIndex(e => e.UserId);
+            entity.HasIndex(e => e.UserId)
+                .HasDatabaseName("IX_LeaveEntitlements_UserId");
         });
 
         // PublicHoliday configuration
         modelBuilder.Entity<Models.Entities.PublicHoliday>(entity =>
         {
             entity.ToTable("PublicHolidays", "attendance");
-            entity.HasIndex(e => e.Date).IsUnique();
-            entity.HasIndex(e => e.Year);
+            entity.HasIndex(e => e.Date).IsUnique()
+                .HasDatabaseName("IX_PublicHolidays_Date");
+            entity.HasIndex(e => e.Year)
+                .HasDatabaseName("IX_PublicHolidays_Year");
         });
     }
 }

@@ -2,18 +2,21 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Vermillion.EntryExit.Domain.Models.DTOs;
 
-// Labour DTOs (merged with LabourRegistration)
 public class LabourDto
 {
     public int Id { get; set; }
     public string Name { get; set; } = string.Empty;
     public string PhoneNumber { get; set; } = string.Empty;
-    public string? AadharNumber { get; set; }  // Decrypted for display (admin only)
+    public string AadharNumber { get; set; } = string.Empty; // Decrypted for display (admin only)
+    public string? PanNumber { get; set; }
+    public string Address { get; set; } = string.Empty;
     public string PhotoUrl { get; set; } = string.Empty;
     public int ProjectId { get; set; }
     public string ProjectName { get; set; } = string.Empty;
     public int ContractorId { get; set; }
     public string ContractorName { get; set; } = string.Empty;
+    public int ClassificationId { get; set; }
+    public string ClassificationName { get; set; } = string.Empty;
     public string Barcode { get; set; } = string.Empty;
     public bool IsActive { get; set; }
     public string? RegisteredBy { get; set; }
@@ -30,12 +33,14 @@ public class CreateLabourDto
 
     [Required(ErrorMessage = "Phone number is required")]
     [Phone(ErrorMessage = "Invalid phone number format")]
-    [StringLength(20, ErrorMessage = "Phone number cannot exceed 20 characters")]
+    [StringLength(10, MinimumLength = 10, ErrorMessage = "Phone number must be exactly 10 characters")]
+    [RegularExpression(@"^\d{10}$", ErrorMessage = "Phone number must contain only digits")]
     public string PhoneNumber { get; set; } = string.Empty;
 
+    [Required(ErrorMessage = "Aadhar number is required")]
     [StringLength(12, MinimumLength = 12, ErrorMessage = "Aadhar number must be exactly 12 digits")]
     [RegularExpression(@"^\d{12}$", ErrorMessage = "Aadhar number must contain only digits")]
-    public string? AadharNumber { get; set; }  // Will be encrypted before saving
+    public string AadharNumber { get; set; } = string.Empty; // Will be encrypted before saving
 
     // Photo can be provided either as base64 (PhotoBase64) or as an already-uploaded server path (PhotoPath).
     public string? PhotoBase64 { get; set; }
@@ -48,12 +53,21 @@ public class CreateLabourDto
     [Required(ErrorMessage = "Contractor ID is required")]
     [Range(1, int.MaxValue, ErrorMessage = "Invalid contractor ID")]
     public int ContractorId { get; set; }
+
+    [Required(ErrorMessage = "ClassificationId is required")]
+    [Range(1, int.MaxValue, ErrorMessage = "Invalid classification ID")]
+    public int ClassificationId { get; set; }
+
     public string Barcode { get; set; } = string.Empty;
+
+    [StringLength(10, MinimumLength = 10, ErrorMessage = "PAN number must be exactly 10 characters")]
+    [RegularExpression(@"^[A-Z]{5}[0-9]{4}[A-Z]{1}$", ErrorMessage = "Invalid PAN number format")]
+    public string? PanNumber { get; set; }
+
+    [Required(ErrorMessage = "Address is required")]
+    public string Address { get; set; } = string.Empty;
 }
 
-// Backward compatibility alias
-public class LabourRegistrationDto : LabourDto { }
-public class CreateLabourRegistrationDto : CreateLabourDto { }
 
 // Visitor DTOs
 public class VisitorDto
@@ -73,6 +87,10 @@ public class VisitorDto
 public class CreateVisitorDto
 {
     public string Name { get; set; } = string.Empty;
+    [Required(ErrorMessage = "Phone number is required")]
+    [Phone(ErrorMessage = "Invalid phone number format")]
+    [StringLength(10, MinimumLength = 10, ErrorMessage = "Phone number must be exactly 10 characters")]
+    [RegularExpression(@"^\d{10}$", ErrorMessage = "Phone number must contain only digits")]
     public string PhoneNumber { get; set; } = string.Empty;
     public string? CompanyName { get; set; }
     public string? Purpose { get; set; }

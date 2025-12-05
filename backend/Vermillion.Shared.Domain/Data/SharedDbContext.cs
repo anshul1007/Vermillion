@@ -22,10 +22,14 @@ public class SharedDbContext : DbContext
         modelBuilder.Entity<AuditLog>(entity =>
         {
             entity.ToTable("AuditLogs", "shared");
-            entity.HasKey(e => e.Id);
-            entity.HasIndex(e => e.UserId);
-            entity.HasIndex(e => e.Timestamp);
-            entity.HasIndex(e => new { e.EntityType, e.EntityId });
+            entity.HasKey(e => e.Id)
+                .HasName("PK_AuditLogs");
+            entity.HasIndex(e => e.UserId)
+                .HasDatabaseName("IX_AuditLogs_UserId");
+            entity.HasIndex(e => e.Timestamp)
+                .HasDatabaseName("IX_AuditLogs_Timestamp");
+            entity.HasIndex(e => new { e.EntityType, e.EntityId })
+                .HasDatabaseName("IX_AuditLogs_EntityType_EntityId");
         });
     }
 }

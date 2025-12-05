@@ -76,6 +76,8 @@ export class SyncService {
     try {
       let resp: any = null;
       if (type === 'registerLabour') {
+        // Ensure classificationId is numeric and present. If payload contains a classification name, map it.
+        await this.ensureClassificationId(payload);
         resp = await this.api.registerLabour(payload).toPromise();
       } else if (type === 'registerVisitor') {
         resp = await this.api.registerVisitor(payload).toPromise();
@@ -165,6 +167,7 @@ export class SyncService {
       if (type === 'createRecord') {
         await this.api.createRecord(payload).toPromise();
       } else if (type === 'registerLabour') {
+        await this.ensureClassificationId(payload);
         await this.api.registerLabour(payload).toPromise();
       } else if (type === 'registerVisitor') {
         await this.api.registerVisitor(payload).toPromise();
@@ -188,6 +191,50 @@ export class SyncService {
         await this.offline.updateActionStatus(id, 'pending', attempts);
         const backoff = Math.min(30000, 500 * Math.pow(2, attempts));
         await delay(backoff);
+      }
+    }
+  }
+
+  // Ensure payload has numeric classificationId. If payload contains 'classification' name, map it to id.
+  private async ensureClassificationId(payload: any): Promise<void> {
+    if (!payload) return;
+    // If classificationId exists but is a string, coerce
+    if (payload.classificationId && typeof payload.classificationId === 'string') {
+      const n = Number(payload.classificationId);
+      if (!isNaN(n)) payload.classificationId = n;
+    }
+
+    // If classificationId missing but a classification name is present, try to map via API
+    if ((!payload.classificationId || payload.classificationId === 0) && payload.classification && typeof payload.classification === 'string') {
+      try {
+        const resp: any = await this.api.getLabourClassifications().toPromise();
+        const list = resp?.data || [];
+        const name = payload.classification.trim().toLowerCase();
+        const found = list.find((kv: any) => (kv.value || '').toLowerCase() === name || String(kv.key) === payload.classification);
+        if (found) {
+          payload.classificationId = Number(found.key ?? found[0]);
+        }
+      } catch (e) {
+        console.warn('SyncService: failed to map classification name to id', e);
+      }
+    }
+
+    // If still missing classificationId, attempt to create the classification automatically
+    if ((!payload.classificationId || payload.classificationId === 0) && payload.classification && typeof payload.classification === 'string') {
+      try {
+        const nameToCreate = payload.classification.trim();
+        if (nameToCreate) {
+          const createResp: any = await this.api.createAdminClassification(nameToCreate).toPromise();
+          // Expect created entity id in createResp.data.id
+          const newId = createResp?.data?.id || (createResp?.data && typeof createResp.data === 'number' ? createResp.data : null);
+          if (newId) {
+            payload.classificationId = Number(newId);
+          } else if (createResp?.data && typeof createResp.data === 'object' && createResp.data.id) {
+            payload.classificationId = Number(createResp.data.id);
+          }
+        }
+      } catch (e) {
+        console.warn('SyncService: failed to create missing classification via API', e);
       }
     }
   }

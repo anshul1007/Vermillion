@@ -9,11 +9,11 @@ using Vermillion.Attendance.Domain.Data;
 
 #nullable disable
 
-namespace Vermillion.Attendance.Domain.Migrations.Attendance
+namespace Vermillion.Attendance.Domain.Migrations
 {
     [DbContext(typeof(AttendanceDbContext))]
-    [Migration("20251126105206_InitialCreate_Attendance")]
-    partial class InitialCreate_Attendance
+    [Migration("20251204112252_Initial_NamedObjects")]
+    partial class Initial_NamedObjects
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -67,11 +67,14 @@ namespace Vermillion.Attendance.Domain.Migrations.Attendance
 
                     b.HasKey("Id");
 
-                    b.HasIndex("Date");
+                    b.HasIndex("Date")
+                        .HasDatabaseName("IX_Attendance_Date");
 
-                    b.HasIndex("Status");
+                    b.HasIndex("Status")
+                        .HasDatabaseName("IX_Attendance_Status");
 
-                    b.HasIndex("UserId", "Date");
+                    b.HasIndex("UserId", "Date")
+                        .HasDatabaseName("IX_Attendance_UserId_Date");
 
                     b.ToTable("Attendance", "attendance");
                 });
@@ -108,7 +111,8 @@ namespace Vermillion.Attendance.Domain.Migrations.Attendance
 
                     b.HasKey("Id");
 
-                    b.HasIndex("UserId");
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("IX_LeaveEntitlements_UserId");
 
                     b.ToTable("LeaveEntitlements", "attendance");
                 });
@@ -160,11 +164,14 @@ namespace Vermillion.Attendance.Domain.Migrations.Attendance
 
                     b.HasKey("Id");
 
-                    b.HasIndex("Status");
+                    b.HasIndex("Status")
+                        .HasDatabaseName("IX_LeaveRequests_Status");
 
-                    b.HasIndex("UserId");
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("IX_LeaveRequests_UserId");
 
-                    b.HasIndex("StartDate", "EndDate");
+                    b.HasIndex("StartDate", "EndDate")
+                        .HasDatabaseName("IX_LeaveRequests_StartDate_EndDate");
 
                     b.ToTable("LeaveRequests", "attendance");
                 });
@@ -199,9 +206,11 @@ namespace Vermillion.Attendance.Domain.Migrations.Attendance
                     b.HasKey("Id");
 
                     b.HasIndex("Date")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("IX_PublicHolidays_Date");
 
-                    b.HasIndex("Year");
+                    b.HasIndex("Year")
+                        .HasDatabaseName("IX_PublicHolidays_Year");
 
                     b.ToTable("PublicHolidays", "attendance");
                 });

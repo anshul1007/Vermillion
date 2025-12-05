@@ -9,11 +9,11 @@ using Vermillion.Auth.Domain.Data;
 
 #nullable disable
 
-namespace Vermillion.Auth.Domain.Migrations.Auth
+namespace Vermillion.Auth.Domain.Migrations
 {
     [DbContext(typeof(AuthDbContext))]
-    [Migration("20251126105151_InitialCreate_Auth")]
-    partial class InitialCreate_Auth
+    [Migration("20251204112243_Initial_NamedObjects")]
+    partial class Initial_NamedObjects
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -54,11 +54,14 @@ namespace Vermillion.Auth.Domain.Migrations.Auth
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.HasKey("Id");
+                    b.HasKey("Id")
+                        .HasName("PK_Departments");
 
-                    b.HasIndex("IsActive");
+                    b.HasIndex("IsActive")
+                        .HasDatabaseName("IX_Departments_IsActive");
 
-                    b.HasIndex("Name");
+                    b.HasIndex("Name")
+                        .HasDatabaseName("IX_Departments_Name");
 
                     b.ToTable("Departments", "auth");
                 });
@@ -101,17 +104,20 @@ namespace Vermillion.Auth.Domain.Migrations.Auth
                     b.Property<int>("UserId")
                         .HasColumnType("int");
 
-                    b.HasKey("Id");
+                    b.HasKey("Id")
+                        .HasName("PK_Employees");
 
                     b.HasIndex("DepartmentId");
 
                     b.HasIndex("EmployeeId")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("IX_Employees_EmployeeId");
 
                     b.HasIndex("ManagerId");
 
                     b.HasIndex("UserId")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("IX_Employees_UserId");
 
                     b.ToTable("Employees", "auth");
                 });
@@ -149,10 +155,12 @@ namespace Vermillion.Auth.Domain.Migrations.Auth
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
-                    b.HasKey("Id");
+                    b.HasKey("Id")
+                        .HasName("PK_Permissions");
 
                     b.HasIndex("Name")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("IX_Permissions_Name");
 
                     b.ToTable("Permissions", "auth");
                 });
@@ -181,10 +189,12 @@ namespace Vermillion.Auth.Domain.Migrations.Auth
                     b.Property<int>("UserId")
                         .HasColumnType("int");
 
-                    b.HasKey("Id");
+                    b.HasKey("Id")
+                        .HasName("PK_RefreshTokens");
 
                     b.HasIndex("Token")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("IX_RefreshTokens_Token");
 
                     b.HasIndex("UserId");
 
@@ -214,10 +224,12 @@ namespace Vermillion.Auth.Domain.Migrations.Auth
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
-                    b.HasKey("Id");
+                    b.HasKey("Id")
+                        .HasName("PK_Roles");
 
                     b.HasIndex("Name")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("IX_Roles_Name");
 
                     b.ToTable("Roles", "auth");
                 });
@@ -239,12 +251,14 @@ namespace Vermillion.Auth.Domain.Migrations.Auth
                     b.Property<int>("RoleId")
                         .HasColumnType("int");
 
-                    b.HasKey("Id");
+                    b.HasKey("Id")
+                        .HasName("PK_RolePermissions");
 
                     b.HasIndex("PermissionId");
 
                     b.HasIndex("RoleId", "PermissionId")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("IX_RolePermissions_RoleId_PermissionId");
 
                     b.ToTable("RolePermissions", "auth");
                 });
@@ -273,10 +287,12 @@ namespace Vermillion.Auth.Domain.Migrations.Auth
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
-                    b.HasKey("Id");
+                    b.HasKey("Id")
+                        .HasName("PK_Tenants");
 
                     b.HasIndex("Domain")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("IX_Tenants_Domain");
 
                     b.ToTable("Tenants", "auth");
                 });
@@ -318,13 +334,16 @@ namespace Vermillion.Auth.Domain.Migrations.Auth
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
-                    b.HasKey("Id");
+                    b.HasKey("Id")
+                        .HasName("PK_Users");
 
                     b.HasIndex("Email")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("IX_Users_Email");
 
                     b.HasIndex("Username")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("IX_Users_Username");
 
                     b.ToTable("Users", "auth");
                 });
@@ -355,14 +374,16 @@ namespace Vermillion.Auth.Domain.Migrations.Auth
                     b.Property<int>("UserId")
                         .HasColumnType("int");
 
-                    b.HasKey("Id");
+                    b.HasKey("Id")
+                        .HasName("PK_UserRoles");
 
                     b.HasIndex("RoleId");
 
                     b.HasIndex("TenantId");
 
                     b.HasIndex("UserId", "RoleId", "TenantId")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("IX_UserRoles_UserId_RoleId_TenantId");
 
                     b.ToTable("UserRoles", "auth");
                 });
@@ -372,18 +393,21 @@ namespace Vermillion.Auth.Domain.Migrations.Auth
                     b.HasOne("Vermillion.Auth.Domain.Models.Entities.Department", "Department")
                         .WithMany("Employees")
                         .HasForeignKey("DepartmentId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("FK_Employees_Departments_DepartmentId");
 
                     b.HasOne("Vermillion.Auth.Domain.Models.Entities.Employee", "Manager")
                         .WithMany("Subordinates")
                         .HasForeignKey("ManagerId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("FK_Employees_Employees_ManagerId");
 
                     b.HasOne("Vermillion.Auth.Domain.Models.Entities.User", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("FK_Employees_Users_UserId");
 
                     b.Navigation("Department");
 
@@ -398,7 +422,8 @@ namespace Vermillion.Auth.Domain.Migrations.Auth
                         .WithMany("RefreshTokens")
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("FK_RefreshTokens_Users_UserId");
 
                     b.Navigation("User");
                 });
@@ -409,13 +434,15 @@ namespace Vermillion.Auth.Domain.Migrations.Auth
                         .WithMany("RolePermissions")
                         .HasForeignKey("PermissionId")
                         .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("FK_RolePermissions_Permissions_PermissionId");
 
                     b.HasOne("Vermillion.Auth.Domain.Models.Entities.Role", "Role")
                         .WithMany("RolePermissions")
                         .HasForeignKey("RoleId")
                         .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("FK_RolePermissions_Roles_RoleId");
 
                     b.Navigation("Permission");
 
@@ -428,19 +455,22 @@ namespace Vermillion.Auth.Domain.Migrations.Auth
                         .WithMany("UserRoles")
                         .HasForeignKey("RoleId")
                         .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("FK_UserRoles_Roles_RoleId");
 
                     b.HasOne("Vermillion.Auth.Domain.Models.Entities.Tenant", "Tenant")
                         .WithMany("UserRoles")
                         .HasForeignKey("TenantId")
                         .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("FK_UserRoles_Tenants_TenantId");
 
                     b.HasOne("Vermillion.Auth.Domain.Models.Entities.User", "User")
                         .WithMany("UserRoles")
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("FK_UserRoles_Users_UserId");
 
                     b.Navigation("Role");
 

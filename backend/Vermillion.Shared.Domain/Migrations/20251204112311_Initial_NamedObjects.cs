@@ -1,11 +1,12 @@
-﻿using Microsoft.EntityFrameworkCore.Migrations;
+﻿using System;
+using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
-namespace Vermillion.Shared.Domain.Migrations.Shared
+namespace Vermillion.Shared.Domain.Migrations
 {
     /// <inheritdoc />
-    public partial class InitialCreate_Shared : Migration
+    public partial class Initial_NamedObjects : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)

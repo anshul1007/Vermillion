@@ -23,6 +23,7 @@ export interface CreateLabourRegistrationDto {
   photoBase64: string;  // Sent as base64, backend converts to blob URL
   projectId: number;
   contractorId: number;
+  classificationId?: number;
   barcode: string;
   labourId?: number;
 }
@@ -296,6 +297,44 @@ export class ApiService {
     const base = prefersEntryExit ? this.entryExitApiUrl.replace(/\/$/, '') : this.authApiUrl.replace(/\/$/, '');
 
     return this.http.get(`${base}/photos/${safePath}`, { headers, responseType: 'blob' as 'blob' });
+  }
+
+  // Labour classifications lookup
+  getLabourClassifications(): Observable<ApiResponse<Array<{ key: number; value: string }>>> {
+    return this.http.get<ApiResponse<Array<{ key: number; value: string }>>>(`${this.entryExitApiUrl}/labour/classifications`, {
+      headers: this.getHeaders()
+    });
+  }
+
+  // Admin CRUD for labour classifications
+  getAdminClassifications(): Observable<ApiResponse<any[]>> {
+    return this.http.get<ApiResponse<any[]>>(`${this.entryExitApiUrl}/admin/labour-classifications`, {
+      headers: this.getHeaders()
+    });
+  }
+
+  createAdminClassification(name: string, isActive = true): Observable<ApiResponse<any>> {
+    return this.http.post<ApiResponse<any>>(`${this.entryExitApiUrl}/admin/labour-classifications`, { name, isActive }, {
+      headers: this.getHeaders()
+    });
+  }
+
+  updateAdminClassification(id: number, name: string, isActive = true): Observable<ApiResponse<any>> {
+    return this.http.put<ApiResponse<any>>(`${this.entryExitApiUrl}/admin/labour-classifications/${id}`, { id, name, isActive }, {
+      headers: this.getHeaders()
+    });
+  }
+
+  deleteAdminClassification(id: number): Observable<ApiResponse<any>> {
+    return this.http.delete<ApiResponse<any>>(`${this.entryExitApiUrl}/admin/labour-classifications/${id}`, {
+      headers: this.getHeaders()
+    });
+  }
+
+  changeLabourClassification(labourId: number, classificationId: number): Observable<ApiResponse<any>> {
+    return this.http.put<ApiResponse<any>>(`${this.entryExitApiUrl}/admin/labour-classifications/labour/${labourId}/classification/${classificationId}`, {}, {
+      headers: this.getHeaders()
+    });
   }
 
   // Upload a photo as base64; backend should return the stored path in data.path

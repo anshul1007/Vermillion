@@ -45,9 +45,9 @@ public class PhotosController : ControllerBase
     }
 
     public class UploadPhotoRequest {
-        public string Base64 { get; set; }
-        public string Filename { get; set; }
-        public string Subfolder { get; set; }
+        public string Base64 { get; set; } = string.Empty;
+        public string Filename { get; set; } = string.Empty;
+        public string Subfolder { get; set; } = string.Empty;
     }
 
     [HttpPost("upload")]

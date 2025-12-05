@@ -25,13 +25,12 @@ import { EntryExitSearchStore } from '../state/entry-exit-search.store';
           <div class="hero-headline">
             <div class="hero-copy">
               <h1 class="hero-title">Entry &amp; Exit</h1>
-              <p class="hero-subtitle">Fast logging built for field guards on weak networks.</p>
             </div>
           </div>
           <span class="hero-badge" *ngIf="store.contractorMode()">Contractor batch mode</span>
         </div>
 
-        <div class="hero-stats" *ngIf="store.loading() || store.result() || store.selectedLabourCount()">
+        <!-- <div class="hero-stats" *ngIf="store.loading() || store.result() || store.selectedLabourCount()">
           <div class="hero-stat" *ngIf="store.loading()">
             <span class="label">Status</span>
             <span class="value subtle">Searching…</span>
@@ -40,11 +39,7 @@ import { EntryExitSearchStore } from '../state/entry-exit-search.store';
             <span class="label">Current person</span>
             <span class="value">{{ store.result()?.name }}</span>
           </div>
-          <div class="hero-stat" *ngIf="store.selectedLabourCount() > 0">
-            <span class="label">Selected labour</span>
-            <span class="value">{{ store.selectedLabourCount() }}</span>
-          </div>
-        </div>
+        </div> -->
 
         <div class="hero-search">
           <app-entry-exit-search-bar
@@ -85,11 +80,10 @@ import { EntryExitSearchStore } from '../state/entry-exit-search.store';
           </div>
         </ng-template>
 
-        @defer (when store.contractorMode() && (store.contractorResults()?.length ?? 0) > 0) {
+        @defer (when store.contractorMode() && (store.contractorResults()?.length ?? 0) > 0 && !store.result()) {
           <div class="entry-exit-section">
             <div class="section-heading">
               <h2>Contractor labour</h2>
-              <span class="section-meta">{{ store.contractorResults()?.length || 0 }} matches</span>
             </div>
             <app-entry-exit-contractor-results
               [labour]="store.contractorResults()"
@@ -128,7 +122,7 @@ import { EntryExitSearchStore } from '../state/entry-exit-search.store';
             (confirm)="store.confirmBulkAction()"
           ></app-entry-exit-photo-modal>
         } @placeholder {
-          <div class="entry-exit-placeholder card" *ngIf="store.contractorMode()">
+          <div class="entry-exit-placeholder card" *ngIf="store.contractorMode() && store.pendingBulkAction()">
             <span class="placeholder-dot" aria-hidden="true"></span>
             <span>Preparing verification modal…</span>
           </div>

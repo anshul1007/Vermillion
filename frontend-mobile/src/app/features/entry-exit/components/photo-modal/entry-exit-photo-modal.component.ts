@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output, inject, ChangeDetectorRef, OnChanges, SimpleChanges } from '@angular/core';
+import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output, inject, ChangeDetectorRef, OnChanges, SimpleChanges, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { IconComponent } from '../../../../shared/icon/icon.component';
 import { ContractorLabourResult } from '../../entry-exit.models';
@@ -77,7 +77,7 @@ import { LocalImageService } from '../../../../core/services/local-image.service
   `,
   changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class EntryExitPhotoModalComponent implements OnChanges {
+export class EntryExitPhotoModalComponent implements OnChanges, OnDestroy {
   @Input() visible = false;
   @Input() labour: ContractorLabourResult[] | null = null;
   @Input() action: 'entry' | 'exit' | null = null;
@@ -156,6 +156,26 @@ export class EntryExitPhotoModalComponent implements OnChanges {
   ngOnChanges(changes: SimpleChanges) {
     if (changes['labour']) {
       this.prepareImages();
+    }
+    if (changes['visible']) {
+      const cur = !!changes['visible'].currentValue;
+      try {
+        if (cur) {
+          document.body.classList.add('modal-open');
+        } else {
+          document.body.classList.remove('modal-open');
+        }
+      } catch (e) {
+        // ignore (server-side rendering or restricted env)
+      }
+    }
+  }
+
+  ngOnDestroy(): void {
+    try {
+      document.body.classList.remove('modal-open');
+    } catch (e) {
+      // ignore
     }
   }
 

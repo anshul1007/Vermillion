@@ -116,5 +116,21 @@ public class EntryExitSeeder
         Console.WriteLine("  - PQR Logistics (Warehouse)");
         Console.WriteLine("\nNote: Assign security guards to projects via UI");
         Console.WriteLine("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
+        // Seed labour classifications
+        if (!_context.LabourClassifications.Any())
+        {
+            var classifications = new List<LabourClassification>
+            {
+                new LabourClassification { Name = "Mason", IsActive = true, CreatedAt = DateTime.UtcNow },
+                new LabourClassification { Name = "Helper", IsActive = true, CreatedAt = DateTime.UtcNow },
+                new LabourClassification { Name = "Electrician", IsActive = true, CreatedAt = DateTime.UtcNow },
+                new LabourClassification { Name = "Plumber", IsActive = true, CreatedAt = DateTime.UtcNow }
+            };
+
+            _context.LabourClassifications.AddRange(classifications);
+            await _context.SaveChangesAsync();
+            Console.WriteLine($"✅ Seeded {classifications.Count} labour classifications");
+        }
     }
 }

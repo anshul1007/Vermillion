@@ -1,11 +1,12 @@
-﻿using Microsoft.EntityFrameworkCore.Migrations;
+﻿using System;
+using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
-namespace Vermillion.Attendance.Domain.Migrations.Attendance
+namespace Vermillion.Attendance.Domain.Migrations
 {
     /// <inheritdoc />
-    public partial class InitialCreate_Attendance : Migration
+    public partial class Initial_NamedObjects : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)

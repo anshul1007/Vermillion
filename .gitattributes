@@ -64,3 +64,6 @@ pnpm-lock.yaml -diff
 # Build outputs (mark as binary to avoid diff noise)
 *.min.js binary
 *.min.css binary
+
+# OCR assets tracked via Git LFS
+frontend-mobile/public/tesseract/* filter=lfs diff=lfs merge=lfs -text
