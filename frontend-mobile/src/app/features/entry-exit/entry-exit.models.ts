@@ -22,4 +22,7 @@ export interface ContractorLabourResult {
   barcode?: string | null;
   hasOpenEntry: boolean;
   photoUrl?: string | null;
+  contractorName?: string | null;
+  companyName?: string | null;
+  purpose?: string | null;
 }

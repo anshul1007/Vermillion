@@ -1,4 +1,4 @@
-import { Component, inject, signal, OnInit } from '@angular/core';
+import { Component, inject, signal, OnInit, effect } from '@angular/core';
 import { take } from 'rxjs/operators';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -9,6 +9,7 @@ import { AuthService } from '../core/auth/auth.service';
 import { LocalImageService } from '../core/services/local-image.service';
 import { OfflineStorageService } from '../core/services/offline-storage.service';
 import { NotificationService } from '../core/services/notification.service';
+import { projectStore } from '../core/state/project.store';
 
 @Component({
   selector: 'app-visitor-registration',
@@ -23,17 +24,22 @@ import { NotificationService } from '../core/services/notification.service';
       <section class="registration-hero card">
         <div class="registration-hero__heading">
           <h1>Register Visitor</h1>
-          <p class="registration-hero__sub" *ngIf="guardProfile()">
-            {{ guardProfile()!.projectName }}
-          </p>
-          <p class="registration-hero__sub text-muted" *ngIf="!guardProfile()">
-            No project assigned
-          </p>
+          <ng-container *ngIf="currentProjectId(); else noProjectTpl">
+            <p class="registration-hero__sub">
+              {{ currentProjectName() || 'Assigned project' }}
+            </p>
+          </ng-container>
+          <ng-template #noProjectTpl>
+            <p class="registration-hero__sub text-muted">No project assigned</p>
+          </ng-template>
         </div>
       </section>
 
       <section class="registration-card card">
-        <form (ngSubmit)="submit()" class="registration-form">
+        <div class="form-message error" *ngIf="!currentProjectId()">
+          Project not assigned. Please contact your administrator.
+        </div>
+        <form *ngIf="currentProjectId()" (ngSubmit)="submit()" class="registration-form">
           <label class="form-field">
             <span>Full Name *</span>
             <input
@@ -130,8 +136,13 @@ export class VisitorRegistrationComponent implements OnInit {
   private api = inject(ApiService);
   private offline = inject(OfflineStorageService);
   private router = inject(Router);
-
   guardProfile = this.authService.guardProfile;
+  currentProjectId = signal<number | null>(
+    projectStore.projectId() ?? this.guardProfile()?.projectId ?? null
+  );
+  currentProjectName = signal<string>(
+    projectStore.projectName() ?? this.guardProfile()?.projectName ?? ''
+  );
   name = '';
   phoneNumber = '';
   companyName = '';
@@ -143,8 +154,24 @@ export class VisitorRegistrationComponent implements OnInit {
   purposeError = signal('');
   submitting = signal(false);
 
+  private readonly projectEffect = effect(
+    () => {
+      const profile = this.guardProfile();
+      const pid = projectStore.projectId() ?? profile?.projectId ?? null;
+      const pname = projectStore.projectName() ?? profile?.projectName ?? '';
+
+      if (pid !== this.currentProjectId()) {
+        this.currentProjectId.set(pid);
+      }
+      if (pname !== this.currentProjectName()) {
+        this.currentProjectName.set(pname || '');
+      }
+    },
+    { allowSignalWrites: true }
+  );
+
   ngOnInit(): void {
-    if (!this.guardProfile()) {
+    if (!this.currentProjectId()) {
       this.notifier.showError('No project assigned. Please contact admin.');
     }
     // Prefill support: read navigation state for quick prefill (e.g., phone number)
@@ -162,6 +189,7 @@ export class VisitorRegistrationComponent implements OnInit {
     } catch (e) {
       // ignore malformed state
     }
+
   }
 
   async takePhoto(): Promise<void> {
@@ -230,8 +258,9 @@ export class VisitorRegistrationComponent implements OnInit {
    */
   submit(): void {
     const profile = this.guardProfile();
-    if (!profile) {
-      this.notifier.showError('Guard profile not loaded');
+    const projectId = profile?.projectId ?? this.currentProjectId();
+    if (!projectId || projectId <= 0) {
+      this.notifier.showError('No project assigned. Please contact admin.');
       return;
     }
 
@@ -254,14 +283,13 @@ export class VisitorRegistrationComponent implements OnInit {
       companyName: this.companyName.trim() || undefined,
       purpose: this.purpose.trim(),
       photoBase64: this.photo(),
-      projectId: profile.projectId,
+      projectId,
     };
 
-    console.log('Registering visitor with data:', visitorData);
+    // registering visitor
 
     const handlers = {
       next: (res: any) => {
-        console.log('Visitor registration response:', res);
         this.submitting.set(false);
 
         if (res?.success) {
@@ -272,8 +300,7 @@ export class VisitorRegistrationComponent implements OnInit {
         }
       },
       error: async (err: any) => {
-        console.error('Register visitor API error:', err);
-        console.error('Error details:', err?.error);
+        console.warn('Register visitor API error:', err);
         this.submitting.set(false);
 
         const status = err && typeof err.status === 'number' ? err.status : undefined;
@@ -317,7 +344,7 @@ export class VisitorRegistrationComponent implements OnInit {
             companyName: this.companyName.trim() || undefined,
             purpose: this.purpose.trim(),
             photoLocalId: photoLocal?.id || null,
-            projectId: profile.projectId,
+            projectId,
           };
           await this.offline.enqueueAction('registerVisitor', payload);
 
@@ -327,13 +354,13 @@ export class VisitorRegistrationComponent implements OnInit {
             this.router.navigate(['/entry-exit']);
           }, 800);
           return;
-        } catch (qErr) {
-          const errorMsg =
-            err?.error?.message || err?.error?.Message || err?.message || 'Failed to register visitor. Please try again.';
-          this.notifier.showError(errorMsg);
-          console.error('Failed to enqueue offline visitor registration', qErr);
-          return;
-        }
+          } catch (qErr) {
+            const errorMsg =
+              err?.error?.message || err?.error?.Message || err?.message || 'Failed to register visitor. Please try again.';
+            this.notifier.showError(errorMsg);
+            console.warn('Failed to enqueue offline visitor registration', qErr);
+            return;
+          }
         }
 
         // For server-side errors (4xx/5xx) do nothing here — interceptor already displays the message.
@@ -357,8 +384,9 @@ export class VisitorRegistrationComponent implements OnInit {
 
   async registerAndEntry(): Promise<void> {
     const profile = this.guardProfile();
-    if (!profile) {
-      this.notifier.showError('Guard profile not loaded');
+    const projectId = profile?.projectId ?? this.currentProjectId();
+    if (!projectId || projectId <= 0) {
+      this.notifier.showError('No project assigned. Please contact admin.');
       return;
     }
 
@@ -380,7 +408,7 @@ export class VisitorRegistrationComponent implements OnInit {
       companyName: this.companyName.trim() || undefined,
       purpose: this.purpose.trim(),
       photoBase64: this.photo(),
-      projectId: profile.projectId,
+      projectId,
     };
 
     this.api.registerVisitor(visitorData).pipe(take(1)).subscribe({
@@ -439,7 +467,7 @@ export class VisitorRegistrationComponent implements OnInit {
             companyName: this.companyName.trim() || undefined,
             purpose: this.purpose.trim(),
             photoLocalId: photoLocal?.id || null,
-            projectId: profile.projectId,
+            projectId,
           };
           await this.offline.enqueueAction('registerVisitor', payload);
           // enqueue createRecord action to log entry after registration

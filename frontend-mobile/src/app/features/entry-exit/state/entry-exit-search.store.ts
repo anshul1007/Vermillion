@@ -1,10 +1,11 @@
-import { Injectable, OnDestroy, computed, inject, signal } from '@angular/core';
+import { Injectable, OnDestroy, computed, effect, inject, signal } from '@angular/core';
 import { take } from 'rxjs/operators';
 import { Router } from '@angular/router';
 import { ApiResponse, ApiService } from '../../../core/services/api.service';
 import { LocalImageService } from '../../../core/services/local-image.service';
 import { BarcodeService } from '../../../core/services/barcode.service';
 import { AuthService } from '../../../core/auth/auth.service';
+import { projectStore } from '../../../core/state/project.store';
 import { ContractorLabourResult, PersonSearchResult } from '../entry-exit.models';
 
 @Injectable()
@@ -38,6 +39,18 @@ export class EntryExitSearchStore implements OnDestroy {
   readonly showPhotoVerification = signal(false);
   readonly pendingBulkAction = signal<'entry' | 'exit' | null>(null);
 
+  readonly currentProjectId = signal<number | null>(
+    projectStore.projectId() ?? this.guardProfile()?.projectId ?? null
+  );
+  readonly currentProjectName = signal<string>(
+    projectStore.projectName() ?? this.guardProfile()?.projectName ?? ''
+  );
+  readonly hasProject = computed(() => {
+    const pid = this.currentProjectId();
+    return !!(pid && pid > 0);
+  });
+  readonly noProjectMessage = 'Project not assigned. Please contact your administrator.';
+
   readonly decoratedResults = computed(() => {
     const list = this.results();
     if (!list) return null;
@@ -55,11 +68,44 @@ export class EntryExitSearchStore implements OnDestroy {
 
   readonly labourImageResolver = (labour: ContractorLabourResult) => this.resolveLabourImage(labour);
 
+  private readonly projectEffect = effect(
+    () => {
+      const profile = this.guardProfile();
+      const pid = projectStore.projectId() ?? profile?.projectId ?? null;
+      const pname = projectStore.projectName() ?? profile?.projectName ?? '';
+
+      if (pid !== this.currentProjectId()) {
+        this.currentProjectId.set(pid);
+      }
+
+      if (pname !== this.currentProjectName()) {
+        this.currentProjectName.set(pname || '');
+      }
+
+      if (!pid || pid <= 0) {
+        this.loading.set(false);
+        this.submitting.set(false);
+        if (this.errorMessage() !== this.noProjectMessage) {
+          this.errorMessage.set(this.noProjectMessage);
+        }
+        return;
+      }
+
+      if (this.errorMessage() === this.noProjectMessage) {
+        this.errorMessage.set('');
+      }
+    },
+    { allowSignalWrites: true }
+  );
+
   updateSearchTerm(value: string): void {
     this.searchTerm.set(value);
   }
 
   scanWithCamera(): Promise<void> {
+    if (!this.ensureProjectAssigned()) {
+      return Promise.resolve();
+    }
     this.errorMessage.set('');
     return this.barcodeSvc
       .scanBarcodeWithCamera()
@@ -75,6 +121,10 @@ export class EntryExitSearchStore implements OnDestroy {
   }
 
   search(): void {
+    if (!this.ensureProjectAssigned()) {
+      return;
+    }
+    // Clear any contractor-mode state immediately so UI doesn't show contractor results
     this.resetPersonSearchState();
     const term = this.searchTerm().trim();
     if (!term) {
@@ -86,6 +136,9 @@ export class EntryExitSearchStore implements OnDestroy {
     this.api.search(term).pipe(take(1)).subscribe({
       next: (res: ApiResponse<any>) => {
         this.loading.set(false);
+        // ensure contractor mode cleared after person search completes
+        this.contractorMode.set(false);
+        this.contractorResults.set(null);
         const data = res?.data;
         if (!data) {
           this.errorMessage.set('No person found with that search term');
@@ -118,6 +171,9 @@ export class EntryExitSearchStore implements OnDestroy {
   }
 
   searchByBarcode(barcode: string): void {
+    if (!this.ensureProjectAssigned()) {
+      return;
+    }
     this.resetPersonSearchState();
     if (!barcode) return;
 
@@ -125,6 +181,9 @@ export class EntryExitSearchStore implements OnDestroy {
     this.api.search(barcode).pipe(take(1)).subscribe({
       next: (res: ApiResponse<any>) => {
         this.loading.set(false);
+        // ensure contractor mode cleared after person search completes
+        this.contractorMode.set(false);
+        this.contractorResults.set(null);
         const data = res?.data;
         if (!data) {
           this.errorMessage.set('No person found with that barcode');
@@ -157,8 +216,9 @@ export class EntryExitSearchStore implements OnDestroy {
 
   logEntry(): void {
     const current = this.result();
-    const profile = this.guardProfile();
-    if (!current || !profile) return;
+    if (!current || !this.ensureProjectAssigned()) {
+      return;
+    }
 
     this.submitting.set(true);
     this.errorMessage.set('');
@@ -198,8 +258,9 @@ export class EntryExitSearchStore implements OnDestroy {
 
   logExit(): void {
     const current = this.result();
-    const profile = this.guardProfile();
-    if (!current || !profile) return;
+    if (!current || !this.ensureProjectAssigned()) {
+      return;
+    }
 
     this.submitting.set(true);
     this.errorMessage.set('');
@@ -245,11 +306,17 @@ export class EntryExitSearchStore implements OnDestroy {
   }
 
   handleContractorSearch(): void {
+    if (!this.ensureProjectAssigned()) {
+      return;
+    }
     this.contractorSearchTerm.set(this.searchTerm().trim());
     this.searchContractor();
   }
 
   searchContractor(): void {
+    if (!this.ensureProjectAssigned()) {
+      return;
+    }
     const contractorTerm = this.contractorSearchTerm().trim();
     if (!contractorTerm) {
       this.errorMessage.set('Please enter contractor name');
@@ -274,6 +341,27 @@ export class EntryExitSearchStore implements OnDestroy {
           return;
         }
         this.contractorResults.set(data);
+        // Prefetch contractor photos so the UI doesn't momentarily bind raw API paths.
+        try {
+          for (const item of data) {
+            const src = (item.photoUrl || '').trim();
+            if (!src) continue;
+            // If absolute same-origin API photos path, normalize via resolvePhoto
+            if (/^https?:\/\//i.test(src)) {
+              if (/\/api\/(?:entryexit\/)?photos\//i.test(src)) {
+                this.resolvePhoto(src);
+                continue;
+              }
+              // external absolute URL - nothing to prefetch
+              continue;
+            }
+
+            // relative or server path -> start resolve
+            this.resolvePhoto(src);
+          }
+        } catch (e) {
+          // ignore prefetch failures
+        }
       },
       error: () => {
         this.loading.set(false);
@@ -308,6 +396,9 @@ export class EntryExitSearchStore implements OnDestroy {
   }
 
   showPhotoVerificationModal(action: 'entry' | 'exit'): void {
+    if (!this.ensureProjectAssigned()) {
+      return;
+    }
     if (this.selectedLabourIds().size === 0) {
       this.errorMessage.set('No labour selected');
       return;
@@ -364,6 +455,10 @@ export class EntryExitSearchStore implements OnDestroy {
     const action = this.pendingBulkAction();
     if (!action) return;
 
+    if (!this.ensureProjectAssigned()) {
+      return;
+    }
+
     const ids = Array.from(this.selectedLabourIds());
     if (ids.length === 0) {
       this.errorMessage.set('No labour selected');
@@ -409,7 +504,18 @@ export class EntryExitSearchStore implements OnDestroy {
   resolveLabourImage(labour: ContractorLabourResult): string | null {
     this.photoCacheVersion();
     if (!labour || !labour.photoUrl) return null;
-    return this.resolvePhoto(labour.photoUrl);
+    const src = labour.photoUrl.trim();
+    if (!src) return null;
+    if (/^data:/i.test(src)) {
+      return src;
+    }
+    if (/^https?:\/\//i.test(src)) {
+      if (/\/api\/(?:entryexit\/)?photos\//i.test(src)) {
+        return this.resolvePhoto(src);
+      }
+      return src;
+    }
+    return this.resolvePhoto(src);
   }
 
   clearPhotoCache(): void {
@@ -448,13 +554,18 @@ export class EntryExitSearchStore implements OnDestroy {
 
   ngOnDestroy(): void {
     this.clearPhotoCache();
+    try {
+      this.projectEffect.destroy();
+    } catch (e) {}
   }
 
   private resetPersonSearchState(): void {
     this.result.set(null);
     this.results.set(null);
     this.previousResults.set(null);
-    this.errorMessage.set('');
+    if (this.errorMessage() !== this.noProjectMessage) {
+      this.errorMessage.set('');
+    }
     this.successMessage.set('');
     this.contractorMode.set(false);
     this.contractorResults.set(null);
@@ -470,6 +581,10 @@ export class EntryExitSearchStore implements OnDestroy {
     }
 
     const enriched = this.decoratePerson(result);
+    // selecting a person always exits contractor mode
+    this.contractorMode.set(false);
+    this.contractorResults.set(null);
+    this.selectedLabourIds.set(new Set());
     this.result.set(enriched);
     this.results.set(null);
     this.errorMessage.set('');
@@ -480,7 +595,57 @@ export class EntryExitSearchStore implements OnDestroy {
   }
 
   private resolvePhoto(photoUrl: string): string | null {
-    const blobPath = photoUrl.replace(/^\/?api\/photos\//, '').replace(/^\//, '');
+    if (!photoUrl) {
+      return null;
+    }
+
+    const trimmed = photoUrl.trim();
+    if (!trimmed) {
+      return null;
+    }
+
+    if (/^data:/i.test(trimmed)) {
+      return trimmed;
+    }
+
+    let pathForBlob = trimmed;
+
+    if (/^https?:\/\//i.test(trimmed)) {
+      let parsed: URL | null = null;
+      try {
+        parsed = new URL(trimmed);
+      } catch {
+        parsed = null;
+      }
+
+      const currentOrigin = typeof location !== 'undefined' ? location.origin : null;
+      if (parsed && currentOrigin && parsed.origin !== currentOrigin) {
+        return trimmed;
+      }
+
+      const pathCandidate = parsed ? parsed.pathname : trimmed.replace(/^https?:\/\/[^/]+/i, '');
+      if (!/\/api\/(?:entryexit\/)?photos\//i.test(pathCandidate || '')) {
+        return trimmed;
+      }
+
+      if (parsed) {
+        pathForBlob = parsed.pathname + (parsed.search || '');
+      } else {
+        pathForBlob = pathCandidate;
+      }
+    }
+
+    const cleanPath = pathForBlob.split('?')[0].split('#')[0];
+
+    const blobPath = cleanPath
+      .replace(/^https?:\/\/[^/]+/i, '')
+      .replace(/^\/?(api\/entryexit\/photos|api\/photos)\//, '')
+      .replace(/^\//, '');
+
+    if (!blobPath) {
+      return trimmed;
+    }
+
     const cached = this.photoObjectUrlMap.get(blobPath);
     if (cached) return cached;
 
@@ -542,7 +707,37 @@ export class EntryExitSearchStore implements OnDestroy {
 
   private decoratePerson(result: PersonSearchResult): PersonSearchResult {
     if (!result) return result;
-    const subtitle = this.subtitleFor(result);
-    return { ...result, subtitle };
+
+    // Normalize possible API shapes: ContractorName, contractor, Contractor, etc.
+    const raw: any = result as any;
+    const contractorName = result.contractorName ?? raw.ContractorName ?? raw.contractorName ?? raw.contractor?.name ?? raw.contractor?.ContractorName ?? null;
+    const companyName = result.companyName ?? raw.CompanyName ?? raw.companyName ?? raw.company?.name ?? null;
+    const purpose = result.purpose ?? raw.Purpose ?? raw.purpose ?? null;
+    const projectName = result.projectName ?? raw.ProjectName ?? raw.projectName ?? null;
+    const barcode = result.barcode ?? raw.Barcode ?? raw.barcode ?? null;
+
+    const normalized: PersonSearchResult = {
+      ...result,
+      contractorName: contractorName ?? result.contractorName,
+      companyName: companyName ?? result.companyName,
+      purpose: purpose ?? result.purpose,
+      projectName: projectName ?? result.projectName,
+      barcode: barcode ?? result.barcode
+    };
+
+    const subtitle = this.subtitleFor(normalized);
+    return { ...normalized, subtitle };
+  }
+
+  private ensureProjectAssigned(): boolean {
+    if (this.hasProject()) {
+      return true;
+    }
+    this.loading.set(false);
+    this.submitting.set(false);
+    if (this.errorMessage() !== this.noProjectMessage) {
+      this.errorMessage.set(this.noProjectMessage);
+    }
+    return false;
   }
 }

@@ -1,13 +1,13 @@
-import { Component, inject, signal, OnInit } from '@angular/core';
+import { Component, inject, signal, OnInit, effect } from '@angular/core';
 import { take } from 'rxjs/operators';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { PhotoService } from '../core/services/photo.service';
 import { NotificationService } from '../core/services/notification.service';
-import { BarcodeService } from '../core/services/barcode.service';
 import { ApiService } from '../core/services/api.service';
 import { AuthService } from '../core/auth/auth.service';
+import { projectStore } from '../core/state/project.store';
 import { LocalImageService } from '../core/services/local-image.service';
 import { OfflineStorageService } from '../core/services/offline-storage.service';
 import { OcrService, AadharOcrResult } from '../core/services/ocr.service';
@@ -20,23 +20,30 @@ import { BarcodeButtonComponent } from '../shared/components/barcode-button.comp
   template: `
     <div class="labour-registration-page">
       <div class="scan-toast" *ngIf="notifier.successMessage() || notifier.errorMessage()">
-        <div class="toast success" *ngIf="notifier.successMessage()">{{ notifier.successMessage() }}</div>
+        <div class="toast success" *ngIf="notifier.successMessage()">
+          {{ notifier.successMessage() }}
+        </div>
         <div class="toast error" *ngIf="notifier.errorMessage()">{{ notifier.errorMessage() }}</div>
       </div>
       <section class="registration-hero card">
         <div class="registration-hero__heading">
           <h1>Register Labour</h1>
-          <p class="registration-hero__sub" *ngIf="guardProfile()">
-            {{ guardProfile()!.projectName }}
-          </p>
-          <p class="registration-hero__sub text-muted" *ngIf="!guardProfile()">
-            No project assigned
-          </p>
+          <ng-container *ngIf="currentProjectId(); else noProjectTpl">
+            <p class="registration-hero__sub">
+              {{ currentProjectName() || 'Assigned project' }}
+            </p>
+          </ng-container>
+          <ng-template #noProjectTpl>
+            <p class="registration-hero__sub text-muted">No project assigned</p>
+          </ng-template>
         </div>
       </section>
 
       <section class="registration-card card" *ngIf="!loading(); else loadingTpl">
-        <form (ngSubmit)="submit()" class="registration-form">
+        <div class="form-message error" *ngIf="!currentProjectId()">
+          Project not assigned. Please contact your administrator.
+        </div>
+        <form *ngIf="currentProjectId()" (ngSubmit)="submit()" class="registration-form">
           <label class="form-field">
             <span>Contractor *</span>
             <select
@@ -159,7 +166,13 @@ import { BarcodeButtonComponent } from '../shared/components/barcode-button.comp
           <div class="form-field">
             <span>Barcode ID *</span>
             <div class="form-inline">
-              <input [(ngModel)]="barcode" placeholder="Scan or enter barcode" name="barcode" required (ngModelChange)="validateBarcode($event)" />
+              <input
+                [(ngModel)]="barcode"
+                placeholder="Scan or enter barcode"
+                name="barcode"
+                required
+                (ngModelChange)="validateBarcode($event)"
+              />
               <app-barcode-button
                 (scanned)="onScanned($event)"
                 (error)="onScanError($event)"
@@ -193,8 +206,12 @@ import { BarcodeButtonComponent } from '../shared/components/barcode-button.comp
             </div>
           </div>
 
-          <div class="form-message error" *ngIf="notifier.errorMessage()">{{ notifier.errorMessage() }}</div>
-          <div class="form-message success" *ngIf="notifier.successMessage()">{{ notifier.successMessage() }}</div>
+          <div class="form-message error" *ngIf="notifier.errorMessage()">
+            {{ notifier.errorMessage() }}
+          </div>
+          <div class="form-message success" *ngIf="notifier.successMessage()">
+            {{ notifier.successMessage() }}
+          </div>
 
           <div class="form-actions">
             <button
@@ -223,7 +240,6 @@ import { BarcodeButtonComponent } from '../shared/components/barcode-button.comp
 })
 export class LabourRegistrationComponent implements OnInit {
   private photoSvc = inject(PhotoService);
-  private barcodeSvc = inject(BarcodeService);
   private api = inject(ApiService);
   private authService = inject(AuthService);
   private router = inject(Router);
@@ -252,11 +268,45 @@ export class LabourRegistrationComponent implements OnInit {
   aadharError = signal('');
   addressError = signal('');
   contractors = signal<any[]>([]);
+  currentProjectId = signal<number | null>(projectStore.projectId() ?? null);
+  currentProjectName = signal<string>(projectStore.projectName() ?? '');
   loading = signal(false);
   submitting = signal(false);
   ocrInProgress = signal(false);
   ocrProgress = signal(0);
   ocrMessage = signal('');
+  private lastLoadedProjectId: number | null = null;
+
+  private readonly projectEffect = effect(
+    () => {
+      const profile = this.guardProfile();
+      const storeProjectId = projectStore.projectId();
+      const storeProjectName = projectStore.projectName();
+      const pid = storeProjectId ?? profile?.projectId ?? null;
+      const pname = storeProjectName ?? profile?.projectName ?? '';
+
+      if (pid !== this.currentProjectId()) {
+        this.currentProjectId.set(pid);
+      }
+      if (pname !== this.currentProjectName()) {
+        this.currentProjectName.set(pname || '');
+      }
+
+      if (pid && pid > 0) {
+        if (pid !== this.lastLoadedProjectId) {
+          this.lastLoadedProjectId = pid;
+          this.contractorId = 0;
+          this.loadContractors(pid);
+        }
+        return;
+      }
+
+      this.contractors.set([]);
+      this.lastLoadedProjectId = null;
+      this.loading.set(false);
+    },
+    { allowSignalWrites: true }
+  );
 
   onScanned(code: string) {
     this.barcode = code;
@@ -266,7 +316,6 @@ export class LabourRegistrationComponent implements OnInit {
   }
 
   onScanError(err: any) {
-    console.error('Scan error', err);
     this.notifier.showError('Barcode scan failed. Try again.', 2000);
   }
 
@@ -297,12 +346,10 @@ export class LabourRegistrationComponent implements OnInit {
 
     try {
       const result = await this.ocrService.extractAadharFields(cardImage, (progress) => {
-        console.log('OCR Progress:', progress);
         this.ocrProgress.set(progress);
       });
       this.applyOcrResult(result);
     } catch (err) {
-      console.error('OCR failed', err);
       this.notifier.showError('Unable to read the Aadhar card. Please retake the photo.');
       this.ocrMessage.set('Ensure the card is well lit and fills the frame.');
     } finally {
@@ -394,12 +441,11 @@ export class LabourRegistrationComponent implements OnInit {
   }
 
   ngOnInit(): void {
-    const profile = this.guardProfile();
-    if (profile && profile.projectId) {
-      this.loadContractors(profile.projectId);
-      this.loadClassifications();
-    } else {
-      this.notifier.showError('No project assigned. Please contact admin.');
+    // Load classifications once
+    this.loadClassifications();
+
+    if (!this.guardProfile() && !projectStore.projectId()) {
+      this.notifier.showError('No project assigned. Please contact administrator.');
     }
   }
 
@@ -546,14 +592,8 @@ export class LabourRegistrationComponent implements OnInit {
     );
   }
 
-  async submit(): Promise<void> {
-    const profile = this.guardProfile();
-    if (!profile) {
-      this.notifier.showError('Guard profile not loaded');
-      return;
-    }
-
-    // Run validators to set error signals before proceeding
+  // ----- Helpers to reduce duplication -----
+  private validateAll(): boolean {
     const nameOk = this.validateName(this.name);
     const phoneValid = this.validatePhone(this.phone);
     const aadharOk = this.validateAadhar(this.aadharNumber);
@@ -563,19 +603,119 @@ export class LabourRegistrationComponent implements OnInit {
     const panOk = this.validatePan(this.panNumber);
     const barcodeOk = this.validateBarcode(this.barcode);
 
-    if (
-      !(
-        nameOk &&
-        phoneValid &&
-        aadharOk &&
-        addressOk &&
-        barcodeOk &&
-        contractorOk &&
-        classOk &&
-        panOk &&
-        this.photo()
-      )
-    ) {
+    return !!(
+      nameOk &&
+      phoneValid &&
+      aadharOk &&
+      addressOk &&
+      barcodeOk &&
+      contractorOk &&
+      classOk &&
+      panOk &&
+      this.photo()
+    );
+  }
+
+  private async normalizePhotoForUpload(): Promise<string | undefined> {
+    if (!this.photo()) return undefined;
+    const p = this.photo();
+    if (p.startsWith('blob:')) {
+      try {
+        return await this.blobUrlToDataUrl(p);
+      } catch (e) {
+        return p;
+      }
+    }
+    return p;
+  }
+
+  private buildLabourPayload(photoForUpload: string | undefined, projectId: number) {
+    return {
+      name: this.name,
+      phoneNumber: this.phone,
+      aadharNumber: this.aadharNumber || undefined,
+      panNumber: this.panNumber || undefined,
+      address: this.address,
+      photoBase64: photoForUpload || '',
+      projectId,
+      contractorId: this.contractorId,
+      classificationId: this.classification ? Number(this.classification) : undefined,
+      barcode: this.barcode || `LAB-${Date.now()}`,
+    };
+  }
+
+  private async queueOfflineRegistration(projectId: number, photoForUpload?: string, includeEntry = false) {
+    const clientId = `c_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+    let photoLocal: any = null;
+    if (this.photo()) {
+      try {
+        let photoToSave = photoForUpload || this.photo();
+        if (photoToSave && photoToSave.startsWith('blob:')) {
+          try {
+            photoToSave = await this.blobUrlToDataUrl(photoToSave);
+          } catch (e) {
+            // ignore conversion error and continue with original
+          }
+        }
+        photoLocal = (await this.offline.savePhotoFromDataUrl(
+          photoToSave as string,
+          `labour_${Date.now()}.jpg`,
+          { clientId }
+        )) as { id: number; localRef: string };
+      } catch (e) {
+        console.warn('Failed to save photo locally', e);
+      }
+    }
+
+    await this.offline.saveLocalPerson({
+      clientId,
+      name: this.name,
+      phoneNumber: this.phone,
+      panNumber: this.panNumber || undefined,
+      address: this.address || undefined,
+      photoLocalRef: photoLocal?.localRef,
+    });
+
+    if (photoLocal && photoLocal.id) {
+      await this.offline.enqueueAction('photoUpload', { photoLocalId: photoLocal.id, clientId });
+    }
+
+    const regPayload = {
+      clientId,
+      name: this.name,
+      phoneNumber: this.phone,
+      aadharNumber: this.aadharNumber || undefined,
+      panNumber: this.panNumber || undefined,
+      address: this.address || undefined,
+      photoLocalId: photoLocal?.id || null,
+      projectId,
+      contractorId: this.contractorId,
+      classificationId: this.classification ? Number(this.classification) : undefined,
+      barcode: this.barcode || `LAB-${Date.now()}`,
+    };
+
+    await this.offline.enqueueAction('registerLabour', regPayload);
+
+    if (includeEntry) {
+      await this.offline.enqueueAction('createRecord', {
+        clientId,
+        personType: 'Labour',
+        action: 'Entry',
+      });
+    }
+  }
+
+  // ----- End helpers -----
+
+  async submit(): Promise<void> {
+    const profile = this.guardProfile();
+    const projectId = profile?.projectId ?? this.currentProjectId();
+    if (!projectId || projectId <= 0) {
+      this.notifier.showError('No project assigned. Please contact administrator.');
+      return;
+    }
+
+    if (!this.validateAll()) {
       this.notifier.showError('Please fix validation errors before submitting');
       return;
     }
@@ -583,160 +723,59 @@ export class LabourRegistrationComponent implements OnInit {
     this.notifier.clear();
     this.submitting.set(true);
 
-    // Ensure photo is a data URL before sending (handle blob: URLs produced by browser capture)
-    let photoForUpload: string | undefined = undefined;
-    if (this.photo()) {
-      const p = this.photo();
-      if (p.startsWith('blob:')) {
-        photoForUpload = await this.blobUrlToDataUrl(p);
-      } else {
-        photoForUpload = p;
-      }
+    try {
+      const photoForUpload = await this.normalizePhotoForUpload();
+      const payload = this.buildLabourPayload(photoForUpload, projectId);
+
+      this.api
+        .registerLabour(payload)
+        .pipe(take(1))
+        .subscribe({
+          next: async (response: any) => {
+            this.submitting.set(false);
+            if (response.success) {
+              this.notifier.showSuccess('Labour registered successfully!');
+              setTimeout(() => this.router.navigate(['/entry-exit']), 2000);
+            } else {
+              this.notifier.showError(response.message || 'Failed to register labour');
+            }
+          },
+          error: async (err) => {
+            const status = err && typeof err.status === 'number' ? err.status : undefined;
+            if (typeof status === 'number' && status >= 400 && status < 600) {
+              const errorMsg = err?.error?.message || err?.message || `Registration failed (${status})`;
+              this.submitting.set(false);
+              this.notifier.showError(errorMsg);
+              return;
+            }
+
+            try {
+              await this.queueOfflineRegistration(projectId, undefined, false);
+              this.submitting.set(false);
+              this.notifier.showSuccess('Labour saved offline and queued for sync');
+              setTimeout(() => this.router.navigate(['/entry-exit']), 800);
+            } catch (queueErr) {
+              this.submitting.set(false);
+              this.notifier.showError('Failed to queue registration for offline sync');
+              console.error('Failed to enqueue offline registration', queueErr);
+            }
+          },
+        });
+    } catch (e) {
+      this.submitting.set(false);
+      this.notifier.showError('Failed to prepare photo for upload');
     }
-
-    const labourData = {
-      name: this.name,
-      phoneNumber: this.phone,
-      aadharNumber: this.aadharNumber || undefined,
-      panNumber: this.panNumber || undefined,
-      address: this.address,
-      photoBase64: photoForUpload || '',
-      projectId: profile.projectId,
-      contractorId: this.contractorId,
-      classificationId: this.classification ? Number(this.classification) : undefined,
-      barcode: this.barcode || `LAB-${Date.now()}`,
-    };
-
-    this.api
-      .registerLabour(labourData)
-      .pipe(take(1))
-      .subscribe({
-        next: async (response: any) => {
-          this.submitting.set(false);
-          if (response.success) {
-            this.notifier.showSuccess('Labour registered successfully!');
-            setTimeout(() => this.router.navigate(['/entry-exit']), 2000);
-          } else {
-            this.notifier.showError(response.message || 'Failed to register labour');
-          }
-        },
-        error: async (err) => {
-          console.warn('Register labour API error:', err);
-          const status = err && typeof err.status === 'number' ? err.status : undefined;
-
-          // Treat HTTP 4xx/5xx as errors: show message and do not enqueue.
-          if (typeof status === 'number' && status >= 400 && status < 600) {
-            const errorMsg = err?.error?.message || err?.message || `Registration failed (${status})`;
-            this.submitting.set(false);
-            this.notifier.showError(errorMsg);
-            return;
-          }
-
-          // Network or unknown failure — fall back to offline queue
-          console.warn('Network registration failed, queuing for offline sync', err);
-          try {
-            // create a clientId and persist local person and photo
-            const clientId = `c_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
-            // ensure photo is saved locally and get base64 if needed
-            let photoLocal = null as any;
-            if (this.photo()) {
-              // normalize blob: URL to data URL before saving
-              let photoToSave = this.photo();
-              if (photoToSave && photoToSave.startsWith('blob:')) {
-                try {
-                  photoToSave = await this.blobUrlToDataUrl(photoToSave);
-                } catch (e) {
-                  console.warn('Failed to convert blob URL to data URL', e);
-                }
-              }
-
-              // try to save the data url to offline storage; it dedupes by hash
-              try {
-                photoLocal = (await this.offline.savePhotoFromDataUrl(
-                  photoToSave as string,
-                  `labour_${Date.now()}.jpg`,
-                  { clientId }
-                )) as { id: number; localRef: string };
-              } catch (e) {
-                console.warn('Failed to save photo locally', e);
-              }
-            }
-
-            // persist a local person record for mapping
-            await this.offline.saveLocalPerson({
-              clientId,
-              name: this.name,
-              phoneNumber: this.phone,
-              photoLocalRef: photoLocal?.localRef,
-            });
-
-            // enqueue photo upload action (will run before registration)
-            if (photoLocal && photoLocal.id) {
-              await this.offline.enqueueAction('photoUpload', {
-                photoLocalId: photoLocal.id,
-                clientId,
-              });
-            }
-
-            // enqueue registration action referencing clientId (server id will be patched later)
-            const regPayload = {
-              clientId,
-              name: this.name,
-              phoneNumber: this.phone,
-              aadharNumber: this.aadharNumber || undefined,
-              // include pointer to photoLocalId so SyncService can replace with server photoPath after upload
-              photoLocalId: photoLocal?.id || null,
-              projectId: profile.projectId,
-              contractorId: this.contractorId,
-              classificationId: this.classification ? Number(this.classification) : undefined,
-              barcode: this.barcode || `LAB-${Date.now()}`,
-            };
-
-            await this.offline.enqueueAction('registerLabour', regPayload);
-
-            this.submitting.set(false);
-            this.notifier.showSuccess('Labour saved offline and queued for sync');
-            // navigate to entry-exit so user can view record
-            setTimeout(() => this.router.navigate(['/entry-exit']), 800);
-          } catch (queueErr) {
-            this.submitting.set(false);
-            this.notifier.showError('Failed to queue registration for offline sync');
-            console.error('Failed to enqueue offline registration', queueErr);
-          }
-        },
-      });
   }
 
   async registerAndEntry(): Promise<void> {
     const profile = this.guardProfile();
-    if (!profile) {
-      this.notifier.showError('Guard profile not loaded');
+    const projectId = profile?.projectId ?? this.currentProjectId();
+    if (!projectId || projectId <= 0) {
+      this.notifier.showError('No project assigned. Please contact administrator.');
       return;
     }
 
-    // Run validators
-    const nameOk = this.validateName(this.name);
-    const phoneValid = this.validatePhone(this.phone);
-    const aadharOk = this.validateAadhar(this.aadharNumber);
-    const addressOk = this.validateAddress(this.address);
-    const contractorOk = this.validateContractor(this.contractorId as any);
-    const classOk = this.validateClassification(this.classification as any);
-    const panOk = this.validatePan(this.panNumber);
-    const barcodeOk = this.validateBarcode(this.barcode);
-
-    if (
-      !(
-        nameOk &&
-        phoneValid &&
-        aadharOk &&
-        addressOk &&
-        barcodeOk &&
-        contractorOk &&
-        classOk &&
-        panOk &&
-        this.photo()
-      )
-    ) {
+    if (!this.validateAll()) {
       this.notifier.showError('Please fix validation errors before submitting');
       return;
     }
@@ -744,136 +783,66 @@ export class LabourRegistrationComponent implements OnInit {
     this.notifier.clear();
     this.submitting.set(true);
 
-    // Ensure photo is a data URL before sending (handle blob: URLs produced by browser capture)
-    let photoForUpload: string | undefined = undefined;
-    if (this.photo()) {
-      const p = this.photo();
-      if (p.startsWith('blob:')) {
-        photoForUpload = await this.blobUrlToDataUrl(p);
-      } else {
-        photoForUpload = p;
-      }
-    }
+    try {
+      const photoForUpload = await this.normalizePhotoForUpload();
+      const payload = this.buildLabourPayload(photoForUpload, projectId);
 
-    const labourData = {
-      name: this.name,
-      phoneNumber: this.phone,
-      aadharNumber: this.aadharNumber || undefined,
-      panNumber: this.panNumber || undefined,
-      address: this.address,
-      photoBase64: photoForUpload || '',
-      projectId: profile.projectId,
-      contractorId: this.contractorId,
-      classificationId: this.classification ? Number(this.classification) : undefined,
-      barcode: this.barcode || `LAB-${Date.now()}`,
-    };
-
-    this.api
-      .registerLabour(labourData)
-      .pipe(take(1))
-      .subscribe({
-        next: async (response: any) => {
-          this.submitting.set(false);
-          if (response.success && response.data) {
-            const data = response.data;
-            // prefer labourId if returned, otherwise id
-            const labourId = data.labourId ?? data.id;
-            if (labourId) {
-              // create entry record
-              try {
-                const rec = { personType: 'Labour' as const, labourId, action: 'Entry' as const };
-                const recRes = await this.api.createRecord(rec).pipe(take(1)).toPromise();
-                if (recRes && recRes.success) {
-                  this.notifier.showSuccess('Registered and entry logged successfully');
-                  return;
-                } else {
-                  this.notifier.showError(recRes?.message || 'Registered but failed to log entry');
+      this.api
+        .registerLabour(payload)
+        .pipe(take(1))
+        .subscribe({
+          next: async (response: any) => {
+            this.submitting.set(false);
+            if (response.success && response.data) {
+              const data = response.data;
+              const labourId = data.labourId ?? data.id;
+              if (labourId) {
+                try {
+                  const rec = { personType: 'Labour' as const, labourId, action: 'Entry' as const };
+                  const recRes = await this.api.createRecord(rec).pipe(take(1)).toPromise();
+                  if (recRes && recRes.success) {
+                    this.notifier.showSuccess('Registered and entry logged successfully');
+                    return;
+                  } else {
+                    this.notifier.showError(recRes?.message || 'Registered but failed to log entry');
+                    return;
+                  }
+                } catch (err) {
+                  console.warn('Failed to log entry after registration', err);
+                  this.notifier.showError('Registered but failed to log entry');
                   return;
                 }
-              } catch (err) {
-                console.warn('Failed to log entry after registration', err);
-                this.notifier.showError('Registered but failed to log entry');
-                return;
               }
+              this.notifier.showSuccess('Labour registered successfully');
+            } else {
+              this.notifier.showError(response.message || 'Failed to register labour');
             }
-            this.notifier.showSuccess('Labour registered successfully');
-          } else {
-            this.notifier.showError(response.message || 'Failed to register labour');
-          }
-        },
-        error: async (err) => {
-          console.warn('Register & entry API error:', err);
-          const status = err && typeof err.status === 'number' ? err.status : undefined;
-
-          // Treat HTTP 4xx/5xx as errors: show message and do not enqueue.
-          if (typeof status === 'number' && status >= 400 && status < 600) {
-            const errorMsg = err?.error?.message || err?.message || `Registration failed (${status})`;
-            this.submitting.set(false);
-            this.notifier.showError(errorMsg);
-            return;
-          }
-
-          // Network failure — queue for offline sync
-          this.submitting.set(false);
-          try {
-            const clientId = `c_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
-            let photoLocal: any = null;
-            if (this.photo()) {
-              try {
-                // use normalized data URL when saving locally
-                const photoToSave = photoForUpload || this.photo();
-                photoLocal = (await this.offline.savePhotoFromDataUrl(
-                  photoToSave as string,
-                  `labour_${Date.now()}.jpg`,
-                  { clientId }
-                )) as { id: number; localRef: string };
-              } catch (e) {
-                console.warn('Failed to save photo locally', e);
-              }
+          },
+          error: async (err) => {
+            const status = err && typeof err.status === 'number' ? err.status : undefined;
+            if (typeof status === 'number' && status >= 400 && status < 600) {
+              const errorMsg = err?.error?.message || err?.message || `Registration failed (${status})`;
+              this.submitting.set(false);
+              this.notifier.showError(errorMsg);
+              return;
             }
 
-            await this.offline.saveLocalPerson({
-              clientId,
-              name: this.name,
-              phoneNumber: this.phone,
-              photoLocalRef: photoLocal?.localRef,
-            });
-
-            if (photoLocal && photoLocal.id) {
-              await this.offline.enqueueAction('photoUpload', {
-                photoLocalId: photoLocal.id,
-                clientId,
-              });
+            try {
+              await this.queueOfflineRegistration(projectId, undefined, true);
+              this.notifier.showSuccess('Labour saved offline and queued for sync (entry will be logged)');
+              setTimeout(() => this.resetForm(), 800);
+            } catch (queueErr) {
+              this.notifier.showError('Failed to queue registration for offline sync');
+              console.error('Failed to enqueue offline registration', queueErr);
+            } finally {
+              this.submitting.set(false);
             }
-
-            const regPayload = {
-              clientId,
-              name: this.name,
-              phoneNumber: this.phone,
-              aadharNumber: this.aadharNumber || undefined,
-              photoLocalId: photoLocal?.id || null,
-              projectId: profile.projectId,
-              contractorId: this.contractorId,
-              classificationId: this.classification ? Number(this.classification) : undefined,
-              barcode: this.barcode || `LAB-${Date.now()}`,
-            };
-
-            await this.offline.enqueueAction('registerLabour', regPayload);
-            // enqueue an entry action referencing clientId so sync can process it after registration
-            await this.offline.enqueueAction('createRecord', {
-              clientId,
-              personType: 'Labour',
-              action: 'Entry',
-            });
-
-            this.notifier.showSuccess('Labour saved offline and queued for sync (entry will be logged)');
-            setTimeout(() => this.resetForm(), 800);
-          } catch (queueErr) {
-            this.notifier.showError('Failed to queue registration for offline sync');
-            console.error('Failed to enqueue offline registration', queueErr);
-          }
-        },
-      });
+          },
+        });
+    } catch (e) {
+      this.submitting.set(false);
+      this.notifier.showError('Failed to prepare photo for upload');
+    }
   }
 
   resetForm(): void {
@@ -886,9 +855,5 @@ export class LabourRegistrationComponent implements OnInit {
     this.classification = '';
     this.contractorId = 0;
     this.photo.set('');
-  }
-
-  goBack(): void {
-    this.router.navigate(['/dashboard']);
   }
 }

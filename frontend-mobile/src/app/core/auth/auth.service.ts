@@ -4,6 +4,8 @@ import { Router } from '@angular/router';
 import { Observable, tap, map, forkJoin, throwError } from 'rxjs';
 import { take } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
+import { projectStore } from '../state/project.store';
+import { NotificationService } from '../services/notification.service';
 
 export interface LoginRequest {
   email: string;
@@ -52,6 +54,7 @@ export interface GuardProfile {
 export class AuthService {
   private http = inject(HttpClient);
   private router = inject(Router);
+  private notifier = inject(NotificationService);
   
   private readonly TOKEN_KEY = 'auth_token';
   private readonly USER_KEY = 'current_user';
@@ -104,7 +107,7 @@ export class AuthService {
     return forkJoin({ employee: employee$, assignments: assignments$ }).pipe(
       map(({ employee, assignments }) => {
         if (!employee || !employee.success || !employee.data) {
-          throw new Error('Failed to load employee details');
+            throw new Error('Failed to load employee details');
         }
 
         const emp = employee.data;
@@ -123,14 +126,28 @@ export class AuthService {
           isActive: emp.isActive ?? emp.IsActive ?? true
         };
 
+        return profile;
+      }),
+      tap((profile) => {
         // persist and update signal
         this.guardProfile.set(profile);
         localStorage.setItem('guard_profile', JSON.stringify(profile));
 
-        return profile;
-      }),
-      tap(() => {
-        // no-op; tap kept for symmetry
+        const message = 'Project not assigned. Please contact your administrator.';
+
+        if (profile.projectId && profile.projectId > 0) {
+          projectStore.setProject(profile.projectId, profile.projectName);
+        } else {
+          projectStore.clear();
+
+          Promise.resolve().then(() => {
+            if (!this.router.url.startsWith('/dashboard')) {
+              this.router.navigate(['/dashboard']).then(() => this.notifier.showError(message, 0));
+            } else {
+              this.notifier.showError(message, 0);
+            }
+          });
+        }
       })
     );
   }
@@ -140,6 +157,9 @@ export class AuthService {
     this.currentUser.set(null);
     this.guardProfile.set(null);
     this.isAuthenticated.set(false);
+    // clear project selection
+    projectStore.clear();
+    this.notifier.clear();
     this.router.navigate(['/login']);
   }
 
@@ -181,5 +201,11 @@ export class AuthService {
     localStorage.removeItem(this.TOKEN_KEY);
     localStorage.removeItem(this.USER_KEY);
     localStorage.removeItem('guard_profile');
+    // also clear persisted project selection
+    try {
+      projectStore.clear();
+    } catch (e) {
+      // ignore
+    }
   }
 }

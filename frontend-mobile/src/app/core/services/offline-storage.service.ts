@@ -283,7 +283,7 @@ export class OfflineStorageService {
   }
 
   // --- Local person helpers for clientId/serverId mapping ---
-  async saveLocalPerson(person: { clientId: string; name: string; phoneNumber?: string; photoLocalRef?: string; status?: string; }): Promise<number> {
+  async saveLocalPerson(person: { clientId: string; name: string; phoneNumber?: string; photoLocalRef?: string; status?: string; panNumber?: string; address?: string; companyName?: string; purpose?: string; }): Promise<number> {
     if (!this.dexieDb) await this.initDexie();
     const peopleTable = (this.dexieDb as any).table('people');
     const id = await peopleTable.add({ ...person, serverId: null, createdAt: Date.now() });

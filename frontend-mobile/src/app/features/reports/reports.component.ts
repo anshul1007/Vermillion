@@ -1,11 +1,12 @@
-import { Component, inject, signal, OnInit } from '@angular/core';
+import { Component, inject, signal, OnInit, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { IconComponent } from '../../shared/icon/icon.component';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
 import { ApiService } from '../../core/services/api.service';
+import { projectStore } from '../../core/state/project.store';
 import { take } from 'rxjs/operators';
 import { RawEntryExitRecordDto } from '../../core/models/entry-exit.model';
+import { AuthService } from '../../core/auth/auth.service';
 
 interface EntryExitRecord {
   id: number;
@@ -45,180 +46,187 @@ interface Statistics {
   imports: [CommonModule, FormsModule, IconComponent],
   template: `
     <div class="reports-page">
-      <section class="reports-hero card">
-        <div class="reports-hero__header">
-          <div class="reports-hero__title">
-            <h1>Entry & Exit Reports</h1>
+      <ng-container *ngIf="currentProjectId(); else noProjectState">
+        <section class="reports-hero card">
+          <div class="reports-hero__header">
+            <div class="reports-hero__title">
+              <h1>Entry & Exit Reports</h1>
+              <p class="reports-hero__subtitle" *ngIf="currentProjectName()">
+                {{ currentProjectName() }}
+              </p>
+            </div>
           </div>
-        </div>
-        <div class="chip-actions reports-hero__quick">
-          <button
-            type="button"
-            class="chip-button"
-            (click)="setDateRange('today')"
-            [class.is-active]="selectedRange() === 'today'"
-          >
-            Today
-          </button>
-          <button
-            type="button"
-            class="chip-button"
-            (click)="setDateRange('week')"
-            [class.is-active]="selectedRange() === 'week'"
-          >
-            This Week
-          </button>
-          <button
-            type="button"
-            class="chip-button"
-            (click)="setDateRange('month')"
-            [class.is-active]="selectedRange() === 'month'"
-          >
-            This Month
-          </button>
-        </div>
-        <!-- <div class="reports-hero__dates">
-          <label class="form-field reports-date-field">
-            <span>From Date</span>
-            <input type="date" [(ngModel)]="fromDate" (change)="loadRecords()" />
-          </label>
-          <label class="form-field reports-date-field">
-            <span>To Date</span>
-            <input type="date" [(ngModel)]="toDate" (change)="loadRecords()" />
-          </label>
-        </div> -->
-      </section>
+          <div class="chip-actions reports-hero__quick">
+            <button
+              type="button"
+              class="chip-button"
+              (click)="setDateRange('today')"
+              [class.is-active]="selectedRange() === 'today'"
+            >
+              Today
+            </button>
+            <button
+              type="button"
+              class="chip-button"
+              (click)="setDateRange('week')"
+              [class.is-active]="selectedRange() === 'week'"
+            >
+              This Week
+            </button>
+            <button
+              type="button"
+              class="chip-button"
+              (click)="setDateRange('month')"
+              [class.is-active]="selectedRange() === 'month'"
+            >
+              This Month
+            </button>
+          </div>
+        </section>
 
-      @if (loading()) {
-      <section class="reports-loading card">
-        <div class="reports-loading__spinner"></div>
-        <p>Loading reports...</p>
-      </section>
-      } @if (!loading() && statistics()) {
-      <section class="reports-stats card">
-        <div class="reports-stats__grid">
-          <div class="reports-stat">
-            <div class="reports-stat__icon">
-              <app-icon name="entry" size="28"></app-icon>
+        @if (loading()) {
+        <section class="reports-loading card">
+          <div class="reports-loading__spinner"></div>
+          <p>Loading reports...</p>
+        </section>
+        } @if (!loading() && statistics()) {
+        <section class="reports-stats card">
+          <div class="reports-stats__grid">
+            <div class="reports-stat">
+              <div class="reports-stat__icon">
+                <app-icon name="entry" size="28"></app-icon>
+              </div>
+              <div class="reports-stat__content">
+                <span class="reports-stat__value">{{ statistics()!.totalEntries }}</span>
+                <span class="reports-stat__label">Total Entries</span>
+              </div>
             </div>
-            <div class="reports-stat__content">
-              <span class="reports-stat__value">{{ statistics()!.totalEntries }}</span>
-              <span class="reports-stat__label">Total Entries</span>
+            <div class="reports-stat">
+              <div class="reports-stat__icon">
+                <app-icon name="exit" size="28"></app-icon>
+              </div>
+              <div class="reports-stat__content">
+                <span class="reports-stat__value">{{ statistics()!.totalExits }}</span>
+                <span class="reports-stat__label">Total Exits</span>
+              </div>
+            </div>
+            <div class="reports-stat">
+              <div class="reports-stat__icon">
+                <app-icon name="clock" size="28"></app-icon>
+              </div>
+              <div class="reports-stat__content">
+                <span class="reports-stat__value">{{ statistics()!.openSessions }}</span>
+                <span class="reports-stat__label">Open Sessions</span>
+              </div>
+            </div>
+            <div class="reports-stat">
+              <div class="reports-stat__icon">
+                <app-icon name="user-group" size="28"></app-icon>
+              </div>
+              <div class="reports-stat__content">
+                <span class="reports-stat__value">{{ statistics()!.totalLabour }}</span>
+                <span class="reports-stat__label">Labour Records</span>
+              </div>
+            </div>
+            <div class="reports-stat">
+              <div class="reports-stat__icon">
+                <app-icon name="user" size="28"></app-icon>
+              </div>
+              <div class="reports-stat__content">
+                <span class="reports-stat__value">{{ statistics()!.totalVisitors }}</span>
+                <span class="reports-stat__label">Visitor Records</span>
+              </div>
             </div>
           </div>
-          <div class="reports-stat">
-            <div class="reports-stat__icon">
-              <app-icon name="exit" size="28"></app-icon>
-            </div>
-            <div class="reports-stat__content">
-              <span class="reports-stat__value">{{ statistics()!.totalExits }}</span>
-              <span class="reports-stat__label">Total Exits</span>
-            </div>
-          </div>
-          <div class="reports-stat">
-            <div class="reports-stat__icon">
-              <app-icon name="clock" size="28"></app-icon>
-            </div>
-            <div class="reports-stat__content">
-              <span class="reports-stat__value">{{ statistics()!.openSessions }}</span>
-              <span class="reports-stat__label">Open Sessions</span>
-            </div>
-          </div>
-          <div class="reports-stat">
-            <div class="reports-stat__icon">
-              <app-icon name="user-group" size="28"></app-icon>
-            </div>
-            <div class="reports-stat__content">
-              <span class="reports-stat__value">{{ statistics()!.totalLabour }}</span>
-              <span class="reports-stat__label">Labour Records</span>
-            </div>
-          </div>
-          <div class="reports-stat">
-            <div class="reports-stat__icon">
-              <app-icon name="user" size="28"></app-icon>
-            </div>
-            <div class="reports-stat__content">
-              <span class="reports-stat__value">{{ statistics()!.totalVisitors }}</span>
-              <span class="reports-stat__label">Visitor Records</span>
-            </div>
-          </div>
-        </div>
-      </section>
+        </section>
 
-      <section class="reports-records card">
-        <div class="reports-records__header">
-          <h3>Recent Records</h3>
-          <span class="reports-records__count">{{ sessions().length }} records</span>
-        </div>
-
-        @if (records().length === 0) {
-        <div class="reports-empty">
-          <div class="reports-empty__icon">
-            <app-icon name="logo" size="40"></app-icon>
+        <section class="reports-records card">
+          <div class="reports-records__header">
+            <h3>Recent Records</h3>
+            <span class="reports-records__count">{{ sessions().length }} records</span>
           </div>
-          <p>No records found for the selected range</p>
-        </div>
-        } @else {
-        <div class="sessions-list">
-          @for (session of sessions(); track session.id) {
-          <article class="session-card" [class.session-card--active]="!session.exitTime">
-            <div class="session-card__header">
-              <span class="status-indicator" [class.active]="!session.exitTime">
-                @if (!session.exitTime || session.exitTime === '') {
-                <app-icon
-                  name="dot"
-                  size="16"
-                  class="active-dot"
-                  aria-label="Active session"
-                ></app-icon>
-                } @else {
-                <span class="checked-out-dot" title="Checked out">
-                  <app-icon name="dot-check" size="16"></app-icon>
+
+          @if (records().length === 0) {
+          <div class="reports-empty">
+            <div class="reports-empty__icon">
+              <app-icon name="logo" size="40"></app-icon>
+            </div>
+            <p>No records found for the selected range</p>
+          </div>
+          } @else {
+          <div class="sessions-list">
+            @for (session of sessions(); track session.id) {
+            <article class="session-card" [class.session-card--active]="!session.exitTime">
+              <div class="session-card__header">
+                <span class="status-indicator" [class.active]="!session.exitTime">
+                  @if (!session.exitTime || session.exitTime === '') {
+                  <app-icon
+                    name="dot"
+                    size="16"
+                    class="active-dot"
+                    aria-label="Active session"
+                  ></app-icon>
+                  } @else {
+                  <span class="checked-out-dot" title="Checked out">
+                    <app-icon name="dot-check" size="16"></app-icon>
+                  </span>
+                  }
+                  <span
+                    class="type-badge"
+                    [class.labour]="session.personType === 'Labour'"
+                    [class.visitor]="session.personType === 'Visitor'"
+                  >
+                    {{ session.personType }}
+                  </span>
                 </span>
-                }
-                <span
-                  class="type-badge"
-                  [class.labour]="session.personType === 'Labour'"
-                  [class.visitor]="session.personType === 'Visitor'"
-                >
-                  {{ session.personType }}
-                </span>
-              </span>
-              <div class="session-card__title">
-                <h4>{{ session.name }}</h4>
-                <span class="session-card__contractor">{{ session.contractor || '-' }}</span>
+                <div class="session-card__title">
+                  <h4>{{ session.name }}</h4>
+                  <span class="session-card__contractor">{{ session.contractor || '-' }}</span>
+                </div>
               </div>
-            </div>
-            <div class="session-card__body">
-              <div class="session-card__item">
-                <span class="label">Entry Time</span>
-                <span class="value">{{
-                  session.entryTime ? formatDateTime(session.entryTime) : '-'
-                }}</span>
+              <div class="session-card__body">
+                <div class="session-card__item">
+                  <span class="label">Entry Time</span>
+                  <span class="value">{{
+                    session.entryTime ? formatDateTime(session.entryTime) : '-'
+                  }}</span>
+                </div>
+                <div class="session-card__item">
+                  <span class="label">Exit Time</span>
+                  <span class="value">{{
+                    session.exitTime ? formatDateTime(session.exitTime) : '-'
+                  }}</span>
+                </div>
+                <div class="session-card__item">
+                  <span class="label">Guard</span>
+                  <span class="value">{{ session.guardName || '-' }}</span>
+                </div>
               </div>
-              <div class="session-card__item">
-                <span class="label">Exit Time</span>
-                <span class="value">{{
-                  session.exitTime ? formatDateTime(session.exitTime) : '-'
-                }}</span>
-              </div>
-              <div class="session-card__item">
-                <span class="label">Guard</span>
-                <span class="value">{{ session.guardName || '-' }}</span>
-              </div>
-            </div>
-          </article>
+            </article>
+            }
+          </div>
           }
-        </div>
+        </section>
         }
-      </section>
-      }
+      </ng-container>
+      <ng-template #noProjectState>
+        <section class="reports-hero card">
+          <div class="reports-hero__header">
+            <div class="reports-hero__title">
+              <h1>Entry & Exit Reports</h1>
+              <p class="reports-hero__subtitle">{{ noProjectMessage }}</p>
+            </div>
+          </div>
+        </section>
+      </ng-template>
     </div>
   `,
 })
 export class ReportsComponent implements OnInit {
   private apiService = inject(ApiService);
-  private router = inject(Router);
+  private authService = inject(AuthService);
+
+  guardProfile = this.authService.guardProfile;
 
   fromDate = '';
   toDate = '';
@@ -227,6 +235,43 @@ export class ReportsComponent implements OnInit {
   records = signal<EntryExitRecord[]>([]);
   sessions = signal<SessionRow[]>([]);
   statistics = signal<Statistics | null>(null);
+  currentProjectId = signal<number | null>(
+    projectStore.projectId() ?? this.guardProfile()?.projectId ?? null
+  );
+  currentProjectName = signal<string>(
+    projectStore.projectName() ?? this.guardProfile()?.projectName ?? ''
+  );
+  readonly noProjectMessage = 'Project not assigned. Please contact your administrator.';
+
+  private readonly projectEffect = effect(
+    () => {
+      const profile = this.guardProfile();
+      const pid = projectStore.projectId() ?? profile?.projectId ?? null;
+      const pname = projectStore.projectName() ?? profile?.projectName ?? '';
+
+      if (pid !== this.currentProjectId()) {
+        this.currentProjectId.set(pid);
+      }
+
+      if (pname !== this.currentProjectName()) {
+        this.currentProjectName.set(pname || '');
+      }
+
+      if (!pid || pid <= 0) {
+        this.loading.set(false);
+        if (this.records().length > 0) {
+          this.records.set([]);
+        }
+        if (this.sessions().length > 0) {
+          this.sessions.set([]);
+        }
+        if (this.statistics()) {
+          this.statistics.set(null);
+        }
+      }
+    },
+    { allowSignalWrites: true }
+  );
 
   ngOnInit() {
     this.setDateRange('today');
@@ -259,10 +304,19 @@ export class ReportsComponent implements OnInit {
   loadRecords() {
     if (!this.fromDate || !this.toDate) return;
 
+    const pid = this.currentProjectId();
+    if (!pid || pid <= 0) {
+      this.loading.set(false);
+      this.records.set([]);
+      this.sessions.set([]);
+      this.statistics.set(null);
+      return;
+    }
+
     this.loading.set(true);
 
     this.apiService
-      .getRecords(this.fromDate, this.toDate)
+      .getRecords(this.fromDate, this.toDate, undefined, undefined, pid)
       .pipe(take(1))
       .subscribe({
         next: (response) => {
@@ -483,8 +537,13 @@ export class ReportsComponent implements OnInit {
     // Set initial stats, then fetch current open sessions (like dashboard) to show live active count
     this.statistics.set(initialStats);
 
+    const pid = this.currentProjectId();
+    if (!pid || pid <= 0) {
+      return;
+    }
+
     this.apiService
-      .getOpenSessions()
+      .getOpenSessions(pid)
       .pipe(take(1))
       .subscribe({
         next: (resp) => {

@@ -2,6 +2,7 @@ import { Component, inject, signal, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { ApiService } from '../../core/services/api.service';
+import { projectStore } from '../../core/state/project.store';
 import { RawEntryExitRecordDto } from '../../core/models/entry-exit.model';
 import { AuthService } from '../../core/auth/auth.service';
 import { take } from 'rxjs/operators';
@@ -170,6 +171,7 @@ export class TodaySummaryComponent implements OnInit {
     totalExits: 0
   });
   records = signal<RawEntryExitRecordDto[]>([]);
+  projectId = projectStore.projectId;
 
   ngOnInit(): void {
     this.loadTodaySummary();
@@ -178,7 +180,8 @@ export class TodaySummaryComponent implements OnInit {
   loadTodaySummary(): void {
     this.loading.set(true);
 
-    this.apiService.getTodayRecords().pipe(take(1)).subscribe({
+    const pid = this.projectId();
+    this.apiService.getTodayRecords(pid ?? undefined).pipe(take(1)).subscribe({
       next: (response) => {
         this.loading.set(false);
         if (response.data) {

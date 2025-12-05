@@ -130,7 +130,7 @@ Acceptance Checklist
 - [ ] Guard only works via mobile; cannot see web admin links.
 - [ ] Manager view is restricted to team members (enforced by `GetManagerTeamUserIdsAsync`).
 - [ ] SystemAdmin-only endpoints return 403 for non-systemadmin callers.
-- [ ] Frontend navigation respects both role and tenant checks (navigation.component.ts).
+- [x] Frontend navigation respects both role and tenant checks (navigation.component.ts).
 - [ ] Guards are filtered out from Attendance domain user lists.
 - [ ] Guard profile endpoint works for mobile app authentication.
 - [ ] Manager cannot view another manager's team unless they are Admin/SystemAdmin.

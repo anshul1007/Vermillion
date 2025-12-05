@@ -1,5 +1,5 @@
 import { Routes } from '@angular/router';
-import { authGuard } from './core/auth/auth.guard';
+import { authGuard, projectAssignedGuard } from './core/auth/auth.guard';
 
 export const routes: Routes = [
   {
@@ -23,32 +23,32 @@ export const routes: Routes = [
   // },
   {
     path: 'labour-registration',
-    canActivate: [authGuard],
+    canActivate: [authGuard, projectAssignedGuard],
     loadComponent: () => import('./features/labour-registration.component').then(m => m.LabourRegistrationComponent)
   },
   {
     path: 'visitor-registration',
-    canActivate: [authGuard],
+    canActivate: [authGuard, projectAssignedGuard],
     loadComponent: () => import('./features/visitor-registration.component').then(m => m.VisitorRegistrationComponent)
   },
   {
     path: 'entry-exit',
-    canActivate: [authGuard],
+    canActivate: [authGuard, projectAssignedGuard],
     loadChildren: () => import('./features/entry-exit/entry-exit.routes').then(m => m.ENTRY_EXIT_ROUTES)
   },
   {
     path: 'today-summary',
-    canActivate: [authGuard],
+    canActivate: [authGuard, projectAssignedGuard],
     loadComponent: () => import('./features/today-summary/today-summary.component').then(m => m.TodaySummaryComponent)
   },
   {
     path: 'search',
-    canActivate: [authGuard],
+    canActivate: [authGuard, projectAssignedGuard],
     loadComponent: () => import('./features/search/search.component').then(m => m.SearchComponent)
   },
   {
     path: 'reports',
-    canActivate: [authGuard],
+    canActivate: [authGuard, projectAssignedGuard],
     loadComponent: () => import('./features/reports/reports.component').then(m => m.ReportsComponent)
   },
   {

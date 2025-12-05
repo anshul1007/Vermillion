@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Observable } from 'rxjs';
+import { catchError } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
 
 export interface ApiResponse<T> {
@@ -181,8 +182,12 @@ export class ApiService {
     });
   }
 
-  getTodayRecords(): Observable<ApiResponse<any>> {
-    return this.http.get<ApiResponse<any>>(`${this.entryExitApiUrl}/records/today`, {
+  getTodayRecords(projectId?: number): Observable<ApiResponse<any>> {
+    let url = `${this.entryExitApiUrl}/records/today`;
+    if (projectId) {
+      url += `?projectId=${projectId}`;
+    }
+    return this.http.get<ApiResponse<any>>(url, {
       headers: this.getHeaders()
     });
   }
@@ -221,7 +226,7 @@ export class ApiService {
   }
 
   // Reports and statistics endpoints
-  getRecords(fromDate?: string, toDate?: string, labourId?: number, visitorId?: number): Observable<ApiResponse<any>> {
+  getRecords(fromDate?: string, toDate?: string, labourId?: number, visitorId?: number, projectId?: number): Observable<ApiResponse<any>> {
     let url = `${this.entryExitApiUrl}/records?`;
     const params: string[] = [];
 
@@ -229,6 +234,7 @@ export class ApiService {
     if (toDate) params.push(`toDate=${encodeURIComponent(toDate)}`);
     if (labourId) params.push(`labourId=${labourId}`);
     if (visitorId) params.push(`visitorId=${visitorId}`);
+    if (projectId) params.push(`projectId=${projectId}`);
 
     url += params.join('&');
 
@@ -247,8 +253,12 @@ export class ApiService {
     });
   }
 
-  getDashboardStats(): Observable<any> {
-    return this.http.get<any>(`${this.entryExitApiUrl}/admin/dashboard-stats`, {
+  getDashboardStats(projectId?: number): Observable<any> {
+    let url = `${this.entryExitApiUrl}/admin/dashboard-stats`;
+    if (projectId) {
+      url += `?projectId=${projectId}`;
+    }
+    return this.http.get<any>(url, {
       headers: this.getHeaders()
     });
   }
@@ -296,7 +306,19 @@ export class ApiService {
     const prefersEntryExit = this.entryExitApiUrl && this.entryExitApiUrl.includes('/entryexit');
     const base = prefersEntryExit ? this.entryExitApiUrl.replace(/\/$/, '') : this.authApiUrl.replace(/\/$/, '');
 
-    return this.http.get(`${base}/photos/${safePath}`, { headers, responseType: 'blob' as 'blob' });
+    // Try the preferred base first; on error, fall back to the alternate base
+    const primary = `${base}/photos/${safePath}`;
+    // Alternate base: if primary used entryExitApiUrl, alternate is authApiUrl, and vice-versa
+    const alternateBase = base === this.entryExitApiUrl.replace(/\/$/, '') ? this.authApiUrl.replace(/\/$/, '') : this.entryExitApiUrl.replace(/\/$/, '');
+    const fallback = `${alternateBase}/photos/${safePath}`;
+
+    console.debug('[ApiService] fetching photo blob, primary:', primary, 'fallback:', fallback);
+    return this.http.get(primary, { headers, responseType: 'blob' as 'blob' }).pipe(
+      catchError((err) => {
+        console.debug('[ApiService] primary photo fetch failed, trying fallback', err);
+        return this.http.get(fallback, { headers, responseType: 'blob' as 'blob' });
+      })
+    );
   }
 
   // Labour classifications lookup

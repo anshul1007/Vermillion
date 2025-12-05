@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output, inject, ChangeDetectorRef, OnChanges, SimpleChanges, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { IconComponent } from '../../../../shared/icon/icon.component';
+import { ResolvePhotoDirective } from '../../../../core/directives/resolve-photo.directive';
 import { ContractorLabourResult } from '../../entry-exit.models';
 import { OfflineStorageService } from '../../../../core/services/offline-storage.service';
 import { LocalImageService } from '../../../../core/services/local-image.service';
@@ -8,7 +9,8 @@ import { LocalImageService } from '../../../../core/services/local-image.service
 @Component({
   selector: 'app-entry-exit-photo-modal',
   standalone: true,
-  imports: [CommonModule, IconComponent],
+  imports: [CommonModule, IconComponent, ResolvePhotoDirective],
+  host: {},
   template: `
     <div class="photo-verification-modal" *ngIf="visible">
       <div class="modal-overlay" (click)="cancel.emit()"></div>
@@ -33,7 +35,7 @@ import { LocalImageService } from '../../../../core/services/local-image.service
             <div *ngFor="let item of labour; trackBy: trackById" class="photo-card">
               <div class="photo-frame">
                 <ng-container *ngIf="resolveImage(item) as src; else placeholder">
-                  <img [src]="src" [alt]="item.name" />
+                  <img [src]="src" [alt]="item.name" appResolvePhoto />
                 </ng-container>
                 <ng-template #placeholder>
                   <div class="photo-placeholder-large" aria-hidden="true">

@@ -107,6 +107,10 @@ public class LabourService : ILabourService
                 AadharNumberEncrypted = !string.IsNullOrEmpty(dto.AadharNumber)
                     ? _encryption.Encrypt(dto.AadharNumber)
                     : null,
+                PanNumberEncrypted = !string.IsNullOrEmpty(dto.PanNumber)
+                    ? _encryption.Encrypt(dto.PanNumber)
+                    : null,
+                Address = string.IsNullOrWhiteSpace(dto.Address) ? null : dto.Address,
                 PhotoUrl = photoUrl,
                 ProjectId = dto.ProjectId,
                 ContractorId = dto.ContractorId,

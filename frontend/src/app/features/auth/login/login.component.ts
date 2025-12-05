@@ -113,7 +113,6 @@ export class LoginComponent {
     this.authService.login(this.credentials).pipe(take(1)).subscribe({
       next: (response) => {
         this.loading.set(false);
-        console.debug('Login response:', response);
 
         // Primary role (mapped by AuthService)
         const mappedRole = response.user?.role;

@@ -151,7 +151,9 @@ public class RecordsController : ControllerBase
                 PersonType = "Labour",
                 Barcode = labour.Barcode,
                 ProjectId = labour.ProjectId,
+                ProjectName = labour.ProjectName,
                 ContractorId = labour.ContractorId,
+                ContractorName = labour.ContractorName,
                 PhotoUrl = string.IsNullOrEmpty(labour.PhotoUrl) ? string.Empty : (labour.PhotoUrl.StartsWith("/api/entryexit/photos/") ? labour.PhotoUrl : $"/api/entryexit/photos/{labour.PhotoUrl}"),
                 HasOpenEntry = hasOpenEntry
             });
