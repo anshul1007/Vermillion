@@ -16,32 +16,32 @@ import { projectStore } from '../core/state/project.store';
   standalone: true,
   imports: [CommonModule, FormsModule],
   template: `
-    <div class="visitor-registration-page">
-      <div class="scan-toast" *ngIf="notifier.successMessage() || notifier.errorMessage()">
+    <div class="page">
+      <!-- <div class="scan-toast" *ngIf="notifier.successMessage() || notifier.errorMessage()">
         <div class="toast success" *ngIf="notifier.successMessage()">{{ notifier.successMessage() }}</div>
         <div class="toast error" *ngIf="notifier.errorMessage()">{{ notifier.errorMessage() }}</div>
-      </div>
-      <section class="registration-hero card">
-        <div class="registration-hero__heading">
-          <h1>Register Visitor</h1>
+      </div> -->
+      <section class="hero card">
+        <div class="d-flex flex-column gap-1">
+          <h1 class="page-title mb-0">Register Visitor</h1>
           <ng-container *ngIf="currentProjectId(); else noProjectTpl">
-            <p class="registration-hero__sub">
+            <p class="page-subtitle mb-0">
               {{ currentProjectName() || 'Assigned project' }}
             </p>
           </ng-container>
           <ng-template #noProjectTpl>
-            <p class="registration-hero__sub text-muted">No project assigned</p>
+            <p class="page-subtitle mb-0">No project assigned</p>
           </ng-template>
         </div>
       </section>
 
-      <section class="registration-card card">
+      <section class="card">
         <div class="form-message error" *ngIf="!currentProjectId()">
           Project not assigned. Please contact your administrator.
         </div>
-        <form *ngIf="currentProjectId()" (ngSubmit)="submit()" class="registration-form">
+        <form *ngIf="currentProjectId()" (ngSubmit)="submit()" class="form">
           <label class="form-field">
-            <span>Full Name *</span>
+            <span class="text-label mb-1">Full Name *</span>
             <input
               id="name"
               [(ngModel)]="name"
@@ -55,7 +55,7 @@ import { projectStore } from '../core/state/project.store';
           </label>
 
           <label class="form-field">
-            <span>Phone Number *</span>
+            <span class="text-label mb-1">Phone Number *</span>
             <input
               [(ngModel)]="phoneNumber"
               placeholder="Enter phone number"
@@ -69,12 +69,12 @@ import { projectStore } from '../core/state/project.store';
           </label>
 
           <label class="form-field">
-            <span>Company Name</span>
+            <span class="text-label mb-1">Company Name</span>
             <input [(ngModel)]="companyName" placeholder="Company (optional)" name="company" />
           </label>
 
           <label class="form-field">
-            <span>Purpose of Visit *</span>
+            <span class="text-label mb-1">Purpose of Visit *</span>
             <textarea
               [(ngModel)]="purpose"
               rows="3"
@@ -88,10 +88,12 @@ import { projectStore } from '../core/state/project.store';
           </label>
 
           <div class="form-field">
-            <span>Photo *</span>
-            <button type="button" class="btn btn-outline" (click)="takePhoto()">
+            <span class="text-label mb-1">Photo *</span>
+            <button type="button" class="btn btn-outline btn-field-action" (click)="takePhoto()">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
+                width="20"
+                height="20"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -112,11 +114,20 @@ import { projectStore } from '../core/state/project.store';
             </div>
           </div>
 
-          <div class="form-message error" *ngIf="notifier.errorMessage()">{{ notifier.errorMessage() }}</div>
-          <div class="form-message success" *ngIf="notifier.successMessage()">{{ notifier.successMessage() }}</div>
+          <!-- <div class="form-message error" *ngIf="notifier.errorMessage()">
+            {{ notifier.errorMessage() }}
+          </div>
+          <div class="form-message success" *ngIf="notifier.successMessage()">
+            {{ notifier.successMessage() }}
+          </div> -->
 
           <div class="form-actions">
-            <button class="btn btn-primary primary-action" type="button" (click)="registerAndEntry()" [disabled]="!isValid() || submitting()">
+            <button
+              class="btn btn-primary primary-action"
+              type="button"
+              (click)="registerAndEntry()"
+              [disabled]="!isValid() || submitting()"
+            >
               Register & Log Entry
             </button>
             <button class="btn" type="submit" [disabled]="!isValid() || submitting()">
@@ -189,7 +200,6 @@ export class VisitorRegistrationComponent implements OnInit {
     } catch (e) {
       // ignore malformed state
     }
-
   }
 
   async takePhoto(): Promise<void> {
@@ -309,54 +319,57 @@ export class VisitorRegistrationComponent implements OnInit {
         // For server errors (4xx/5xx) we return and rely on the interceptor to show messages.
         if (status === 0 || typeof status === 'undefined') {
           try {
-          const clientId = `c_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
-          let photoLocal: any = null;
-          if (this.photo()) {
-            try {
-              photoLocal = (await this.offline.savePhotoFromDataUrl(
-                this.photo(),
-                `visitor_${Date.now()}.jpg`,
-                { clientId }
-              )) as { id: number; localRef: string };
-            } catch (e) {
-              console.warn('Failed to save visitor photo locally', e);
+            const clientId = `c_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+            let photoLocal: any = null;
+            if (this.photo()) {
+              try {
+                photoLocal = (await this.offline.savePhotoFromDataUrl(
+                  this.photo(),
+                  `visitor_${Date.now()}.jpg`,
+                  { clientId }
+                )) as { id: number; localRef: string };
+              } catch (e) {
+                console.warn('Failed to save visitor photo locally', e);
+              }
             }
-          }
 
-          await this.offline.saveLocalPerson({
-            clientId,
-            name: this.name,
-            phoneNumber: this.phoneNumber,
-            photoLocalRef: photoLocal?.localRef,
-          });
-
-          if (photoLocal && photoLocal.id) {
-            await this.offline.enqueueAction('photoUpload', {
-              photoLocalId: photoLocal.id,
+            await this.offline.saveLocalPerson({
               clientId,
+              name: this.name,
+              phoneNumber: this.phoneNumber,
+              photoLocalRef: photoLocal?.localRef,
             });
-          }
 
-          const payload = {
-            clientId,
-            name: this.name.trim(),
-            phoneNumber: this.phoneNumber.trim(),
-            companyName: this.companyName.trim() || undefined,
-            purpose: this.purpose.trim(),
-            photoLocalId: photoLocal?.id || null,
-            projectId,
-          };
-          await this.offline.enqueueAction('registerVisitor', payload);
+            if (photoLocal && photoLocal.id) {
+              await this.offline.enqueueAction('photoUpload', {
+                photoLocalId: photoLocal.id,
+                clientId,
+              });
+            }
 
-          this.notifier.showSuccess('Visitor saved offline and queued for sync');
-          setTimeout(() => {
-            this.resetForm();
-            this.router.navigate(['/entry-exit']);
-          }, 800);
-          return;
+            const payload = {
+              clientId,
+              name: this.name.trim(),
+              phoneNumber: this.phoneNumber.trim(),
+              companyName: this.companyName.trim() || undefined,
+              purpose: this.purpose.trim(),
+              photoLocalId: photoLocal?.id || null,
+              projectId,
+            };
+            await this.offline.enqueueAction('registerVisitor', payload);
+
+            this.notifier.showSuccess('Visitor saved offline and queued for sync');
+            setTimeout(() => {
+              this.resetForm();
+              this.router.navigate(['/entry-exit']);
+            }, 800);
+            return;
           } catch (qErr) {
             const errorMsg =
-              err?.error?.message || err?.error?.Message || err?.message || 'Failed to register visitor. Please try again.';
+              err?.error?.message ||
+              err?.error?.Message ||
+              err?.message ||
+              'Failed to register visitor. Please try again.';
             this.notifier.showError(errorMsg);
             console.warn('Failed to enqueue offline visitor registration', qErr);
             return;
@@ -411,78 +424,99 @@ export class VisitorRegistrationComponent implements OnInit {
       projectId,
     };
 
-    this.api.registerVisitor(visitorData).pipe(take(1)).subscribe({
-      next: async (res: any) => {
-        this.submitting.set(false);
-        if (res?.success && res.data) {
-          const visitorId = res.data.id;
-          if (visitorId) {
-            try {
-              const rec = { personType: 'Visitor' as const, visitorId, action: 'Entry' as const };
-              const recRes = await this.api.createRecord(rec).pipe(take(1)).toPromise();
-                  if (recRes && recRes.success) {
-                    this.notifier.showSuccess('Registered and entry logged successfully');
-                    // remain on page so user can review or register another
-                    return;
-                  } else {
-                    this.notifier.showError(recRes?.message || 'Registered but failed to log entry');
-                    return;
-                  }
-            } catch (err) {
-              console.warn('Failed to log entry after registration', err);
-              this.notifier.showError('Registered but failed to log entry');
-              return;
+    this.api
+      .registerVisitor(visitorData)
+      .pipe(take(1))
+      .subscribe({
+        next: async (res: any) => {
+          this.submitting.set(false);
+          if (res?.success && res.data) {
+            const visitorId = res.data.id;
+            if (visitorId) {
+              try {
+                const rec = { personType: 'Visitor' as const, visitorId, action: 'Entry' as const };
+                const recRes = await this.api.createRecord(rec).pipe(take(1)).toPromise();
+                if (recRes && recRes.success) {
+                  this.notifier.showSuccess('Registered and entry logged successfully');
+                  // remain on page so user can review or register another
+                  return;
+                } else {
+                  this.notifier.showError(recRes?.message || 'Registered but failed to log entry');
+                  return;
+                }
+              } catch (err) {
+                console.warn('Failed to log entry after registration', err);
+                this.notifier.showError('Registered but failed to log entry');
+                return;
+              }
             }
+            this.notifier.showSuccess('Visitor registered successfully');
+            // remain on page
+          } else {
+            this.notifier.showError(res?.message || 'Failed to register visitor');
           }
-          this.notifier.showSuccess('Visitor registered successfully');
-          // remain on page
-        } else {
-          this.notifier.showError(res?.message || 'Failed to register visitor');
-        }
-      },
-      error: async (err: any) => {
-        this.submitting.set(false);
-        console.error('Register visitor API error:', err);
-        try {
-          const clientId = `c_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
-          let photoLocal: any = null;
-          if (this.photo()) {
-            try {
-              photoLocal = (await this.offline.savePhotoFromDataUrl(this.photo(), `visitor_${Date.now()}.jpg`, { clientId })) as { id: number; localRef: string };
-            } catch (e) {
-              console.warn('Failed to save visitor photo locally', e);
+        },
+        error: async (err: any) => {
+          this.submitting.set(false);
+          console.error('Register visitor API error:', err);
+          try {
+            const clientId = `c_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+            let photoLocal: any = null;
+            if (this.photo()) {
+              try {
+                photoLocal = (await this.offline.savePhotoFromDataUrl(
+                  this.photo(),
+                  `visitor_${Date.now()}.jpg`,
+                  { clientId }
+                )) as { id: number; localRef: string };
+              } catch (e) {
+                console.warn('Failed to save visitor photo locally', e);
+              }
             }
+
+            await this.offline.saveLocalPerson({
+              clientId,
+              name: this.name,
+              phoneNumber: this.phoneNumber,
+              photoLocalRef: photoLocal?.localRef,
+            });
+
+            if (photoLocal && photoLocal.id) {
+              await this.offline.enqueueAction('photoUpload', {
+                photoLocalId: photoLocal.id,
+                clientId,
+              });
+            }
+
+            const payload = {
+              clientId,
+              name: this.name.trim(),
+              phoneNumber: this.phoneNumber.trim(),
+              companyName: this.companyName.trim() || undefined,
+              purpose: this.purpose.trim(),
+              photoLocalId: photoLocal?.id || null,
+              projectId,
+            };
+            await this.offline.enqueueAction('registerVisitor', payload);
+            // enqueue createRecord action to log entry after registration
+            await this.offline.enqueueAction('createRecord', {
+              clientId,
+              personType: 'Visitor',
+              action: 'Entry',
+            });
+
+            this.notifier.showSuccess(
+              'Visitor saved offline and queued for sync (entry will be logged)'
+            );
+            setTimeout(() => {
+              this.resetForm();
+              this.router.navigate(['/entry-exit']);
+            }, 800);
+          } catch (qErr) {
+            console.error('Failed to enqueue offline visitor registration', qErr);
+            this.notifier.showError('Failed to queue visitor for offline sync');
           }
-
-          await this.offline.saveLocalPerson({ clientId, name: this.name, phoneNumber: this.phoneNumber, photoLocalRef: photoLocal?.localRef });
-
-          if (photoLocal && photoLocal.id) {
-            await this.offline.enqueueAction('photoUpload', { photoLocalId: photoLocal.id, clientId });
-          }
-
-          const payload = {
-            clientId,
-            name: this.name.trim(),
-            phoneNumber: this.phoneNumber.trim(),
-            companyName: this.companyName.trim() || undefined,
-            purpose: this.purpose.trim(),
-            photoLocalId: photoLocal?.id || null,
-            projectId,
-          };
-          await this.offline.enqueueAction('registerVisitor', payload);
-          // enqueue createRecord action to log entry after registration
-          await this.offline.enqueueAction('createRecord', { clientId, personType: 'Visitor', action: 'Entry' });
-
-          this.notifier.showSuccess('Visitor saved offline and queued for sync (entry will be logged)');
-          setTimeout(() => {
-            this.resetForm();
-            this.router.navigate(['/entry-exit']);
-          }, 800);
-        } catch (qErr) {
-          console.error('Failed to enqueue offline visitor registration', qErr);
-          this.notifier.showError('Failed to queue visitor for offline sync');
-        }
-      }
-    });
+        },
+      });
   }
 }

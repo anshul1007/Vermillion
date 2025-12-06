@@ -45,18 +45,17 @@ interface Statistics {
   standalone: true,
   imports: [CommonModule, FormsModule, IconComponent],
   template: `
-    <div class="reports-page">
+    <div class="page">
       <ng-container *ngIf="currentProjectId(); else noProjectState">
-        <section class="reports-hero card">
-          <div class="reports-hero__header">
-            <div class="reports-hero__title">
-              <h1>Entry & Exit Reports</h1>
-              <p class="reports-hero__subtitle" *ngIf="currentProjectName()">
-                {{ currentProjectName() }}
-              </p>
-            </div>
+        <section class="hero card">
+          <div class="d-flex flex-column gap-1 mb-2">
+            <h1 class="page-title mb-0">Entry & Exit Reports</h1>
+            <p class="page-subtitle mb-0" *ngIf="currentProjectName()">
+              {{ currentProjectName() }}
+            </p>
           </div>
-          <div class="chip-actions reports-hero__quick">
+
+          <div class="d-flex flex-wrap gap-2">
             <button
               type="button"
               class="chip-button"
@@ -85,70 +84,70 @@ interface Statistics {
         </section>
 
         @if (loading()) {
-        <section class="reports-loading card">
-          <div class="reports-loading__spinner"></div>
+        <section class="loading card">
+          <div class="loading__spinner"></div>
           <p>Loading reports...</p>
         </section>
         } @if (!loading() && statistics()) {
-        <section class="reports-stats card">
-          <div class="reports-stats__grid">
-            <div class="reports-stat">
-              <div class="reports-stat__icon">
-                <app-icon name="entry" size="28"></app-icon>
+        <section class="hero card">
+          <div class="d-grid grid-cols-2 gap-2">
+            <div class="stat">
+              <div class="d-flex items-center gap-2 mb-1">
+                <div class="stat-icon stat-icon--medium icon-box--success flex-shrink-0">
+                  <app-icon name="entry" size="28"></app-icon>
+                </div>
+                <p class="stat-value mb-0">{{ statistics()!.totalEntries }}</p>
               </div>
-              <div class="reports-stat__content">
-                <span class="reports-stat__value">{{ statistics()!.totalEntries }}</span>
-                <span class="reports-stat__label">Total Entries</span>
-              </div>
+              <p class="stat-label mb-0">Total Entries</p>
             </div>
-            <div class="reports-stat">
-              <div class="reports-stat__icon">
-                <app-icon name="exit" size="28"></app-icon>
+            <div class="stat">
+              <div class="d-flex items-center gap-2 mb-1">
+                <div class="stat-icon stat-icon--medium icon-box--danger flex-shrink-0">
+                  <app-icon name="exit" size="28"></app-icon>
+                </div>
+                <p class="stat-value mb-0">{{ statistics()!.totalExits }}</p>
               </div>
-              <div class="reports-stat__content">
-                <span class="reports-stat__value">{{ statistics()!.totalExits }}</span>
-                <span class="reports-stat__label">Total Exits</span>
-              </div>
+              <p class="stat-label mb-0">Total Exits</p>
             </div>
-            <div class="reports-stat">
-              <div class="reports-stat__icon">
-                <app-icon name="clock" size="28"></app-icon>
+            <div class="stat">
+              <div class="d-flex items-center gap-2 mb-1">
+                <div class="stat-icon stat-icon--medium icon-box--neutral flex-shrink-0">
+                  <app-icon name="clock" size="28"></app-icon>
+                </div>
+                <p class="stat-value mb-0">{{ statistics()!.openSessions }}</p>
               </div>
-              <div class="reports-stat__content">
-                <span class="reports-stat__value">{{ statistics()!.openSessions }}</span>
-                <span class="reports-stat__label">Open Sessions</span>
-              </div>
+              <p class="stat-label mb-0">Open Sessions</p>
             </div>
-            <div class="reports-stat">
-              <div class="reports-stat__icon">
-                <app-icon name="user-group" size="28"></app-icon>
+            <div class="stat">
+              <div class="d-flex items-center gap-2 mb-1">
+                <div class="stat-icon stat-icon--medium icon-box--warning flex-shrink-0">
+                  <app-icon name="user-group" size="28"></app-icon>
+                </div>
+                <p class="stat-value mb-0">{{ statistics()!.totalLabour }}</p>
               </div>
-              <div class="reports-stat__content">
-                <span class="reports-stat__value">{{ statistics()!.totalLabour }}</span>
-                <span class="reports-stat__label">Labour Records</span>
-              </div>
+              <p class="stat-label mb-0">Labour Records</p>
             </div>
-            <div class="reports-stat">
-              <div class="reports-stat__icon">
-                <app-icon name="user" size="28"></app-icon>
+            <div class="stat">
+              <div class="d-flex items-center gap-2 mb-1">
+                <div class="stat-icon stat-icon--medium icon-box--info flex-shrink-0">
+                  <app-icon name="user" size="28"></app-icon>
+                </div>
+                <p class="stat-value mb-0">{{ statistics()!.totalVisitors }}</p>
               </div>
-              <div class="reports-stat__content">
-                <span class="reports-stat__value">{{ statistics()!.totalVisitors }}</span>
-                <span class="reports-stat__label">Visitor Records</span>
-              </div>
+              <p class="stat-label mb-0">Visitor Records</p>
             </div>
           </div>
         </section>
 
-        <section class="reports-records card">
-          <div class="reports-records__header">
+        <section class="card records">
+          <div class="records__header">
             <h3>Recent Records</h3>
-            <span class="reports-records__count">{{ sessions().length }} records</span>
+            <span class="records__count">{{ sessions().length }} records</span>
           </div>
 
           @if (records().length === 0) {
-          <div class="reports-empty">
-            <div class="reports-empty__icon">
+          <div class="empty">
+            <div class="empty__icon">
               <app-icon name="logo" size="40"></app-icon>
             </div>
             <p>No records found for the selected range</p>
@@ -210,12 +209,10 @@ interface Statistics {
         }
       </ng-container>
       <ng-template #noProjectState>
-        <section class="reports-hero card">
-          <div class="reports-hero__header">
-            <div class="reports-hero__title">
-              <h1>Entry & Exit Reports</h1>
-              <p class="reports-hero__subtitle">{{ noProjectMessage }}</p>
-            </div>
+        <section class="hero card">
+          <div class="d-flex flex-column gap-1">
+            <h1 class="page-title mb-0">Entry & Exit Reports</h1>
+            <p class="page-subtitle mb-0">{{ noProjectMessage }}</p>
           </div>
         </section>
       </ng-template>

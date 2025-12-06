@@ -15,9 +15,11 @@ import { ContractorLabourResult, PersonSearchResult, PersonType } from '../../en
           <span class="labour-results-icon" aria-hidden="true">
             <app-icon name="user-group" size="28"></app-icon>
           </span>
-          <div class="labour-results-copy">
-            <h4 class="labour-results-title">Found {{ labour?.length || 0 }} labour</h4>
-            <p class="labour-results-subtitle">Select workers to run bulk actions.</p>
+          <div class="labour-results-meta">
+            <h4 class="labour-results-title">
+              Found {{ labour?.length || 0 }} labour<br>
+              <span class="labour-results-subtitle">Select workers to run bulk actions.</span>
+            </h4>
           </div>
         </div>
         <button

@@ -6,15 +6,25 @@
           <span class="app-header__icon" aria-hidden="true">
             <app-icon name="logo" size="28" class="header-logo"></app-icon>
           </span>
-          <div class="app-header__copy">
+          <div class="app-header__brand-meta">
             <h1 class="app-header__title">Vermillion</h1>
             <p class="app-header__subtitle">Visitor Management</p>
           </div>
         </div>
         <div *ngIf="isGuard()" class="app-header__actions">
           <div class="company">
-            <button class="btn btn-outline" type="button" routerLink="/dashboard" aria-label="Dashboard">
-              <app-icon name="dashboard" size="20" class="company-icon" aria-hidden="true"></app-icon>
+            <button
+              class="btn btn-outline"
+              type="button"
+              routerLink="/dashboard"
+              aria-label="Dashboard"
+            >
+              <app-icon
+                name="dashboard"
+                size="20"
+                class="company-icon"
+                aria-hidden="true"
+              ></app-icon>
             </button>
           </div>
         </div>
@@ -28,10 +38,26 @@
     </div>
   </main>
 
-  <div class="global-toast" [class.visible]="notifier.errorMessage() || notifier.successMessage()">
-    <div class="toast success" [class.visible]="notifier.successMessage()">{{ notifier.successMessage() }}</div>
-    <div class="toast error" [class.visible]="notifier.errorMessage()">{{ notifier.errorMessage() }}</div>
-  </div>
+  <section
+    class="global-toast"
+    [class.visible]="notifier.errorMessage() || notifier.successMessage()"
+    *ngIf="notifier.errorMessage() || notifier.successMessage()"
+  >
+    <div
+      class="toast success"
+      [class.visible]="notifier.successMessage()"
+      *ngIf="notifier.successMessage()"
+    >
+      {{ notifier.successMessage() }}
+    </div>
+    <div
+      class="toast error"
+      [class.visible]="notifier.errorMessage()"
+      *ngIf="notifier.errorMessage()"
+    >
+      {{ notifier.errorMessage() }}
+    </div>
+  </section>
 
   <!-- <footer class="fixed-bottom app-footer">
 		<div class="row footer-row">

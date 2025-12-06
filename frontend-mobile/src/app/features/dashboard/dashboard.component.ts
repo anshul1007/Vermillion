@@ -13,119 +13,119 @@ import { RawEntryExitRecordDto } from '../../core/models/entry-exit.model';
   standalone: true,
   imports: [CommonModule, RouterModule, IconComponent],
   template: `
-    <div class="dashboard-page">
+    <div class="page">
       <ng-container *ngIf="hasProject(); else noProjectState">
-        <section class="dashboard-hero card">
-          <div class="dashboard-hero__top">
-            <div class="dashboard-hero__profile" *ngIf="guardProfile(); else noProfile">
-              <div class="profile-avatar">
+        <section class="hero card">
+          <div class="hero-top">
+            <div class="d-flex items-center gap-2" *ngIf="guardProfile(); else noProfile">
+              <div class="profile-avatar flex-shrink-0">
                 <app-icon name="shield-check" size="40" class="profile-icon"></app-icon>
               </div>
-              <div class="profile-details">
-                <h2 class="profile-name">
+              <div class="flex-1 min-w-0">
+                <h2 class="item-title mb-1">
                   {{ guardProfile()!.firstName }} {{ guardProfile()!.lastName }}
                 </h2>
-                <div class="profile-meta">Guard ID: {{ guardProfile()!.guardId }}</div>
-                <div class="profile-meta">Phone: {{ guardProfile()!.phoneNumber }}</div>
-                <div class="profile-meta">Project: {{ guardProfile()!.projectName }}</div>
+                <p class="text-meta mb-0">Guard ID: {{ guardProfile()!.guardId }}</p>
+                <p class="text-meta mb-0">Phone: {{ guardProfile()!.phoneNumber }}</p>
+                <p class="text-meta mb-0">Project: {{ guardProfile()!.projectName }}</p>
               </div>
             </div>
             <ng-template #noProfile>
-              <div class="profile-details">
-                <h2 class="profile-name">No guard profile</h2>
-                <div class="profile-meta">Guard profile is not loaded.</div>
-                <div *ngIf="profileError()" class="text-danger">{{ profileError() }}</div>
-                <button class="btn" (click)="loadGuardProfile()" [disabled]="loadingProfile()">
+              <div class="flex-1">
+                <h2 class="item-title mb-1">No guard profile</h2>
+                <p class="text-meta mb-1">Guard profile is not loaded.</p>
+                <p *ngIf="profileError()" class="text-danger text-body-sm mb-2">{{ profileError() }}</p>
+                <button class="btn mt-2" (click)="loadGuardProfile()" [disabled]="loadingProfile()">
                   <span *ngIf="loadingProfile(); else loadLabel">Loading...</span>
                   <ng-template #loadLabel><span>Load Guard Profile</span></ng-template>
                 </button>
               </div>
             </ng-template>
           </div>
-          <div class="dashboard-hero__stats">
-            <div class="dashboard-stat">
-              <div class="dashboard-stat__icon icon-box icon-box--success">
-                <app-icon name="user-group" size="28"></app-icon>
+          <div class="d-grid grid-cols-2 gap-2">
+            <div class="stat">
+              <div class="d-flex items-center gap-2 mb-1">
+                <div class="stat-icon stat-icon--medium icon-box--success flex-shrink-0">
+                  <app-icon name="user-group" size="28"></app-icon>
+                </div>
+                <p class="stat-value mb-0">{{ stats().activeWorkers }}</p>
               </div>
-              <div class="dashboard-stat__content">
-                <span class="stat-value">{{ stats().activeWorkers }}</span>
-                <span class="stat-label">Active Workers</span>
-              </div>
+              <p class="stat-label mb-0">Active Workers</p>
             </div>
-            <div class="dashboard-stat">
-              <div class="dashboard-stat__icon icon-box icon-box--info">
-                <app-icon name="user" size="28"></app-icon>
+            <div class="stat">
+              <div class="d-flex items-center gap-2 mb-1">
+                <div class="stat-icon stat-icon--medium icon-box--info flex-shrink-0">
+                  <app-icon name="user" size="28"></app-icon>
+                </div>
+                <p class="stat-value mb-0">{{ stats().activeVisitors }}</p>
               </div>
-              <div class="dashboard-stat__content">
-                <span class="stat-value">{{ stats().activeVisitors }}</span>
-                <span class="stat-label">Active Visitors</span>
-              </div>
+              <p class="stat-label mb-0">Active Visitors</p>
             </div>
-            <div class="dashboard-stat">
-              <div class="dashboard-stat__icon icon-box icon-box--warning">
-                <app-icon name="trend-up" size="28"></app-icon>
+            <div class="stat">
+              <div class="d-flex items-center gap-2 mb-1">
+                <div class="stat-icon stat-icon--medium icon-box--warning flex-shrink-0">
+                  <app-icon name="trend-up" size="28"></app-icon>
+                </div>
+                <p class="stat-value mb-0">{{ stats().todayTotal }}</p>
               </div>
-              <div class="dashboard-stat__content">
-                <span class="stat-value">{{ stats().todayTotal }}</span>
-                <span class="stat-label">Today's Total</span>
-              </div>
+              <p class="stat-label mb-0">Today's Total</p>
             </div>
-            <div class="dashboard-stat">
-              <div class="dashboard-stat__icon icon-box icon-box--neutral">
-                <app-icon name="clock" size="28"></app-icon>
+            <div class="stat">
+              <div class="d-flex items-center gap-2 mb-1">
+                <div class="stat-icon stat-icon--medium icon-box--neutral flex-shrink-0">
+                  <app-icon name="clock" size="28"></app-icon>
+                </div>
+                <p class="stat-value mb-0">{{ stats().activeTotal }}</p>
               </div>
-              <div class="dashboard-stat__content">
-                <span class="stat-value">{{ stats().activeTotal }}</span>
-                <span class="stat-label">Currently Active</span>
-              </div>
+              <p class="stat-label mb-0">Currently Active</p>
             </div>
           </div>
         </section>
 
-        <section class="dashboard-actions">
-          <a class="dashboard-action" routerLink="/labour-registration">
-            <div class="action-icon icon-box icon-box--success">
+        <section class="d-grid grid-cols-2 gap-2">
+          <a class="action" routerLink="/labour-registration">
+            <div class="action-icon icon-box icon-box--success flex-shrink-0">
               <app-icon name="user-group" size="28"></app-icon>
             </div>
-            <span class="action-label">Register Labour</span>
+            <span class="text-label font-semibold">Register Labour</span>
           </a>
-          <a class="dashboard-action" routerLink="/visitor-registration">
-            <div class="action-icon icon-box icon-box--info">
+          <a class="action" routerLink="/visitor-registration">
+            <div class="action-icon icon-box icon-box--info flex-shrink-0">
               <app-icon name="user" size="28"></app-icon>
             </div>
-            <span class="action-label">Register Visitor</span>
+            <span class="text-label font-semibold">Register Visitor</span>
           </a>
-          <a class="dashboard-action" routerLink="/entry-exit">
-            <div class="action-icon icon-box icon-box--neutral">
+          <a class="action" routerLink="/entry-exit">
+            <div class="action-icon icon-box icon-box--neutral flex-shrink-0">
               <app-icon name="entry" size="28"></app-icon>
             </div>
-            <span class="action-label">Entry/Exit</span>
+            <span class="text-label font-semibold">Entry/Exit</span>
           </a>
-          <a class="dashboard-action" routerLink="/reports">
-            <div class="action-icon icon-box icon-box--warning">
+          <a class="action" routerLink="/reports">
+            <div class="action-icon icon-box icon-box--warning flex-shrink-0">
               <app-icon name="report-trend" size="28"></app-icon>
             </div>
-            <span class="action-label">Reports</span>
+            <span class="text-label font-semibold">Reports</span>
           </a>
         </section>
-        <section class="dashboard-footer" style="margin-top:24px;">
-          <button class="btn btn-danger" type="button" (click)="logout()">
+        <section class="d-flex justify-center mt-3">
+          <button class="btn btn-danger w-full" type="button" (click)="logout()" style="max-width: 360px;">
             <app-icon name="logout" size="20"></app-icon>
             <span>Logout</span>
           </button>
         </section>
       </ng-container>
       <ng-template #noProjectState>
-        <section class="dashboard-hero card">
-          <div class="dashboard-hero__top">
-            <div class="profile-details">
-              <h2 class="profile-name">Project not assigned</h2>
-              <div class="profile-meta">{{ noProjectMessage }}</div>
+        <section class="hero card">
+          <div class="d-flex flex-column gap-2">
+            <div>
+              <h2 class="page-title mb-1">Project not assigned</h2>
+              <p class="page-subtitle mb-0">{{ noProjectMessage }}</p>
             </div>
           </div>
         </section>
-        <section class="dashboard-footer" style="margin-top:24px;">
-          <button class="btn btn-danger" type="button" (click)="logout()">
+        <section class="d-flex justify-center mt-3">
+          <button class="btn btn-danger w-full" type="button" (click)="logout()" style="max-width: 360px;">
             <app-icon name="logout" size="20"></app-icon>
             <span>Logout</span>
           </button>

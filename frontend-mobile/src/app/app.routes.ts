@@ -16,11 +16,6 @@ export const routes: Routes = [
     canActivate: [authGuard],
     loadComponent: () => import('./features/dashboard/dashboard.component').then(m => m.DashboardComponent)
   },
-  // {
-  //   path: 'profile',
-  //   canActivate: [authGuard],
-  //   loadComponent: () => import('./features/guard-profile/guard-profile.component').then(m => m.GuardProfileComponent)
-  // },
   {
     path: 'labour-registration',
     canActivate: [authGuard, projectAssignedGuard],
@@ -34,17 +29,7 @@ export const routes: Routes = [
   {
     path: 'entry-exit',
     canActivate: [authGuard, projectAssignedGuard],
-    loadChildren: () => import('./features/entry-exit/entry-exit.routes').then(m => m.ENTRY_EXIT_ROUTES)
-  },
-  {
-    path: 'today-summary',
-    canActivate: [authGuard, projectAssignedGuard],
-    loadComponent: () => import('./features/today-summary/today-summary.component').then(m => m.TodaySummaryComponent)
-  },
-  {
-    path: 'search',
-    canActivate: [authGuard, projectAssignedGuard],
-    loadComponent: () => import('./features/search/search.component').then(m => m.SearchComponent)
+    loadComponent: () => import('./features/entry-exit/entry-exit.component').then(m => m.EntryExitComponent)
   },
   {
     path: 'reports',

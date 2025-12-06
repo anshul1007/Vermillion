@@ -43,7 +43,7 @@ import { LocalImageService } from '../../../../core/services/local-image.service
                   </div>
                 </ng-template>
               </div>
-              <div class="photo-info">
+              <div class="text-center">
                 <p class="photo-name">{{ item.name }}</p>
                 <p class="photo-details">{{ item.phoneNumber || '-' }}</p>
                 <p class="photo-details" *ngIf="item.barcode">{{ item.barcode }}</p>

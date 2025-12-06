@@ -10,10 +10,10 @@ import { debounceTime } from 'rxjs/operators';
   standalone: true,
   imports: [CommonModule, FormsModule, IconComponent],
   template: `
-    <div class="entry-exit-search card">
-      <div class="entry-exit-search__body">
-        <div class="entry-exit-search__row">
-          <div class="entry-exit-search__field">
+    <div class="search card">
+      <div class="search__body">
+        <div class="search__row">
+          <div class="search__field">
             <label class="sr-only" for="entry-exit-search-term">Search term</label>
             <input
               id="entry-exit-search-term"
@@ -24,13 +24,13 @@ import { debounceTime } from 'rxjs/operators';
               (ngModelChange)="onInput($event)"
               [placeholder]="placeholder"
               (keyup.enter)="searchPerson.emit()"
-              class="entry-exit-search__input"
+              class="search__input"
             />
           </div>
-          <div class="entry-exit-search__primary">
+            <div class="search__primary">
             <button
               type="button"
-              class="btn entry-exit-search__btn"
+              class="btn search__btn"
               (click)="searchPerson.emit()"
               [disabled]="disabled"
             >
@@ -39,7 +39,7 @@ import { debounceTime } from 'rxjs/operators';
             </button>
             <button
               type="button"
-              class="btn btn-ghost entry-exit-search__btn"
+              class="btn btn-ghost search__btn"
               (click)="searchContractor.emit()"
               [disabled]="disabled"
             >
@@ -49,7 +49,7 @@ import { debounceTime } from 'rxjs/operators';
           </div>
         </div>
 
-        <div class="entry-exit-search__quick">
+        <div class="search__quick">
           <button type="button" class="chip-button" (click)="scan.emit()" [disabled]="disabled">
             <app-icon name="barcode" size="16"></app-icon>
             <span>Scan Barcode</span>

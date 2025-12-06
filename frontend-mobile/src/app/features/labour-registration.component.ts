@@ -18,34 +18,34 @@ import { BarcodeButtonComponent } from '../shared/components/barcode-button.comp
   standalone: true,
   imports: [CommonModule, FormsModule, BarcodeButtonComponent],
   template: `
-    <div class="labour-registration-page">
-      <div class="scan-toast" *ngIf="notifier.successMessage() || notifier.errorMessage()">
+    <div class="page">
+      <!-- <div class="scan-toast" *ngIf="notifier.successMessage() || notifier.errorMessage()">
         <div class="toast success" *ngIf="notifier.successMessage()">
           {{ notifier.successMessage() }}
         </div>
         <div class="toast error" *ngIf="notifier.errorMessage()">{{ notifier.errorMessage() }}</div>
-      </div>
-      <section class="registration-hero card">
-        <div class="registration-hero__heading">
-          <h1>Register Labour</h1>
+      </div> -->
+      <section class="hero card">
+        <div class="d-flex flex-column gap-1">
+          <h1 class="page-title mb-0">Register Labour</h1>
           <ng-container *ngIf="currentProjectId(); else noProjectTpl">
-            <p class="registration-hero__sub">
+            <p class="page-subtitle mb-0">
               {{ currentProjectName() || 'Assigned project' }}
             </p>
           </ng-container>
           <ng-template #noProjectTpl>
-            <p class="registration-hero__sub text-muted">No project assigned</p>
+            <p class="page-subtitle mb-0">No project assigned</p>
           </ng-template>
         </div>
       </section>
 
-      <section class="registration-card card" *ngIf="!loading(); else loadingTpl">
+      <section class="card" *ngIf="!loading(); else loadingTpl">
         <div class="form-message error" *ngIf="!currentProjectId()">
           Project not assigned. Please contact your administrator.
         </div>
-        <form *ngIf="currentProjectId()" (ngSubmit)="submit()" class="registration-form">
+        <form *ngIf="currentProjectId()" (ngSubmit)="submit()" class="form">
           <label class="form-field">
-            <span>Contractor *</span>
+            <span class="text-label mb-1">Contractor *</span>
             <select
               [(ngModel)]="contractorId"
               name="contractor"
@@ -59,7 +59,7 @@ import { BarcodeButtonComponent } from '../shared/components/barcode-button.comp
           </label>
 
           <label class="form-field">
-            <span>Labour Name *</span>
+            <span class="text-label mb-1">Labour Name *</span>
             <input
               [(ngModel)]="name"
               placeholder="Enter labour name"
@@ -73,12 +73,14 @@ import { BarcodeButtonComponent } from '../shared/components/barcode-button.comp
           <div class="form-field ocr-actions">
             <button
               type="button"
-              class="btn btn-outline"
+              class="btn btn-outline btn-field-action"
               (click)="scanAadhar()"
               [disabled]="ocrInProgress() || submitting()"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
+                width="20"
+                height="20"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -100,7 +102,7 @@ import { BarcodeButtonComponent } from '../shared/components/barcode-button.comp
           </div>
 
           <label class="form-field">
-            <span>Classification *</span>
+            <span class="text-label mb-1">Classification *</span>
             <select
               [(ngModel)]="classification"
               name="classification"
@@ -114,7 +116,7 @@ import { BarcodeButtonComponent } from '../shared/components/barcode-button.comp
           </label>
 
           <label class="form-field">
-            <span>Phone Number *</span>
+            <span class="text-label mb-1">Phone Number *</span>
             <input
               [(ngModel)]="phone"
               placeholder="Enter phone number"
@@ -127,7 +129,7 @@ import { BarcodeButtonComponent } from '../shared/components/barcode-button.comp
           </label>
 
           <label class="form-field">
-            <span>Aadhar Number *</span>
+            <span class="text-label mb-1">Aadhar Number *</span>
             <input
               [(ngModel)]="aadharNumber"
               placeholder="Enter Aadhar number (12 digits)"
@@ -140,7 +142,7 @@ import { BarcodeButtonComponent } from '../shared/components/barcode-button.comp
           </label>
 
           <label class="form-field">
-            <span>PAN Number</span>
+            <span class="text-label mb-1">PAN Number</span>
             <input
               [(ngModel)]="panNumber"
               placeholder="Enter PAN (optional)"
@@ -152,7 +154,7 @@ import { BarcodeButtonComponent } from '../shared/components/barcode-button.comp
           </label>
 
           <label class="form-field">
-            <span>Address *</span>
+            <span class="text-label mb-1">Address *</span>
             <input
               [(ngModel)]="address"
               placeholder="Enter address"
@@ -164,7 +166,7 @@ import { BarcodeButtonComponent } from '../shared/components/barcode-button.comp
           </label>
 
           <div class="form-field">
-            <span>Barcode ID *</span>
+            <span class="text-label mb-1">Barcode ID *</span>
             <div class="form-inline">
               <input
                 [(ngModel)]="barcode"
@@ -182,10 +184,12 @@ import { BarcodeButtonComponent } from '../shared/components/barcode-button.comp
           </div>
 
           <div class="form-field">
-            <span>Photo *</span>
-            <button type="button" class="btn btn-outline" (click)="takePhoto()">
+            <span class="text-label mb-1">Photo *</span>
+            <button type="button" class="btn btn-outline btn-field-action" (click)="takePhoto()">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
+                width="20"
+                height="20"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -231,8 +235,8 @@ import { BarcodeButtonComponent } from '../shared/components/barcode-button.comp
       </section>
 
       <ng-template #loadingTpl>
-        <section class="registration-card card">
-          <p class="registration-loading">Loading contractors...</p>
+        <section class="card">
+          <p class="loading">Loading contractors...</p>
         </section>
       </ng-template>
     </div>
