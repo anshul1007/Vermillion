@@ -10,18 +10,17 @@ import { EntryExitSearchStore } from '../../state/entry-exit-search.store';
   standalone: true,
   imports: [CommonModule, EntryExitPersonCardComponent],
   template: `
-    <div class="results" *ngIf="results?.length">
-      <div class="results__header">
+    <ng-container *ngIf="results?.length">
+      <div class="records__header">
         <div>
-          <h4 class="results__title">Multiple matches found</h4>
-          <p class="results__hint">Select the right person to continue.</p>
+          <h4 class="labour-results-title">Multiple matches found</h4>
+          <p class="labour-results-subtitle">Select the right person to continue.</p>
         </div>
-        <span class="results__count">{{ results?.length }} total</span>
+        <span class="records__count">{{ results?.length }} total</span>
       </div>
-      <div class="results__list" role="list">
+      <div class="labour-list" role="list">
         <app-entry-exit-person-card
           *ngFor="let r of results; trackBy: trackById"
-          class="results__person"
           [person]="r"
           [imageSrc]="store.resolvePersonImage(r)"
           [showCheckbox]="false"
@@ -34,7 +33,7 @@ import { EntryExitSearchStore } from '../../state/entry-exit-search.store';
           (keydown.space)="onSelect(r, $event)"
         ></app-entry-exit-person-card>
       </div>
-    </div>
+    </ng-container>
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

@@ -48,11 +48,8 @@ interface Statistics {
     <div class="page">
       <ng-container *ngIf="currentProjectId(); else noProjectState">
         <section class="hero card">
-          <div class="d-flex flex-column gap-1 mb-2">
+          <div class="d-flex flex-column gap-1">
             <h1 class="page-title mb-0">Entry & Exit Reports</h1>
-            <p class="page-subtitle mb-0" *ngIf="currentProjectName()">
-              {{ currentProjectName() }}
-            </p>
           </div>
 
           <div class="d-flex flex-wrap gap-2">

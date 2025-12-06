@@ -109,7 +109,7 @@ import { RawEntryExitRecordDto } from '../../core/models/entry-exit.model';
           </a>
         </section>
         <section class="d-flex justify-center mt-3">
-          <button class="btn btn-danger w-full" type="button" (click)="logout()" style="max-width: 360px;">
+          <button class="btn btn-danger w-full" type="button" (click)="logout()">
             <app-icon name="logout" size="20"></app-icon>
             <span>Logout</span>
           </button>
@@ -125,7 +125,7 @@ import { RawEntryExitRecordDto } from '../../core/models/entry-exit.model';
           </div>
         </section>
         <section class="d-flex justify-center mt-3">
-          <button class="btn btn-danger w-full" type="button" (click)="logout()" style="max-width: 360px;">
+          <button class="btn btn-danger w-full" type="button" (click)="logout()">
             <app-icon name="logout" size="20"></app-icon>
             <span>Logout</span>
           </button>

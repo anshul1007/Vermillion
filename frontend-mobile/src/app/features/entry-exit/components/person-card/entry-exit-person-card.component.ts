@@ -1,4 +1,13 @@
-import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output, SimpleChanges, signal, inject } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  EventEmitter,
+  Input,
+  Output,
+  SimpleChanges,
+  signal,
+  inject,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { IconComponent } from '../../../../shared/icon/icon.component';
 import { ResolvePhotoDirective } from '../../../../core/directives/resolve-photo.directive';
@@ -12,26 +21,50 @@ import { PersonSearchResult } from '../../entry-exit.models';
   template: `
     <ng-container *ngIf="person">
       <ng-template #content>
-        <div class="labour-card" [class.labour-card--selected]="isSelected" [class.labour-card--disabled]="disabled">
-          <div
-            class="labour-card__status"
-            [ngClass]="person.hasOpenEntry ? 'labour-card__status--active' : 'labour-card__status--inactive'"
-            aria-hidden="true"
-          >
+        <div
+          class="labour-card"
+          [class.labour-card--selected]="isSelected"
+          [class.labour-card--disabled]="disabled"
+        >
+          <div class="labour-card__photo-section">
             <ng-container *ngIf="effectiveImage(); else iconTpl">
               <div class="labour-card__avatar">
                 <img [src]="effectiveImage()" [alt]="'Photo of ' + person.name" appResolvePhoto />
               </div>
             </ng-container>
             <ng-template #iconTpl>
-              <app-icon [name]="person.personType === 'Labour' ? 'user-group' : 'user'" size="20"></app-icon>
+              <div
+                class="labour-card__status"
+                [ngClass]="
+                  person.hasOpenEntry
+                    ? 'labour-card__status--active'
+                    : 'labour-card__status--inactive'
+                "
+                aria-hidden="true"
+              >
+                <app-icon
+                  [name]="person.personType === 'Labour' ? 'user-group' : 'user'"
+                  size="20"
+                ></app-icon>
+              </div>
             </ng-template>
+
+            <span
+              class="type-badge"
+              [class.labour]="person.personType === 'Labour'"
+              [class.visitor]="person.personType === 'Visitor'"
+            >
+              {{ person.personType }}
+            </span>
           </div>
 
           <div class="labour-card__details">
             <div class="labour-card__heading">
               <span class="labour-card__name">{{ person.name }}</span>
-              <span class="labour-card__state" [class.labour-card__state--active]="person.hasOpenEntry">
+              <span
+                class="labour-card__state"
+                [class.labour-card__state--active]="person.hasOpenEntry"
+              >
                 <app-icon name="record-circle" size="18"></app-icon>
                 <span>{{ person.hasOpenEntry ? 'Active' : 'Offline' }}</span>
               </span>
@@ -69,7 +102,12 @@ import { PersonSearchResult } from '../../entry-exit.models';
 
         <div class="labour-card__actions" *ngIf="showActions">
           <ng-container *ngIf="person.hasOpenEntry; else entryBtn">
-            <button class="btn btn-exit" type="button" (click)="logExit.emit()" [disabled]="submitting">
+            <button
+              class="btn btn-exit"
+              type="button"
+              (click)="logExit.emit()"
+              [disabled]="submitting"
+            >
               <span *ngIf="submitting; else exitText">Logging Exit...</span>
               <ng-template #exitText>Log Exit</ng-template>
             </button>
@@ -96,7 +134,7 @@ import { PersonSearchResult } from '../../entry-exit.models';
       </ng-template>
     </ng-container>
   `,
-  changeDetection: ChangeDetectionStrategy.OnPush
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class EntryExitPersonCardComponent {
   @Input() person: PersonSearchResult | null = null;

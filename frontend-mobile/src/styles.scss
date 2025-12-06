@@ -106,6 +106,10 @@ b {
 /* ========================================
    MIXINS
    ======================================== */
+/*
+ * Reusable SCSS mixins for common component patterns
+ * Reduces code duplication and ensures consistency across components
+ */
 
 /* Common vertical stack layout */
 @mixin stack-layout($gap: $space-2) {
@@ -124,6 +128,7 @@ b {
   align-items: center;
   justify-content: center;
   color: $bg-color;
+  flex-shrink: 0;
 }
 
 /* Common card item title */
@@ -140,6 +145,41 @@ b {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
+}
+
+/* Base card component mixin */
+@mixin card-base {
+  display: flex;
+  flex-direction: column;
+  padding: 1rem;
+  border-radius: 14px;
+  background: $card-bg;
+  border: 1px solid $muted-border;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+/* Card interactive states */
+@mixin card-interactive {
+  cursor: pointer;
+
+  &:hover,
+  &:focus-within {
+    border-color: rgba($primary, 0.55);
+    background: rgba($primary, 0.05);
+  }
+}
+
+/* Modal section base */
+@mixin modal-section {
+  padding: 1.5rem;
+  display: flex;
+}
+
+/* Header with icon and meta pattern */
+@mixin header-with-icon {
+  display: flex;
+  align-items: center;
+  gap: $space-1;
 }
 
 /* ========================================
@@ -166,7 +206,8 @@ b {
 }
 
 /* Item title - List item, card item heading (h4) */
-.item-title {
+.item-title,
+.labour-card__name {
   @include card-item-title;
 }
 
@@ -419,7 +460,6 @@ b {
 }
 
 .page > .hero,
-.page > .hero-stats,
 .page > .messages,
 .page > .content,
 .page > .search,
@@ -444,12 +484,6 @@ b {
   display: flex;
   flex-direction: column;
   gap: $space-1;
-}
-
-.page > .hero-stats {
-  display: grid;
-  gap: $space-1;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
 }
 
 .app-main {
@@ -596,57 +630,63 @@ button,
   transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease;
   cursor: pointer;
   box-shadow: none;
+
+  /* Ensure app-icon is inline-flex for proper alignment */
+  app-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Ensure SVGs are properly aligned */
+  svg {
+    display: block;
+  }
+
+  &:hover {
+    background: color.mix($primary, #ffffff, 12%);
+  }
+
+  &:focus,
+  &:focus-visible {
+    background: $primary;
+    color: $card-bg;
+    outline: 2px solid rgba($primary, 0.4);
+    outline-offset: 2px;
+  }
+
+  &:active {
+    background: color.mix($primary, #000000, 6%);
+  }
+
+  &:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    pointer-events: none;
+    box-shadow: none;
+  }
 }
 
-.btn:hover {
-  background: color.mix($primary, #ffffff, 12%);
-}
-
-.btn:focus,
-.btn:focus-visible {
-  background: $primary;
-  color: $card-bg;
-  outline: 2px solid rgba($primary, 0.4);
-  outline-offset: 2px;
-}
-
-.btn:active {
-  background: color.mix($primary, #000000, 6%);
-}
-
-.btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-  pointer-events: none;
-  box-shadow: none;
-}
-
-.btn > svg + span,
-.btn > app-icon + span,
-.btn > .icon-box + span,
-.btn svg + span {
-  margin-left: 0.45rem;
-}
-
+/* Button variants - all inherit base .btn icon alignment */
 .btn-outline {
   background: transparent;
   color: $primary;
   border-color: rgba($primary, 0.45);
   box-shadow: none;
-}
 
-.btn-outline:hover:not(:disabled) {
-  background: rgba($primary, 0.08);
-  border-color: $primary;
-}
+  &:hover:not(:disabled) {
+    background: rgba($primary, 0.08);
+    border-color: $primary;
+  }
 
-.btn-outline:focus,
-.btn-outline:focus-visible {
-  background: transparent;
-  color: $primary;
-  border-color: $primary;
-  outline: 2px solid rgba($primary, 0.4);
-  outline-offset: 2px;
+  &:focus,
+  &:focus-visible {
+    background: transparent;
+    color: $primary;
+    border-color: $primary;
+    outline: 2px solid rgba($primary, 0.4);
+    outline-offset: 2px;
+  }
 }
 
 .btn-ghost {
@@ -654,19 +694,19 @@ button,
   color: $gray-700;
   border-color: transparent;
   box-shadow: none;
-}
 
-.btn-ghost:hover:not(:disabled) {
-  background: rgba($gray-500, 0.12);
-}
+  &:hover:not(:disabled) {
+    background: rgba($gray-500, 0.12);
+  }
 
-.btn-ghost:focus,
-.btn-ghost:focus-visible {
-  background: rgba($gray-500, 0.08);
-  color: $gray-700;
-  border-color: transparent;
-  outline: 2px solid rgba($gray-500, 0.4);
-  outline-offset: 2px;
+  &:focus,
+  &:focus-visible {
+    background: rgba($gray-500, 0.08);
+    color: $gray-700;
+    border-color: transparent;
+    outline: 2px solid rgba($gray-500, 0.4);
+    outline-offset: 2px;
+  }
 }
 
 .btn-primary {
@@ -674,63 +714,63 @@ button,
   color: $card-bg;
   border-color: transparent;
   box-shadow: none;
-}
 
-.btn-primary:hover:not(:disabled) {
-  background: color.mix($primary, #ffffff, 12%);
-}
+  &:hover:not(:disabled) {
+    background: color.mix($primary, #ffffff, 12%);
+  }
 
-.btn-primary:focus,
-.btn-primary:focus-visible {
-  background: $primary;
-  color: $card-bg;
-  border-color: transparent;
-  outline: 2px solid rgba($primary, 0.4);
-  outline-offset: 2px;
-}
+  &:focus,
+  &:focus-visible {
+    background: $primary;
+    color: $card-bg;
+    border-color: transparent;
+    outline: 2px solid rgba($primary, 0.4);
+    outline-offset: 2px;
+  }
 
-.btn-primary:active:not(:disabled) {
-  background: color.mix($primary, #000000, 6%);
+  &:active:not(:disabled) {
+    background: color.mix($primary, #000000, 6%);
+  }
 }
 
 .btn-secondary {
   background: $secondary;
   color: $card-bg;
   box-shadow: none;
-}
 
-.btn-secondary:hover:not(:disabled) {
-  background: color.mix($secondary, #000000, 8%);
-}
+  &:hover:not(:disabled) {
+    background: color.mix($secondary, #000000, 8%);
+  }
 
-.btn-secondary:focus,
-.btn-secondary:focus-visible {
-  background: $secondary;
-  color: $card-bg;
-  outline: 2px solid rgba($secondary, 0.4);
-  outline-offset: 2px;
-}
+  &:focus,
+  &:focus-visible {
+    background: $secondary;
+    color: $card-bg;
+    outline: 2px solid rgba($secondary, 0.4);
+    outline-offset: 2px;
+  }
 
-.btn-secondary:active:not(:disabled) {
-  background: color.mix($secondary, #000000, 12%);
+  &:active:not(:disabled) {
+    background: color.mix($secondary, #000000, 12%);
+  }
 }
 
 .btn-danger {
   background: $danger-strong;
+  color: $card-bg;
   box-shadow: none;
-  color: $card-bg;
-}
 
-.btn-danger:hover:not(:disabled) {
-  background: color.mix($danger-strong, #000000, 8%);
-}
+  &:hover:not(:disabled) {
+    background: color.mix($danger-strong, #000000, 8%);
+  }
 
-.btn-danger:focus,
-.btn-danger:focus-visible {
-  background: $danger-strong;
-  color: $card-bg;
-  outline: 2px solid rgba($danger-strong, 0.4);
-  outline-offset: 2px;
+  &:focus,
+  &:focus-visible {
+    background: $danger-strong;
+    color: $card-bg;
+    outline: 2px solid rgba($danger-strong, 0.4);
+    outline-offset: 2px;
+  }
 }
 
 .btn-exit {
@@ -738,18 +778,18 @@ button,
   color: $card-bg;
   border: none;
   box-shadow: none;
-}
 
-.btn-exit:hover:not(:disabled) {
-  background: $red-600;
-}
+  &:hover:not(:disabled) {
+    background: $red-600;
+  }
 
-.btn-exit:focus,
-.btn-exit:focus-visible {
-  background: $red-500;
-  color: $card-bg;
-  outline: 2px solid rgba($red-500, 0.4);
-  outline-offset: 2px;
+  &:focus,
+  &:focus-visible {
+    background: $red-500;
+    color: $card-bg;
+    outline: 2px solid rgba($red-500, 0.4);
+    outline-offset: 2px;
+  }
 }
 
 .btn-field-action {
@@ -757,8 +797,46 @@ button,
   justify-content: center;
 }
 
+/* Primary action - Most common user action, visually prominent */
 .primary-action {
   min-width: 200px;
+  font-weight: 700;
+  font-size: 1rem;
+  padding: 0.75rem 1.25rem;
+  box-shadow: 0 2px 8px rgba($primary, 0.25);
+
+  &:hover:not(:disabled) {
+    box-shadow: 0 4px 12px rgba($primary, 0.35);
+    transform: translateY(-1px);
+    transition: all 0.2s ease;
+  }
+
+  &:active:not(:disabled) {
+    transform: translateY(0);
+    box-shadow: 0 1px 4px rgba($primary, 0.3);
+  }
+}
+
+/* Secondary action - Alternative action, less prominent */
+.secondary-action {
+  background: transparent;
+  color: $primary;
+  border-color: rgba($primary, 0.3);
+  font-weight: 600;
+
+  &:hover:not(:disabled) {
+    background: rgba($primary, 0.06);
+    border-color: rgba($primary, 0.5);
+  }
+
+  &:focus,
+  &:focus-visible {
+    background: transparent;
+    color: $primary;
+    border-color: $primary;
+    outline: 2px solid rgba($primary, 0.4);
+    outline-offset: 2px;
+  }
 }
 
 .btn-close {
@@ -785,17 +863,41 @@ button,
    ICON BOX
    ======================================== */
 
+/* Base icon boxes (48px) */
 .icon-box,
 .stat-icon {
   @include icon-box-base(48px, $primary, 0.12);
+
+  svg {
+    width: 24px;
+    height: 24px;
+  }
 }
 
-.icon-box svg,
-.stat-icon svg {
-  width: 24px;
-  height: 24px;
+/* Medium icon boxes (44px) */
+.action-icon,
+.labour-card__status,
+.labour-results-icon {
+  @include icon-box-base(44px, $primary, 0.12);
+
+  svg {
+    width: 22px;
+    height: 22px;
+  }
 }
 
+/* Specialized labor results icon color */
+.labour-results-icon {
+  background: rgba($blue-500, 0.14);
+  color: $blue-500;
+
+  svg {
+    width: 26px;
+    height: 26px;
+  }
+}
+
+/* Color modifiers for icon boxes */
 .icon-box--success,
 .labour-card__status--active {
   background: rgba($success, 0.14);
@@ -866,34 +968,6 @@ button,
   color: $muted;
   margin: 0;
 }
-
-.hero-stat {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  padding: 1rem;
-  border-radius: 14px;
-  background: $card-bg;
-  border: 1px solid $muted-border;
-}
-
-.hero-stat .label {
-  font-size: 0.85rem;
-  color: $muted;
-  font-weight: 500;
-}
-
-.hero-stat .value {
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: $gray-dark;
-}
-
-.hero-stat .value.subtle {
-  color: $muted;
-  font-size: 1.2rem;
-}
-
 /* ========================================
    ACTIONS & ACTION CARDS
    ======================================== */
@@ -928,17 +1002,6 @@ button,
   background: rgba($primary, 0.05);
 }
 
-.action-icon,
-.labour-card__status {
-  @include icon-box-base(44px, $primary, 0.12);
-  flex-shrink: 0;
-}
-
-.action-icon svg,
-.labour-card__status svg {
-  width: 22px;
-  height: 22px;
-}
 
 /* ========================================
    DASHBOARD
@@ -967,40 +1030,53 @@ button,
   color: $primary;
   font-weight: 600;
   cursor: pointer;
+  font-size: 12px;
   transition: border-color 0.16s ease, background 0.16s ease;
-}
 
-.chip-button:hover:not(:disabled) {
-  background: rgba($primary, 0.12);
-  border-color: $primary;
-}
+  /* Ensure app-icon is inline-flex for proper alignment */
+  app-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
 
-.chip-button:focus,
-.chip-button:focus-visible {
-  outline: 2px solid rgba($primary, 0.4);
-  outline-offset: 2px;
-}
+  /* Ensure SVGs are properly aligned */
+  svg {
+    display: block;
+  }
 
-.chip-button.is-active {
-  background: $primary;
-  color: $card-bg;
-  border-color: $primary;
-  box-shadow: none;
-}
+  &:hover:not(:disabled) {
+    background: rgba($primary, 0.12);
+    border-color: $primary;
+  }
 
-.chip-button.is-active:focus,
-.chip-button.is-active:focus-visible {
-  background: $primary;
-  color: $card-bg;
-  border-color: $primary;
-  outline: 2px solid rgba($primary, 0.4);
-  outline-offset: 2px;
-}
+  &:focus,
+  &:focus-visible {
+    outline: 2px solid rgba($primary, 0.4);
+    outline-offset: 2px;
+  }
 
-.chip-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  box-shadow: none;
+  &.is-active {
+    background: $primary;
+    color: $card-bg;
+    border-color: $primary;
+    box-shadow: none;
+
+    &:focus,
+    &:focus-visible {
+      background: $primary;
+      color: $card-bg;
+      border-color: $primary;
+      outline: 2px solid rgba($primary, 0.4);
+      outline-offset: 2px;
+    }
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    box-shadow: none;
+  }
 }
 
 /* ========================================
@@ -1049,65 +1125,82 @@ header.app-header {
   box-shadow: 0 8px 24px rgba($header-blue, 0.12);
 }
 
-.app-header__inner,
-.app-header__brand {
-  display: flex;
-  align-items: center;
-  gap: $space-1;
-}
+.app-header {
+  &__inner,
+  &__brand {
+    @include header-with-icon;
+  }
 
-.app-header__inner {
-  justify-content: space-between;
-}
+  &__inner {
+    justify-content: space-between;
+  }
 
-.app-header__brand {
-  min-width: 0;
-}
+  &__brand {
+    min-width: 0;
+  }
 
-.app-header__icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.16);
-  color: $card-bg;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
+  &__icon {
+    @include icon-box-base(48px, #fff, 0.16);
+    color: $card-bg;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
 
-.app-header__icon svg {
-  width: 26px;
-  height: 26px;
-}
+    svg {
+      width: 26px;
+      height: 26px;
+    }
 
-.app-header__brand-meta {
-  display: flex;
-  flex-direction: column;
-  gap: 0.125rem;
-}
+    @media (max-width: 767px) {
+      width: 42px;
+      height: 42px;
+    }
+  }
 
-.app-header__title {
-  font-size: 1.3rem;
-  font-weight: 600;
-  color: $card-bg;
-  margin: 0;
-  line-height: 1.3;
-}
+  &__brand-meta {
+    @include stack-layout(0.125rem);
+  }
 
-.app-header__subtitle {
-  font-size: 0.85rem;
-  color: $header-text-muted;
-  margin: 0;
-  line-height: 1.5;
-}
+  &__title {
+    font-size: 1.3rem;
+    font-weight: 600;
+    color: $card-bg;
+    margin: 0;
+    line-height: 1.3;
 
-.app-header__actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  flex-wrap: wrap;
-  gap: $space-1;
+    @media (max-width: 767px) {
+      font-size: 1.12rem;
+    }
+  }
+
+  &__subtitle {
+    font-size: 0.85rem;
+    color: $header-text-muted;
+    margin: 0;
+    line-height: 1.5;
+  }
+
+  &__actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: $space-1;
+
+    .btn {
+      min-height: 40px;
+      padding: 10px 14px;
+      font-size: 0.95rem;
+
+      &.btn-outline {
+        border-color: rgba(255, 255, 255, 0.6);
+        color: $card-bg;
+      }
+
+      @media (max-width: 767px) {
+        font-size: 0.85rem;
+        padding: 9px 12px;
+      }
+    }
+  }
 }
 
 .company {
@@ -1115,47 +1208,9 @@ header.app-header {
   align-items: center;
 }
 
-.app-header__actions .btn {
-  min-height: 40px;
-  padding: 10px 14px;
-  font-size: 0.95rem;
-}
-
-.app-header__actions .btn.btn-outline {
-  border-color: rgba(255, 255, 255, 0.6);
-  color: $card-bg;
-}
-
-@media (max-width: 767px) {
-  .app-header__icon {
-    width: 42px;
-    height: 42px;
-  }
-
-  .app-header__title {
-    font-size: 1.12rem;
-  }
-
-  .app-header__actions .btn {
-    font-size: 0.85rem;
-    padding: 9px 12px;
-  }
-}
-
 /* ========================================
    TOASTS & NOTIFICATIONS
    ======================================== */
-
-.scan-toast {
-  position: fixed;
-  top: $space-2;
-  right: $space-2;
-  z-index: 1200;
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
 .toast {
   padding: 0.85rem 1rem;
   border-radius: 12px;
@@ -1243,12 +1298,13 @@ header.app-header {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0.25rem 0.75rem;
+  padding: 0.2rem 0.65rem;
   border-radius: 999px;
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   font-weight: 600;
   background: rgba($gray-500, 0.18);
   color: $gray-600;
+  white-space: nowrap;
 }
 
 .type-badge.labour {
@@ -1282,14 +1338,30 @@ header.app-header {
 }
 
 /* ========================================
-   RECORDS
+   RECORDS & RESULTS HEADERS
    ======================================== */
 
-.records__header {
+.records__header,
+.labour-results-header {
   display: flex;
-  align-items: center;
   justify-content: space-between;
+  gap: $space-2;
+  flex-wrap: wrap;
+}
+
+.records__header {
+  align-items: center;
   gap: $space-1;
+}
+
+.labour-results-header {
+  align-items: flex-start;
+  margin-bottom: 0.75rem;
+
+  @media (max-width: 640px) {
+    flex-direction: column;
+    align-items: stretch;
+  }
 }
 
 .records__count {
@@ -1297,41 +1369,14 @@ header.app-header {
   color: $gray-text-light;
 }
 
-/* ========================================
-   LABOUR RESULTS
-   ======================================== */
-
-.labour-results-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: $space-2;
-  flex-wrap: wrap;
-  margin-bottom: 0.75rem;
-}
-
 .labour-results-meta {
-  display: flex;
-  align-items: center;
-  gap: $space-1;
+  @include header-with-icon;
   min-width: 0;
   flex: 1 1 auto;
-}
 
-.labour-results-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 14px;
-  background: rgba($blue-500, 0.14);
-  color: $blue-500;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.labour-results-icon svg {
-  width: 26px;
-  height: 26px;
+  @media (max-width: 640px) {
+    align-items: flex-start;
+  }
 }
 
 .labour-results-title {
@@ -1375,25 +1420,34 @@ header.app-header {
   border-radius: 14px;
   background: $gray-50;
   transition: border-color 0.2s ease, background 0.2s ease;
-  cursor: pointer;
   width: 100%;
   box-sizing: border-box;
+
+  &:not(&--disabled) {
+    @include card-interactive;
+  }
+
+  &--selected {
+    border-color: $primary;
+    background: rgba($primary, 0.08);
+  }
+
+  &--disabled {
+    cursor: not-allowed;
+    opacity: 0.8;
+  }
+
+  @media (max-width: 640px) {
+    padding: 0.75rem;
+  }
 }
 
-.labour-card:not(.labour-card--disabled):hover,
-.labour-card:not(.labour-card--disabled):focus-within {
-  border-color: rgba($primary, 0.55);
-  background: rgba($primary, 0.05);
-}
-
-.labour-card--selected {
-  border-color: $primary;
-  background: rgba($primary, 0.08);
-}
-
-.labour-card--disabled {
-  cursor: not-allowed;
-  opacity: 0.8;
+.labour-card__photo-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
 }
 
 .labour-card__avatar {
@@ -1424,10 +1478,6 @@ header.app-header {
   align-items: center;
   flex-wrap: wrap;
   gap: 0.5rem;
-}
-
-.labour-card__name {
-  @include card-item-title;
 }
 
 .labour-card__state {
@@ -1464,11 +1514,20 @@ header.app-header {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-}
 
-.labour-card__meta-item svg {
-  width: 16px;
-  height: 16px;
+  /* Ensure app-icon is inline-flex for proper alignment */
+  app-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Ensure SVGs are properly aligned */
+  svg {
+    display: block;
+    width: 16px;
+    height: 16px;
+  }
 }
 
 .labour-card__checkbox {
@@ -1540,62 +1599,51 @@ header.app-header {
   }
 }
 
-@media (max-width: 640px) {
-  .labour-results-header {
-    flex-direction: column;
-    align-items: stretch;
-    gap: $space-2;
-  }
-
-  .labour-results-meta {
-    align-items: flex-start;
-  }
-
-  .labour-card {
-    padding: 0.75rem;
-  }
-}
 
 /* ========================================
    SEARCH
    ======================================== */
 
-.search__row {
-  display: flex;
-  flex-direction: column;
-  gap: $space-1;
-}
-
-@media (min-width: 640px) {
-  .search__row {
-    flex-direction: row;
-    align-items: flex-end;
-    justify-content: space-between;
+.search {
+  &__body {
+    @include stack-layout($space-2);
   }
-}
 
-.search__field,
-.search__btn {
-  flex: 1 1 auto;
-}
+  &__row {
+    display: flex;
+    flex-direction: column;
+    gap: $space-1;
 
-.search__input {
-  width: 100%;
-  padding: 0.75rem 1rem;
-  border: 2px solid $slate-200;
-  border-radius: 0.75rem;
-  font-size: 1rem;
-  transition: border-color 0.2s ease;
-}
+    @media (min-width: 640px) {
+      flex-direction: row;
+      align-items: flex-end;
+      justify-content: space-between;
+    }
+  }
 
-.search__input:focus {
-  outline: none;
-  border-color: $blue-400;
-}
+  &__field,
+  &__btn {
+    flex: 1 1 auto;
+  }
 
-.search__primary,
-.search__quick {
-  @include flex-wrapper;
+  &__input {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: 2px solid $slate-200;
+    border-radius: 0.75rem;
+    font-size: 1rem;
+    transition: border-color 0.2s ease;
+
+    &:focus {
+      outline: none;
+      border-color: $blue-400;
+    }
+  }
+
+  &__primary,
+  &__quick {
+    @include flex-wrapper;
+  }
 }
 
 /* ========================================
@@ -1608,38 +1656,32 @@ header.app-header {
 }
 
 .session-card {
-  display: flex;
-  flex-direction: column;
+  @include card-base;
   gap: 0.75rem;
-  padding: 1rem;
-  border-radius: 0.75rem;
-  background: $card-bg;
-  border: 1px solid rgba(15, 23, 42, 0.08);
-}
 
-.session-card--active {
-  border-color: rgba($primary, 0.5);
-}
+  &--active {
+    border-color: rgba($primary, 0.5);
+  }
 
-.session-card__header {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
+  &__header {
+    @include header-with-icon;
+    gap: 0.75rem;
+  }
 
-.session-card__title h4 {
-  @include card-item-title;
-}
+  &__title h4 {
+    @include card-item-title;
+  }
 
-.session-card__contractor {
-  display: block;
-  font-size: 0.85rem;
-  color: $muted;
-}
+  &__contractor {
+    display: block;
+    font-size: 0.85rem;
+    color: $muted;
+  }
 
-.session-card__body {
-  display: grid;
-  gap: 0.75rem;
+  &__body {
+    display: grid;
+    gap: 0.75rem;
+  }
 }
 
 .session-card__item .label {
@@ -1687,18 +1729,17 @@ header.app-header {
 }
 
 .photo-card {
+  @include card-base;
   background: $gray-bg-light;
-  border-radius: 0.5rem;
-  padding: 1rem;
-  text-align: center;
   border: 2px solid $slate-200;
+  text-align: center;
   transition: all 0.2s ease;
-}
 
-.photo-card:hover {
-  border-color: $primary;
-  transform: translateY(-2px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  &:hover {
+    border-color: $primary;
+    transform: translateY(-2px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  }
 }
 
 .photo-frame {
@@ -1782,58 +1823,57 @@ header.app-header {
   justify-content: center;
 }
 
-.modal-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: $shadow-overlay;
-}
+.modal {
+  &-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: $shadow-overlay;
+  }
 
-.modal-content {
-  position: relative;
-  background: $card-bg;
-  border-radius: 0.75rem;
-  max-width: 90vw;
-  max-height: 85vh;
-  width: 800px;
-  display: flex;
-  flex-direction: column;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-}
+  &-content {
+    position: relative;
+    background: $card-bg;
+    border-radius: 0.75rem;
+    max-width: 90vw;
+    max-height: 85vh;
+    width: 800px;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
 
-.modal-header {
-  padding: 1.5rem;
-  border-bottom: 1px solid $slate-200;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
+    @media (max-width: 768px) {
+      max-width: 95vw;
+      max-height: 90vh;
+    }
+  }
 
-.modal-header h3 {
-  margin: 0;
-  color: $gray-dark;
-}
+  &-header {
+    @include modal-section;
+    border-bottom: 1px solid $slate-200;
+    justify-content: space-between;
+    align-items: center;
 
-.modal-body {
-  padding: 1.5rem;
-  overflow-y: auto;
-  flex: 1;
-}
+    h3 {
+      margin: 0;
+      color: $gray-dark;
+    }
+  }
 
-.modal-footer {
-  padding: 1.5rem;
-  border-top: 1px solid $slate-200;
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.75rem;
-}
+  &-body {
+    @include modal-section;
+    overflow-y: auto;
+    flex: 1;
+    flex-direction: column;
+  }
 
-@media (max-width: 768px) {
-  .modal-content {
-    max-width: 95vw;
-    max-height: 90vh;
+  &-footer {
+    @include modal-section;
+    border-top: 1px solid $slate-200;
+    justify-content: flex-end;
+    gap: 0.75rem;
   }
 }
 

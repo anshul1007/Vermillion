@@ -27,35 +27,11 @@ import { AuthService } from '../../core/auth/auth.service';
           <div class="d-flex items-start justify-between gap-2 flex-wrap">
             <div class="flex-1 min-w-0">
               <h1 class="page-title mb-0">Entry & Exit</h1>
-              <p class="page-subtitle mb-0" *ngIf="currentProjectName()">
-                {{ currentProjectName() }}
-              </p>
             </div>
             <span class="hero-badge flex-shrink-0" *ngIf="store.contractorMode()"
-              >Contractor batch mode</span
+              >Contractor Search</span
             >
           </div>
-        </section>
-
-        <div
-          class="hero-stats"
-          *ngIf="store.loading() || store.result() || store.selectedLabourCount()"
-        >
-          <div class="hero-stat" *ngIf="store.loading()">
-            <span class="label">Status</span>
-            <span class="value subtle">Searching…</span>
-          </div>
-          <!-- <div class="hero-stat" *ngIf="store.result()">
-            <span class="label">Current person</span>
-            <span class="value">{{ store.result()?.name }}</span>
-          </div> -->
-          <!-- <div class="hero-stat" *ngIf="store.selectedLabourCount() > 0">
-            <span class="label">Selected labour</span>
-            <span class="value">{{ store.selectedLabourCount() }}</span>
-          </div> -->
-        </div>
-
-        <div class="search">
           <app-entry-exit-search-bar
             [searchTerm]="store.searchTerm()"
             (searchTermChange)="store.updateSearchTerm($event)"
@@ -66,7 +42,7 @@ import { AuthService } from '../../core/auth/auth.service';
             (registerVisitor)="store.navigateToVisitorRegistration()"
             [disabled]="store.loading() || store.submitting()"
           />
-        </div>
+        </section>
 
         <section class="messages" *ngIf="store.errorMessage() || store.successMessage()">
           <div class="alert alert-error" *ngIf="store.errorMessage()">
@@ -102,7 +78,7 @@ import { AuthService } from '../../core/auth/auth.service';
 
           <div *ngIf="store.contractorMode()">
             <div
-              class="section"
+              class="card"
               *ngIf="(store.contractorResults()?.length ?? 0) > 0 && !store.result()"
             >
               <div class="section-heading">
@@ -129,7 +105,7 @@ import { AuthService } from '../../core/auth/auth.service';
           </div>
 
           <div
-            class="section"
+            class="card"
             *ngIf="!store.contractorMode() && (store.decoratedResults()?.length ?? 0) > 0"
           >
             <app-entry-exit-person-results

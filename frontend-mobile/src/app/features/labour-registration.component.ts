@@ -19,27 +19,11 @@ import { BarcodeButtonComponent } from '../shared/components/barcode-button.comp
   imports: [CommonModule, FormsModule, BarcodeButtonComponent],
   template: `
     <div class="page">
-      <!-- <div class="scan-toast" *ngIf="notifier.successMessage() || notifier.errorMessage()">
-        <div class="toast success" *ngIf="notifier.successMessage()">
-          {{ notifier.successMessage() }}
-        </div>
-        <div class="toast error" *ngIf="notifier.errorMessage()">{{ notifier.errorMessage() }}</div>
-      </div> -->
-      <section class="hero card">
+      <section class="hero card" *ngIf="!loading(); else loadingTpl">
         <div class="d-flex flex-column gap-1">
           <h1 class="page-title mb-0">Register Labour</h1>
-          <ng-container *ngIf="currentProjectId(); else noProjectTpl">
-            <p class="page-subtitle mb-0">
-              {{ currentProjectName() || 'Assigned project' }}
-            </p>
-          </ng-container>
-          <ng-template #noProjectTpl>
-            <p class="page-subtitle mb-0">No project assigned</p>
-          </ng-template>
         </div>
-      </section>
 
-      <section class="card" *ngIf="!loading(); else loadingTpl">
         <div class="form-message error" *ngIf="!currentProjectId()">
           Project not assigned. Please contact your administrator.
         </div>
@@ -226,7 +210,7 @@ import { BarcodeButtonComponent } from '../shared/components/barcode-button.comp
             >
               Register & Log Entry
             </button>
-            <button class="btn" type="submit" [disabled]="!isValid() || submitting()">
+            <button class="btn secondary-action" type="submit" [disabled]="!isValid() || submitting()">
               <span *ngIf="submitting(); else submitLabel">Registering...</span>
               <ng-template #submitLabel>Register Labour</ng-template>
             </button>
@@ -648,7 +632,11 @@ export class LabourRegistrationComponent implements OnInit {
     };
   }
 
-  private async queueOfflineRegistration(projectId: number, photoForUpload?: string, includeEntry = false) {
+  private async queueOfflineRegistration(
+    projectId: number,
+    photoForUpload?: string,
+    includeEntry = false
+  ) {
     const clientId = `c_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
     let photoLocal: any = null;
     if (this.photo()) {
@@ -747,7 +735,8 @@ export class LabourRegistrationComponent implements OnInit {
           error: async (err) => {
             const status = err && typeof err.status === 'number' ? err.status : undefined;
             if (typeof status === 'number' && status >= 400 && status < 600) {
-              const errorMsg = err?.error?.message || err?.message || `Registration failed (${status})`;
+              const errorMsg =
+                err?.error?.message || err?.message || `Registration failed (${status})`;
               this.submitting.set(false);
               this.notifier.showError(errorMsg);
               return;
@@ -808,7 +797,9 @@ export class LabourRegistrationComponent implements OnInit {
                     this.notifier.showSuccess('Registered and entry logged successfully');
                     return;
                   } else {
-                    this.notifier.showError(recRes?.message || 'Registered but failed to log entry');
+                    this.notifier.showError(
+                      recRes?.message || 'Registered but failed to log entry'
+                    );
                     return;
                   }
                 } catch (err) {
@@ -825,7 +816,8 @@ export class LabourRegistrationComponent implements OnInit {
           error: async (err) => {
             const status = err && typeof err.status === 'number' ? err.status : undefined;
             if (typeof status === 'number' && status >= 400 && status < 600) {
-              const errorMsg = err?.error?.message || err?.message || `Registration failed (${status})`;
+              const errorMsg =
+                err?.error?.message || err?.message || `Registration failed (${status})`;
               this.submitting.set(false);
               this.notifier.showError(errorMsg);
               return;
@@ -833,7 +825,9 @@ export class LabourRegistrationComponent implements OnInit {
 
             try {
               await this.queueOfflineRegistration(projectId, undefined, true);
-              this.notifier.showSuccess('Labour saved offline and queued for sync (entry will be logged)');
+              this.notifier.showSuccess(
+                'Labour saved offline and queued for sync (entry will be logged)'
+              );
               setTimeout(() => this.resetForm(), 800);
             } catch (queueErr) {
               this.notifier.showError('Failed to queue registration for offline sync');

@@ -17,25 +17,10 @@ import { projectStore } from '../core/state/project.store';
   imports: [CommonModule, FormsModule],
   template: `
     <div class="page">
-      <!-- <div class="scan-toast" *ngIf="notifier.successMessage() || notifier.errorMessage()">
-        <div class="toast success" *ngIf="notifier.successMessage()">{{ notifier.successMessage() }}</div>
-        <div class="toast error" *ngIf="notifier.errorMessage()">{{ notifier.errorMessage() }}</div>
-      </div> -->
       <section class="hero card">
         <div class="d-flex flex-column gap-1">
           <h1 class="page-title mb-0">Register Visitor</h1>
-          <ng-container *ngIf="currentProjectId(); else noProjectTpl">
-            <p class="page-subtitle mb-0">
-              {{ currentProjectName() || 'Assigned project' }}
-            </p>
-          </ng-container>
-          <ng-template #noProjectTpl>
-            <p class="page-subtitle mb-0">No project assigned</p>
-          </ng-template>
         </div>
-      </section>
-
-      <section class="card">
         <div class="form-message error" *ngIf="!currentProjectId()">
           Project not assigned. Please contact your administrator.
         </div>
@@ -113,14 +98,6 @@ import { projectStore } from '../core/state/project.store';
               <img [src]="photo()" alt="Visitor photo" />
             </div>
           </div>
-
-          <!-- <div class="form-message error" *ngIf="notifier.errorMessage()">
-            {{ notifier.errorMessage() }}
-          </div>
-          <div class="form-message success" *ngIf="notifier.successMessage()">
-            {{ notifier.successMessage() }}
-          </div> -->
-
           <div class="form-actions">
             <button
               class="btn btn-primary primary-action"
@@ -130,7 +107,7 @@ import { projectStore } from '../core/state/project.store';
             >
               Register & Log Entry
             </button>
-            <button class="btn" type="submit" [disabled]="!isValid() || submitting()">
+            <button class="btn secondary-action" type="submit" [disabled]="!isValid() || submitting()">
               <span *ngIf="submitting(); else registerLabel">Registering...</span>
               <ng-template #registerLabel>Register Visitor</ng-template>
             </button>
