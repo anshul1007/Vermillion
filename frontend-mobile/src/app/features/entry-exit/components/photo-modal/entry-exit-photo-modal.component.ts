@@ -194,6 +194,22 @@ export class EntryExitPhotoModalComponent implements OnChanges, OnDestroy {
           this.cdr.markForCheck();
           continue;
         }
+        // If the original is a client-side object URL (blob:) it is already
+        // a local resource — use it directly and avoid fetching/saving it.
+        if (original.startsWith('blob:')) {
+          this.resolvedImages[key] = original;
+          this.cdr.markForCheck();
+          continue;
+        }
+        // Avoid attempting to resolve the tiny 1x1 placeholder image which is used
+        // as a temporary placeholder while real images are being fetched. Resolving
+        // it repeatedly causes unnecessary saves/fetches and can trigger loops.
+        const placeholderDataUrl = 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=';
+        if (original === placeholderDataUrl) {
+          this.resolvedImages[key] = null;
+          this.cdr.markForCheck();
+          continue;
+        }
         const resolved = await this.localImage.resolveImage(original, `${item.id || item.barcode || 'photo'}.jpg`);
         this.resolvedImages[key] = resolved;
         this.cdr.markForCheck();

@@ -239,11 +239,47 @@ export class VisitorRegistrationComponent implements OnInit {
     );
   }
 
+  private async resolvePhotoDataUrl(): Promise<string> {
+    const src = this.photo();
+    if (!src) return '';
+
+    // If already a data URL, return as-is
+    if (src.startsWith('data:')) return src;
+
+    // If it's a blob: URL (client-side object URL), fetch and convert to data URL
+    if (src.startsWith('blob:')) {
+      try {
+        const resp = await fetch(src);
+        if (!resp.ok) return '';
+        const blob = await resp.blob();
+        return await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onerror = () => reject(new Error('Failed to read blob'));
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.readAsDataURL(blob);
+        });
+      } catch (e) {
+        console.warn('Failed to resolve blob URL to data URL', e);
+        return '';
+      }
+    }
+
+    // For other URLs (http/https/local paths) try to resolve via LocalImageService which will
+    // download and return a local data URL or local path.
+    try {
+      const resolved = await this.localImage.resolveImage(src, `visitor_${Date.now()}.jpg`);
+      return resolved || '';
+    } catch (e) {
+      console.warn('Failed to resolve remote image to data url', e);
+      return '';
+    }
+  }
+
   /**
    * Submit visitor registration form.
    * Calls API directly for immediate registration.
    */
-  submit(): void {
+  async submit(): Promise<void> {
     const profile = this.guardProfile();
     const projectId = profile?.projectId ?? this.currentProjectId();
     if (!projectId || projectId <= 0) {
@@ -264,12 +300,14 @@ export class VisitorRegistrationComponent implements OnInit {
     this.notifier.clear();
     this.submitting.set(true);
 
+    const photoDataUrl = await this.resolvePhotoDataUrl();
+
     const visitorData = {
       name: this.name.trim(),
       phoneNumber: this.phoneNumber.trim(),
       companyName: this.companyName.trim() || undefined,
       purpose: this.purpose.trim(),
-      photoBase64: this.photo(),
+      photoBase64: photoDataUrl,
       projectId,
     };
 
@@ -300,11 +338,14 @@ export class VisitorRegistrationComponent implements OnInit {
             let photoLocal: any = null;
             if (this.photo()) {
               try {
-                photoLocal = (await this.offline.savePhotoFromDataUrl(
-                  this.photo(),
-                  `visitor_${Date.now()}.jpg`,
-                  { clientId }
-                )) as { id: number; localRef: string };
+                const dataUrl = await this.resolvePhotoDataUrl();
+                if (dataUrl) {
+                  photoLocal = (await this.offline.savePhotoFromDataUrl(
+                    dataUrl,
+                    `visitor_${Date.now()}.jpg`,
+                    { clientId }
+                  )) as { id: number; localRef: string };
+                }
               } catch (e) {
                 console.warn('Failed to save visitor photo locally', e);
               }
@@ -392,12 +433,14 @@ export class VisitorRegistrationComponent implements OnInit {
     this.notifier.clear();
     this.submitting.set(true);
 
+    const photoDataUrl = await this.resolvePhotoDataUrl();
+
     const visitorData = {
       name: this.name.trim(),
       phoneNumber: this.phoneNumber.trim(),
       companyName: this.companyName.trim() || undefined,
       purpose: this.purpose.trim(),
-      photoBase64: this.photo(),
+      photoBase64: photoDataUrl,
       projectId,
     };
 
@@ -441,11 +484,14 @@ export class VisitorRegistrationComponent implements OnInit {
             let photoLocal: any = null;
             if (this.photo()) {
               try {
-                photoLocal = (await this.offline.savePhotoFromDataUrl(
-                  this.photo(),
-                  `visitor_${Date.now()}.jpg`,
-                  { clientId }
-                )) as { id: number; localRef: string };
+                const dataUrl = await this.resolvePhotoDataUrl();
+                if (dataUrl) {
+                  photoLocal = (await this.offline.savePhotoFromDataUrl(
+                    dataUrl,
+                    `visitor_${Date.now()}.jpg`,
+                    { clientId }
+                  )) as { id: number; localRef: string };
+                }
               } catch (e) {
                 console.warn('Failed to save visitor photo locally', e);
               }
