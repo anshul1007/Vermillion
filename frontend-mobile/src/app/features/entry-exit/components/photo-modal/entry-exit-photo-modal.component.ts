@@ -5,6 +5,10 @@ import { ResolvePhotoDirective } from '../../../../core/directives/resolve-photo
 import { ContractorLabourResult } from '../../entry-exit.models';
 import { OfflineStorageService } from '../../../../core/services/offline-storage.service';
 import { LocalImageService } from '../../../../core/services/local-image.service';
+import { ImageCacheService } from '../../../../core/services/image-cache.service';
+import { PLACEHOLDER_DATA_URL } from '../../../../core/constants/image.constants';
+
+type CachedImage = { kind: 'data' | 'local' | 'blob' | 'remote' | 'placeholder'; url: string | null };
 
 @Component({
   selector: 'app-entry-exit-photo-modal',
@@ -93,8 +97,13 @@ export class EntryExitPhotoModalComponent implements OnChanges, OnDestroy {
   private localImage = inject(LocalImageService);
   private cdr = inject(ChangeDetectorRef);
 
-  // cache of resolved image src per labour id/key
-  resolvedImages: Record<string, string | null> = {};
+  // cache of resolved image info per labour id/key
+  // value describes the kind of image and a stable url for binding
+  resolvedImages: Record<string, CachedImage | null> = {};
+
+  private imageCache = inject(ImageCacheService);
+  // owner id for this modal instance to manage cache ownership
+  private ownerId = `modal:${Math.random().toString(36).slice(2)}`;
 
   async onConfirm() {
     this.submitting = true;
@@ -103,34 +112,33 @@ export class EntryExitPhotoModalComponent implements OnChanges, OnDestroy {
         for (const item of this.labour) {
           const key = item.id || item.barcode || `${Math.random()}`;
           const cached = this.resolvedImages[key];
-          // If cached is a data URL or local path already, assume it is saved by LocalImageService
-          if (!cached) {
-            // fallback: try to resolve and save now
+          if (!cached || !cached.url) {
+            // attempt to ensure cached and saved
             const original = this.imageResolver ? this.imageResolver(item) : null;
             if (!original) continue;
             try {
-              const saved = await this.localImage.resolveImage(original, `${item.id || item.barcode || 'photo'}.jpg`);
-              // ensure we have the saved value in cache
-              this.resolvedImages[key] = saved;
+              const stable = await this.imageCache.ensureCached(original);
+              if (stable) {
+                this.resolvedImages[key] = { kind: original.startsWith('data:') ? 'data' : original.startsWith('blob:') ? 'blob' : original.startsWith('dexie:') || original.startsWith('file:') || original.startsWith('/') ? 'local' : 'remote', url: stable };
+              }
             } catch (e) {
               // ignore
             }
             continue;
           }
 
-          if (typeof cached === 'string' && cached.startsWith('data:')) {
-            const blob = await (await fetch(cached)).blob();
+          if (cached.kind === 'data' && cached.url) {
+            const blob = await (await fetch(cached.url)).blob();
             await this.offline.savePhoto(blob, `${item.id || item.barcode || 'photo'}.jpg`, { labourId: item.id, action: this.action });
-          } else if (typeof cached === 'string') {
-            // For file paths or remote urls, attempt to fetch then store as blob
+          } else if (cached.url) {
             try {
-              const fetched = await fetch(cached);
+              const fetched = await fetch(cached.url);
               if (fetched.ok) {
                 const blob = await fetched.blob();
                 await this.offline.savePhoto(blob, `${item.id || item.barcode || 'photo'}.jpg`, { labourId: item.id, action: this.action });
               }
             } catch (e) {
-              // ignore fetch failures for now
+              // ignore
             }
           }
         }
@@ -146,9 +154,13 @@ export class EntryExitPhotoModalComponent implements OnChanges, OnDestroy {
   resolveImage(labour: ContractorLabourResult): string | null {
     const key = labour.id || labour.barcode || null;
     if (key && this.resolvedImages.hasOwnProperty(key)) {
-      return this.resolvedImages[key] || null;
+      const v = this.resolvedImages[key];
+      return v?.url || null;
     }
-    return this.imageResolver ? this.imageResolver(labour) : null;
+    const orig = this.imageResolver ? this.imageResolver(labour) : null;
+    // attempt to return a cached synchronous value if possible
+    const cached = this.imageCache.getCached(orig || null);
+    return cached;
   }
 
   trackById(_index: number, item: ContractorLabourResult) {
@@ -179,9 +191,25 @@ export class EntryExitPhotoModalComponent implements OnChanges, OnDestroy {
     } catch (e) {
       // ignore
     }
+    // remove ownership for all resolved images
+    for (const k of Object.keys(this.resolvedImages || {})) {
+      const v = this.resolvedImages[k];
+      if (v && v.url) {
+        try { this.imageCache.removeOwnerForOriginal(v.url, this.ownerId); } catch {};
+      }
+    }
   }
 
   private async prepareImages() {
+    // Remove ownership from previous entries
+    try {
+      for (const k of Object.keys(this.resolvedImages || {})) {
+        const v = this.resolvedImages[k];
+        if (v && v.url) {
+          try { this.imageCache.removeOwnerForOriginal(v.url, this.ownerId); } catch {};
+        }
+      }
+    } catch {}
     this.resolvedImages = {};
     if (!this.labour || !this.labour.length) return;
     for (let i = 0; i < this.labour.length; i++) {
@@ -194,25 +222,42 @@ export class EntryExitPhotoModalComponent implements OnChanges, OnDestroy {
           this.cdr.markForCheck();
           continue;
         }
-        // If the original is a client-side object URL (blob:) it is already
-        // a local resource — use it directly and avoid fetching/saving it.
-        if (original.startsWith('blob:')) {
-          this.resolvedImages[key] = original;
+        if (original === PLACEHOLDER_DATA_URL) {
+          this.resolvedImages[key] = { kind: 'placeholder', url: null };
           this.cdr.markForCheck();
           continue;
         }
-        // Avoid attempting to resolve the tiny 1x1 placeholder image which is used
-        // as a temporary placeholder while real images are being fetched. Resolving
-        // it repeatedly causes unnecessary saves/fetches and can trigger loops.
-        const placeholderDataUrl = 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=';
-        if (original === placeholderDataUrl) {
+
+        // synchronous quick check — return data/blob/local paths immediately
+        const quick = this.imageCache.getCached(original);
+        if (quick) {
+          const kind = original.startsWith('data:') ? 'data' : original.startsWith('blob:') ? 'blob' : original.startsWith('dexie:') || original.startsWith('file:') || original.startsWith('/') ? 'local' : 'remote';
+          this.resolvedImages[key] = { kind, url: quick };
+          try { this.imageCache.addOwnerForOriginal(quick, this.ownerId); } catch {}
+          this.cdr.markForCheck();
+          // still attempt to ensure cache for remote resources
+          if (kind === 'remote') {
+            this.imageCache.ensureCached(original).then((stable) => {
+              if (stable) {
+                this.resolvedImages[key] = { kind: 'remote', url: stable };
+                this.cdr.markForCheck();
+              }
+            }).catch(()=>{});
+          }
+          continue;
+        }
+
+        // Not cached — ensure cached which will fetch and create an object URL if needed
+        const stable = await this.imageCache.ensureCached(original);
+        if (stable) {
+          const kind = original.startsWith('data:') ? 'data' : original.startsWith('blob:') ? 'blob' : original.startsWith('dexie:') || original.startsWith('file:') || original.startsWith('/') ? 'local' : 'remote';
+          this.resolvedImages[key] = { kind, url: stable };
+          try { this.imageCache.addOwnerForOriginal(stable, this.ownerId); } catch {}
+          this.cdr.markForCheck();
+        } else {
           this.resolvedImages[key] = null;
           this.cdr.markForCheck();
-          continue;
         }
-        const resolved = await this.localImage.resolveImage(original, `${item.id || item.barcode || 'photo'}.jpg`);
-        this.resolvedImages[key] = resolved;
-        this.cdr.markForCheck();
       } catch (e) {
         this.resolvedImages[key] = null;
         this.cdr.markForCheck();

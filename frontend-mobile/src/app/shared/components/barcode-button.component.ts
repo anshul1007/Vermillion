@@ -1,6 +1,8 @@
 import { Component, EventEmitter, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { BarcodeService } from '../../core/services/barcode.service';
+import { LoggerService } from '../../core/services/logger.service';
+import { inject } from '@angular/core';
 
 @Component({
   selector: 'app-barcode-button',
@@ -18,6 +20,7 @@ export class BarcodeButtonComponent {
   @Output() error = new EventEmitter<any>();
   scanning = false;
 
+  private logger = inject(LoggerService);
   constructor(private barcode: BarcodeService) {}
 
   async scan() {
@@ -27,7 +30,7 @@ export class BarcodeButtonComponent {
       const code = await this.barcode.scanBarcodeWithCamera();
       this.scanned.emit(code);
     } catch (e) {
-      console.error('Scan failed', e);
+      this.logger.warn('Scan failed', e);
       this.error.emit(e);
     } finally {
       this.scanning = false;

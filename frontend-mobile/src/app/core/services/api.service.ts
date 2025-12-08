@@ -1,8 +1,9 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
+import { LoggerService } from './logger.service';
 
 export interface ApiResponse<T> {
   success: boolean;
@@ -123,6 +124,8 @@ export interface GuardProfile {
 export class ApiService {
   private authApiUrl = environment.authApiUrl;
   private entryExitApiUrl = environment.apiUrl;
+
+  private logger = inject(LoggerService);
 
   constructor(private http: HttpClient) { }
 
@@ -312,10 +315,10 @@ export class ApiService {
     const alternateBase = base === this.entryExitApiUrl.replace(/\/$/, '') ? this.authApiUrl.replace(/\/$/, '') : this.entryExitApiUrl.replace(/\/$/, '');
     const fallback = `${alternateBase}/photos/${safePath}`;
 
-    console.debug('[ApiService] fetching photo blob, primary:', primary, 'fallback:', fallback);
+    this.logger.debug('[ApiService] fetching photo blob, primary:', primary, 'fallback:', fallback);
     return this.http.get(primary, { headers, responseType: 'blob' as 'blob' }).pipe(
       catchError((err) => {
-        console.debug('[ApiService] primary photo fetch failed, trying fallback', err);
+        this.logger.debug('[ApiService] primary photo fetch failed, trying fallback', err);
         return this.http.get(fallback, { headers, responseType: 'blob' as 'blob' });
       })
     );

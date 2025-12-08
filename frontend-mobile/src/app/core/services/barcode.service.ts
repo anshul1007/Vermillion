@@ -1,10 +1,12 @@
-import { Injectable } from '@angular/core';
-import { BrowserMultiFormatReader, NotFoundException } from '@zxing/library';
+import { Injectable, inject } from '@angular/core';
+import { LoggerService } from './logger.service';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 
 @Injectable({ providedIn: 'root' })
 export class BarcodeService {
-  private codeReader = new BrowserMultiFormatReader();
+  private codeReader: any | null = null;
+  private NotFoundException: any | null = null;
+  private logger = inject(LoggerService);
 
   async scanBarcodeWithCamera(): Promise<string> {
     try {
@@ -20,16 +22,26 @@ export class BarcodeService {
       // Normalize/resize the image to avoid huge payloads or orientation issues
       const normalized = await this.normalizeDataUrl(photo.dataUrl, 1024);
       const code = await this.decodeBarcode(normalized);
-      // reset reader to clear internal state
-      try { this.codeReader.reset(); } catch { }
+      // reset reader to clear internal state if available
+      try { this.codeReader?.reset(); } catch { }
       return code;
     } catch (error) {
-      console.error('Barcode scan error:', error);
+      this.logger.error('Barcode scan error:', error);
       throw error;
     }
   }
 
+  private async ensureReader() {
+    if (this.codeReader) return;
+    const zxing = await import('@zxing/library');
+    const { BrowserMultiFormatReader, NotFoundException } = zxing as any;
+    this.codeReader = new BrowserMultiFormatReader();
+    this.NotFoundException = NotFoundException;
+  }
+
   private async decodeBarcode(imageData: string): Promise<string> {
+    await this.ensureReader();
+
     return new Promise((resolve, reject) => {
       const img = new Image();
       img.onload = async () => {
@@ -37,7 +49,7 @@ export class BarcodeService {
           const result = await this.codeReader.decodeFromImageElement(img);
           resolve(result.getText());
         } catch (error) {
-          if (error instanceof NotFoundException) {
+          if (this.NotFoundException && error instanceof this.NotFoundException) {
             reject(new Error('No barcode found in image'));
           } else {
             reject(error);

@@ -7,6 +7,7 @@ import { ApiService } from '../core/services/api.service';
 import { PhotoService } from '../core/services/photo.service';
 import { AuthService } from '../core/auth/auth.service';
 import { LocalImageService } from '../core/services/local-image.service';
+import { LoggerService } from '../core/services/logger.service';
 import { OfflineStorageService } from '../core/services/offline-storage.service';
 import { NotificationService } from '../core/services/notification.service';
 import { projectStore } from '../core/state/project.store';
@@ -121,6 +122,7 @@ export class VisitorRegistrationComponent implements OnInit {
   private photoSvc = inject(PhotoService);
   private authService = inject(AuthService);
   private localImage = inject(LocalImageService);
+  private logger = inject(LoggerService);
   private api = inject(ApiService);
   private offline = inject(OfflineStorageService);
   private router = inject(Router);
@@ -239,41 +241,7 @@ export class VisitorRegistrationComponent implements OnInit {
     );
   }
 
-  private async resolvePhotoDataUrl(): Promise<string> {
-    const src = this.photo();
-    if (!src) return '';
-
-    // If already a data URL, return as-is
-    if (src.startsWith('data:')) return src;
-
-    // If it's a blob: URL (client-side object URL), fetch and convert to data URL
-    if (src.startsWith('blob:')) {
-      try {
-        const resp = await fetch(src);
-        if (!resp.ok) return '';
-        const blob = await resp.blob();
-        return await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onerror = () => reject(new Error('Failed to read blob'));
-          reader.onloadend = () => resolve(reader.result as string);
-          reader.readAsDataURL(blob);
-        });
-      } catch (e) {
-        console.warn('Failed to resolve blob URL to data URL', e);
-        return '';
-      }
-    }
-
-    // For other URLs (http/https/local paths) try to resolve via LocalImageService which will
-    // download and return a local data URL or local path.
-    try {
-      const resolved = await this.localImage.resolveImage(src, `visitor_${Date.now()}.jpg`);
-      return resolved || '';
-    } catch (e) {
-      console.warn('Failed to resolve remote image to data url', e);
-      return '';
-    }
-  }
+  
 
   /**
    * Submit visitor registration form.
@@ -300,7 +268,14 @@ export class VisitorRegistrationComponent implements OnInit {
     this.notifier.clear();
     this.submitting.set(true);
 
-    const photoDataUrl = await this.resolvePhotoDataUrl();
+    const photoDataUrl = await this.localImage.getDataUrl(this.photo());
+
+    if (!photoDataUrl) {
+      this.logger.warn('Failed to obtain data URL for visitor photo; aborting submit');
+      this.submitting.set(false);
+      this.notifier.showError('Failed to process photo. Please retake the photo and try again.');
+      return;
+    }
 
     const visitorData = {
       name: this.name.trim(),
@@ -325,7 +300,7 @@ export class VisitorRegistrationComponent implements OnInit {
         }
       },
       error: async (err: any) => {
-        console.warn('Register visitor API error:', err);
+        this.logger.warn('Register visitor API error:', err);
         this.submitting.set(false);
 
         const status = err && typeof err.status === 'number' ? err.status : undefined;
@@ -338,7 +313,7 @@ export class VisitorRegistrationComponent implements OnInit {
             let photoLocal: any = null;
             if (this.photo()) {
               try {
-                const dataUrl = await this.resolvePhotoDataUrl();
+                const dataUrl = await this.localImage.getDataUrl(this.photo());
                 if (dataUrl) {
                   photoLocal = (await this.offline.savePhotoFromDataUrl(
                     dataUrl,
@@ -347,7 +322,7 @@ export class VisitorRegistrationComponent implements OnInit {
                   )) as { id: number; localRef: string };
                 }
               } catch (e) {
-                console.warn('Failed to save visitor photo locally', e);
+                this.logger.warn('Failed to save visitor photo locally', e);
               }
             }
 
@@ -389,7 +364,7 @@ export class VisitorRegistrationComponent implements OnInit {
               err?.message ||
               'Failed to register visitor. Please try again.';
             this.notifier.showError(errorMsg);
-            console.warn('Failed to enqueue offline visitor registration', qErr);
+            this.logger.warn('Failed to enqueue offline visitor registration', qErr);
             return;
           }
         }
@@ -433,7 +408,14 @@ export class VisitorRegistrationComponent implements OnInit {
     this.notifier.clear();
     this.submitting.set(true);
 
-    const photoDataUrl = await this.resolvePhotoDataUrl();
+    const photoDataUrl = await this.localImage.getDataUrl(this.photo());
+
+    if (!photoDataUrl) {
+      this.logger.warn('Failed to obtain data URL for visitor photo; aborting registerAndEntry');
+      this.submitting.set(false);
+      this.notifier.showError('Failed to process photo. Please retake the photo and try again.');
+      return;
+    }
 
     const visitorData = {
       name: this.name.trim(),
@@ -464,8 +446,8 @@ export class VisitorRegistrationComponent implements OnInit {
                   this.notifier.showError(recRes?.message || 'Registered but failed to log entry');
                   return;
                 }
-              } catch (err) {
-                console.warn('Failed to log entry after registration', err);
+                } catch (err) {
+                this.logger.warn('Failed to log entry after registration', err);
                 this.notifier.showError('Registered but failed to log entry');
                 return;
               }
@@ -478,13 +460,13 @@ export class VisitorRegistrationComponent implements OnInit {
         },
         error: async (err: any) => {
           this.submitting.set(false);
-          console.error('Register visitor API error:', err);
+          this.logger.error('Register visitor API error:', err);
           try {
             const clientId = `c_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
             let photoLocal: any = null;
             if (this.photo()) {
               try {
-                const dataUrl = await this.resolvePhotoDataUrl();
+                const dataUrl = await this.localImage.getDataUrl(this.photo());
                 if (dataUrl) {
                   photoLocal = (await this.offline.savePhotoFromDataUrl(
                     dataUrl,
@@ -493,7 +475,7 @@ export class VisitorRegistrationComponent implements OnInit {
                   )) as { id: number; localRef: string };
                 }
               } catch (e) {
-                console.warn('Failed to save visitor photo locally', e);
+                this.logger.warn('Failed to save visitor photo locally', e);
               }
             }
 
@@ -536,7 +518,7 @@ export class VisitorRegistrationComponent implements OnInit {
               this.router.navigate(['/entry-exit']);
             }, 800);
           } catch (qErr) {
-            console.error('Failed to enqueue offline visitor registration', qErr);
+            this.logger.error('Failed to enqueue offline visitor registration', qErr);
             this.notifier.showError('Failed to queue visitor for offline sync');
           }
         },

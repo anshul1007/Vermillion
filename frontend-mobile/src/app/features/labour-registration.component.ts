@@ -4,6 +4,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { PhotoService } from '../core/services/photo.service';
+import { LoggerService } from '../core/services/logger.service';
 import { NotificationService } from '../core/services/notification.service';
 import { ApiService } from '../core/services/api.service';
 import { AuthService } from '../core/auth/auth.service';
@@ -228,6 +229,7 @@ import { BarcodeButtonComponent } from '../shared/components/barcode-button.comp
 })
 export class LabourRegistrationComponent implements OnInit {
   private photoSvc = inject(PhotoService);
+  private logger = inject(LoggerService);
   private api = inject(ApiService);
   private authService = inject(AuthService);
   private router = inject(Router);
@@ -324,7 +326,7 @@ export class LabourRegistrationComponent implements OnInit {
         return;
       }
     } catch (err) {
-      console.error('Failed to capture Aadhar card image', err);
+      this.logger.error('Failed to capture Aadhar card image', err);
       this.notifier.showError('Could not capture the Aadhar card. Try again in better lighting.');
       return;
     }
@@ -468,7 +470,7 @@ export class LabourRegistrationComponent implements OnInit {
           if (first) this.classification = String(first.id);
         },
         error: (err: any) => {
-          console.warn('Failed to load classifications', err);
+          this.logger.warn('Failed to load classifications', err);
         },
       });
   }
@@ -490,20 +492,6 @@ export class LabourRegistrationComponent implements OnInit {
     }
   }
 
-  private async blobUrlToDataUrl(blobUrl: string): Promise<string> {
-    try {
-      const resp = await fetch(blobUrl);
-      const blob = await resp.blob();
-      return await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onerror = () => reject(new Error('Failed to read blob'));
-        reader.onload = () => resolve(String(reader.result));
-        reader.readAsDataURL(blob);
-      });
-    } catch (e) {
-      return blobUrl; // fallback to original
-    }
-  }
 
   private applyOcrResult(result: AadharOcrResult) {
     const updatedFields: string[] = [];
@@ -607,14 +595,12 @@ export class LabourRegistrationComponent implements OnInit {
   private async normalizePhotoForUpload(): Promise<string | undefined> {
     if (!this.photo()) return undefined;
     const p = this.photo();
-    if (p.startsWith('blob:')) {
-      try {
-        return await this.blobUrlToDataUrl(p);
-      } catch (e) {
-        return p;
-      }
+    try {
+      const dataUrl = await this.localImage.getDataUrl(p);
+      return dataUrl || undefined;
+    } catch (e) {
+      return undefined;
     }
-    return p;
   }
 
   private buildLabourPayload(photoForUpload: string | undefined, projectId: number) {
@@ -642,12 +628,11 @@ export class LabourRegistrationComponent implements OnInit {
     if (this.photo()) {
       try {
         let photoToSave = photoForUpload || this.photo();
-        if (photoToSave && photoToSave.startsWith('blob:')) {
-          try {
-            photoToSave = await this.blobUrlToDataUrl(photoToSave);
-          } catch (e) {
-            // ignore conversion error and continue with original
-          }
+        try {
+          const dataUrl = await this.localImage.getDataUrl(photoToSave);
+          if (dataUrl) photoToSave = dataUrl;
+        } catch (e) {
+          // ignore conversion error and continue with original
         }
         photoLocal = (await this.offline.savePhotoFromDataUrl(
           photoToSave as string,
@@ -655,7 +640,7 @@ export class LabourRegistrationComponent implements OnInit {
           { clientId }
         )) as { id: number; localRef: string };
       } catch (e) {
-        console.warn('Failed to save photo locally', e);
+        this.logger.warn('Failed to save photo locally', e);
       }
     }
 
@@ -717,6 +702,12 @@ export class LabourRegistrationComponent implements OnInit {
 
     try {
       const photoForUpload = await this.normalizePhotoForUpload();
+      if (!photoForUpload) {
+        this.submitting.set(false);
+        this.notifier.showError('Failed to process photo. Please retake the photo and try again.');
+        return;
+      }
+
       const payload = this.buildLabourPayload(photoForUpload, projectId);
 
       this.api
@@ -750,7 +741,7 @@ export class LabourRegistrationComponent implements OnInit {
             } catch (queueErr) {
               this.submitting.set(false);
               this.notifier.showError('Failed to queue registration for offline sync');
-              console.error('Failed to enqueue offline registration', queueErr);
+              this.logger.error('Failed to enqueue offline registration', queueErr);
             }
           },
         });
@@ -778,6 +769,12 @@ export class LabourRegistrationComponent implements OnInit {
 
     try {
       const photoForUpload = await this.normalizePhotoForUpload();
+      if (!photoForUpload) {
+        this.submitting.set(false);
+        this.notifier.showError('Failed to process photo. Please retake the photo and try again.');
+        return;
+      }
+
       const payload = this.buildLabourPayload(photoForUpload, projectId);
 
       this.api
@@ -803,7 +800,7 @@ export class LabourRegistrationComponent implements OnInit {
                     return;
                   }
                 } catch (err) {
-                  console.warn('Failed to log entry after registration', err);
+                  this.logger.warn('Failed to log entry after registration', err);
                   this.notifier.showError('Registered but failed to log entry');
                   return;
                 }
@@ -829,9 +826,9 @@ export class LabourRegistrationComponent implements OnInit {
                 'Labour saved offline and queued for sync (entry will be logged)'
               );
               setTimeout(() => this.resetForm(), 800);
-            } catch (queueErr) {
+              } catch (queueErr) {
               this.notifier.showError('Failed to queue registration for offline sync');
-              console.error('Failed to enqueue offline registration', queueErr);
+              this.logger.error('Failed to enqueue offline registration', queueErr);
             } finally {
               this.submitting.set(false);
             }

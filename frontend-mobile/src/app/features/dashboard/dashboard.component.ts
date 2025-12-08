@@ -6,6 +6,7 @@ import { RouterModule } from '@angular/router';
 import { AuthService } from '../../core/auth/auth.service';
 import { projectStore } from '../../core/state/project.store';
 import { ApiService } from '../../core/services/api.service';
+import { LoggerService } from '../../core/services/logger.service';
 import { RawEntryExitRecordDto } from '../../core/models/entry-exit.model';
 
 @Component({
@@ -138,6 +139,7 @@ import { RawEntryExitRecordDto } from '../../core/models/entry-exit.model';
 export class DashboardComponent implements OnInit {
   private authService = inject(AuthService);
   private apiService = inject(ApiService);
+  private logger = inject(LoggerService);
 
   logout(): void {
     // Delegate to AuthService logout — show confirmation
@@ -275,7 +277,7 @@ export class DashboardComponent implements OnInit {
           }
         },
         error: (error) => {
-          console.error("Error loading today's stats:", error);
+          this.logger.error("Error loading today's stats:", error);
           // Keep default values on error
         },
       });
@@ -306,7 +308,7 @@ export class DashboardComponent implements OnInit {
           }
         },
         error: (error) => {
-          console.error('Error loading open sessions:', error);
+          this.logger.error('Error loading open sessions:', error);
         },
       });
   }

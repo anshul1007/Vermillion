@@ -1,4 +1,5 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
+import { LoggerService } from './logger.service';
 import { ApiService } from './api.service';
 import { OfflineStorageService } from './offline-storage.service';
 
@@ -8,6 +9,8 @@ function delay(ms: number) { return new Promise(res => setTimeout(res, ms)); }
 export class SyncService {
   private processing = false;
   private pollInterval = 5000; // ms
+
+  private logger = inject(LoggerService);
 
   constructor(private api: ApiService, private offline: OfflineStorageService) {
     // run on start
@@ -40,7 +43,7 @@ export class SyncService {
             await this.processPhotoUpload(p);
             processedIds.add(p.id);
           } catch (e) {
-            console.error('SyncService: failed photoUpload', p, e);
+            this.logger.error('SyncService: failed photoUpload', p, e);
           }
         }
 
@@ -50,7 +53,7 @@ export class SyncService {
             await this.processRegistration(reg);
             processedIds.add(reg.id);
           } catch (e) {
-            console.error('SyncService: failed registration', reg, e);
+            this.logger.error('SyncService: failed registration', reg, e);
           }
         }
 
@@ -60,7 +63,7 @@ export class SyncService {
           try {
             await this.processItem(it);
           } catch (e) {
-            console.error('SyncService: failed to process item', it, e);
+            this.logger.error('SyncService: failed to process item', it, e);
           }
         }
     } finally {
@@ -97,7 +100,7 @@ export class SyncService {
       await this.offline.updateActionStatus(id, 'done', (item.attempts || 0) + 1);
       await this.offline.removeQueuedAction(id);
     } catch (err) {
-      console.error('SyncService: registration failed', err);
+    this.logger.error('SyncService: registration failed', err);
       const attempts = (item.attempts || 0) + 1;
       if (attempts >= 5) {
         await this.offline.updateActionStatus(id, 'failed', attempts);
@@ -143,7 +146,7 @@ export class SyncService {
       await this.offline.updateActionStatus(id, 'done', (item.attempts || 0) + 1);
       await this.offline.removeQueuedAction(id);
     } catch (err) {
-      console.error('SyncService: photoUpload failed', err);
+    this.logger.error('SyncService: photoUpload failed', err);
       const attempts = (item.attempts || 0) + 1;
       if (attempts >= 5) {
         await this.offline.updateActionStatus(id, 'failed', attempts);
@@ -175,14 +178,14 @@ export class SyncService {
         const { ids, action } = payload;
         await this.api.bulkCheckIn(ids, action).toPromise();
       } else {
-        console.warn('SyncService: unknown action type', type);
+        this.logger.warn('SyncService: unknown action type', type);
       }
 
       // on success
       await this.offline.updateActionStatus(id, 'done', (item.attempts || 0) + 1);
       await this.offline.removeQueuedAction(id);
     } catch (err) {
-      console.error('SyncService: action failed', err);
+    this.logger.error('SyncService: action failed', err);
       const attempts = (item.attempts || 0) + 1;
       if (attempts >= 5) {
         await this.offline.updateActionStatus(id, 'failed', attempts);
@@ -215,7 +218,7 @@ export class SyncService {
           payload.classificationId = Number(found.key ?? found[0]);
         }
       } catch (e) {
-        console.warn('SyncService: failed to map classification name to id', e);
+        this.logger.warn('SyncService: failed to map classification name to id', e);
       }
     }
 
@@ -234,7 +237,7 @@ export class SyncService {
           }
         }
       } catch (e) {
-        console.warn('SyncService: failed to create missing classification via API', e);
+        this.logger.warn('SyncService: failed to create missing classification via API', e);
       }
     }
   }

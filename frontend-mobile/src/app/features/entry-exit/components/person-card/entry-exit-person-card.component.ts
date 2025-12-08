@@ -12,6 +12,7 @@ import { CommonModule } from '@angular/common';
 import { IconComponent } from '../../../../shared/icon/icon.component';
 import { ResolvePhotoDirective } from '../../../../core/directives/resolve-photo.directive';
 import { LocalImageService } from '../../../../core/services/local-image.service';
+import { PLACEHOLDER_DATA_URL } from '../../../../core/constants/image.constants';
 import { PersonSearchResult } from '../../entry-exit.models';
 
 @Component({
@@ -149,7 +150,7 @@ export class EntryExitPersonCardComponent {
   // internal resolved image src (may be placeholder until resolved)
   effectiveImage = signal<string | null>(null);
   private readonly localImage = inject(LocalImageService);
-  private readonly placeholder = 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=';
+  private readonly placeholder = PLACEHOLDER_DATA_URL;
 
   @Output() logEntry = new EventEmitter<void>();
   @Output() logExit = new EventEmitter<void>();

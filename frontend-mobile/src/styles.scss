@@ -1116,13 +1116,13 @@ button,
    ======================================== */
 
 header.app-header {
-  background: $header-blue;
+  background: $header-vermillion;
   color: $card-bg;
   padding: $space-2 0;
   position: sticky;
   top: 0;
   z-index: 30;
-  box-shadow: 0 8px 24px rgba($header-blue, 0.12);
+  box-shadow: 0 8px 24px rgba($header-vermillion, 0.12);
 }
 
 .app-header {

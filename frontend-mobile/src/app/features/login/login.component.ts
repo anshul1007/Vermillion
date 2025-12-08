@@ -4,6 +4,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { AuthService } from '../../core/auth/auth.service';
+import { LoggerService } from '../../core/services/logger.service';
 
 @Component({
   selector: 'app-login',
@@ -68,6 +69,7 @@ import { AuthService } from '../../core/auth/auth.service';
 export class LoginComponent {
   private authService = inject(AuthService);
   private router = inject(Router);
+  private logger = inject(LoggerService);
 
   constructor() {
     // If user is already authenticated and has Guard role, redirect to dashboard
@@ -112,7 +114,7 @@ export class LoginComponent {
       error: (error) => {
         this.loading.set(false);
         this.errorMessage.set(error.error?.message || 'Invalid email or password');
-        console.error('Login error:', error);
+        this.logger.error('Login error:', error);
       }
     });
   }

@@ -3,6 +3,8 @@ import { take } from 'rxjs/operators';
 import { Router } from '@angular/router';
 import { ApiResponse, ApiService } from '../../../core/services/api.service';
 import { LocalImageService } from '../../../core/services/local-image.service';
+import { LoggerService } from '../../../core/services/logger.service';
+import { PLACEHOLDER_DATA_URL } from '../../../core/constants/image.constants';
 import { BarcodeService } from '../../../core/services/barcode.service';
 import { AuthService } from '../../../core/auth/auth.service';
 import { projectStore } from '../../../core/state/project.store';
@@ -11,16 +13,18 @@ import { ContractorLabourResult, PersonSearchResult } from '../entry-exit.models
 @Injectable()
 export class EntryExitSearchStore implements OnDestroy {
   private readonly api = inject(ApiService);
+  private readonly logger = inject(LoggerService);
   private readonly barcodeSvc = inject(BarcodeService);
   private readonly authService = inject(AuthService);
   private readonly router = inject(Router);
 
-  private readonly photoObjectUrlMap = new Map<string, string>();
   private readonly photoFetchPromises = new Map<string, Promise<void>>();
   private readonly localImage = inject(LocalImageService);
+  // map blobPath -> { original, url }
+  private readonly photoCacheMap = new Map<string, { original: string; url: string }>();
 
   readonly guardProfile = this.authService.guardProfile;
-  readonly placeholderUrl = 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=';
+  readonly placeholderUrl = PLACEHOLDER_DATA_URL;
 
   readonly searchTerm = signal('');
   readonly result = signal<PersonSearchResult | null>(null);
@@ -115,7 +119,7 @@ export class EntryExitSearchStore implements OnDestroy {
         }
       })
       .catch((err: unknown) => {
-        console.error('Barcode scan failed or cancelled', err);
+        this.logger.warn('Barcode scan failed or cancelled', err);
         this.errorMessage.set('Barcode scan failed or cancelled');
       });
   }
@@ -247,7 +251,7 @@ export class EntryExitSearchStore implements OnDestroy {
       },
       error: (err: unknown) => {
         this.submitting.set(false);
-        console.error('Entry log error:', err);
+        this.logger.error('Entry log error:', err);
         const message = typeof err === 'object' && err !== null && 'error' in (err as Record<string, unknown>)
           ? ((err as Record<string, unknown>)['error'] as { message?: string } | undefined)?.message
           : undefined;
@@ -289,7 +293,7 @@ export class EntryExitSearchStore implements OnDestroy {
       },
       error: (err: unknown) => {
         this.submitting.set(false);
-        console.error('Exit log error:', err);
+        this.logger.error('Exit log error:', err);
         this.errorMessage.set('Failed to log exit. Please try again.');
       }
     });
@@ -489,7 +493,7 @@ export class EntryExitSearchStore implements OnDestroy {
       },
       error: (err: unknown) => {
         this.submitting.set(false);
-        console.error(`Bulk ${actionName} error:`, err);
+        this.logger.error(`Bulk ${actionName} error:`, err);
         this.errorMessage.set(`Bulk ${actionName} failed. Please try again.`);
       }
     });
@@ -519,12 +523,14 @@ export class EntryExitSearchStore implements OnDestroy {
   }
 
   clearPhotoCache(): void {
-    for (const url of this.photoObjectUrlMap.values()) {
+    for (const entry of this.photoCacheMap.values()) {
       try {
-        URL.revokeObjectURL(url);
+        if (entry && entry.url && typeof entry.url === 'string' && entry.url.startsWith('blob:')) {
+          try { URL.revokeObjectURL(entry.url); } catch {}
+        }
       } catch {}
     }
-    this.photoObjectUrlMap.clear();
+    this.photoCacheMap.clear();
     this.photoFetchPromises.clear();
   }
 
@@ -646,8 +652,8 @@ export class EntryExitSearchStore implements OnDestroy {
       return trimmed;
     }
 
-    const cached = this.photoObjectUrlMap.get(blobPath);
-    if (cached) return cached;
+    const cachedEntry = this.photoCacheMap.get(blobPath);
+    if (cachedEntry) return cachedEntry.url;
 
     if (this.photoFetchPromises.has(blobPath)) {
       return this.placeholderUrl;
@@ -655,26 +661,30 @@ export class EntryExitSearchStore implements OnDestroy {
 
     const promise = (async () => {
       try {
-        // Try to resolve via local cache / storage first (this will download+save if not present)
+        // Try to resolve via LocalImageService which will download/save when appropriate
         const resolved = await this.localImage.resolveImage(photoUrl, blobPath);
         if (resolved) {
-          this.photoObjectUrlMap.set(blobPath, resolved);
+          this.photoCacheMap.set(blobPath, { original: photoUrl, url: resolved });
           this.photoCacheVersion.update(v => v + 1);
           return;
         }
 
-        // Fallback: fetch blob from API and create object URL
+        // As a next fallback, attempt to obtain a data URL (no object URLs)
         try {
-          const blob = await this.api.getPhotoBlob(blobPath).toPromise();
-          if (!blob) return;
-          const url = URL.createObjectURL(blob);
-          this.photoObjectUrlMap.set(blobPath, url);
-          this.photoCacheVersion.update(v => v + 1);
+          const dataUrl = await this.localImage.getDataUrl(photoUrl);
+          if (dataUrl) {
+            this.photoCacheMap.set(blobPath, { original: photoUrl, url: dataUrl });
+            this.photoCacheVersion.update(v => v + 1);
+            return;
+          }
         } catch (err) {
-          console.error('Failed to fetch photo blob', err);
+          this.logger.error('Failed to obtain data URL fallback for photo', err);
         }
+
+        // If all else fails after LocalImageService, attempt to return a data URL
+        this.logger.warn('Falling back to data URL attempt for photo', photoUrl);
       } catch (err) {
-        console.error('Failed to resolve photo', err);
+        this.logger.error('Failed to resolve photo', err);
       } finally {
         this.photoFetchPromises.delete(blobPath);
       }

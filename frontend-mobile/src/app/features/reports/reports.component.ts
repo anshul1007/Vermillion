@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { IconComponent } from '../../shared/icon/icon.component';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../core/services/api.service';
+import { LoggerService } from '../../core/services/logger.service';
 import { projectStore } from '../../core/state/project.store';
 import { take } from 'rxjs/operators';
 import { RawEntryExitRecordDto } from '../../core/models/entry-exit.model';
@@ -218,6 +219,7 @@ interface Statistics {
 })
 export class ReportsComponent implements OnInit {
   private apiService = inject(ApiService);
+  private logger = inject(LoggerService);
   private authService = inject(AuthService);
 
   guardProfile = this.authService.guardProfile;
@@ -371,7 +373,7 @@ export class ReportsComponent implements OnInit {
         },
         error: (error) => {
           this.loading.set(false);
-          console.error('Error loading records:', error);
+          this.logger.error('Error loading records:', error);
         },
       });
   }
@@ -549,7 +551,7 @@ export class ReportsComponent implements OnInit {
         },
         error: (err) => {
           // keep fallback pending value on error
-          console.error('Error fetching open sessions:', err);
+          this.logger.error('Error fetching open sessions:', err);
         },
       });
   }

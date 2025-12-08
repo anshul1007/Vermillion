@@ -1,7 +1,6 @@
 import { Injectable } from '@angular/core';
-import { createWorker, PSM } from 'tesseract.js';
 
-type TesseractWorker = Awaited<ReturnType<typeof createWorker>>;
+type TesseractWorker = any;
 
 export interface AadharOcrResult {
   rawText: string;
@@ -68,38 +67,42 @@ export class OcrService {
     }
 
     if (!this.workerInitPromise) {
-      if (progress) {
-        progress(0.1);
-      }
+      this.workerInitPromise = (async () => {
+        if (progress) {
+          progress(0.1);
+        }
 
-      this.workerInitPromise = createWorker('eng', undefined, {
-        workerPath: OcrService.workerPath,
-        corePath: OcrService.corePath,
-        langPath: OcrService.langPath,
-        cacheMethod: 'none',
-        gzip: false,
-      })
-        .then(async (workerInstance) => {
-          if (progress) {
-            progress(0.4);
-          }
+        // Lazy-load tesseract.js so the heavy library and its assets
+        // are not part of the main bundle and are only loaded when OCR is used.
+        const tesseract = await import('tesseract.js');
+        const { createWorker, PSM } = tesseract as any;
 
-          await workerInstance.setParameters({
-            tessedit_pageseg_mode: String(PSM.AUTO),
-            tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 ,:/-@().',
-            preserve_interword_spaces: '1',
-          });
-
-          if (progress) {
-            progress(0.6);
-          }
-
-          this.worker = workerInstance;
-          return workerInstance;
-        })
-        .finally(() => {
-          this.workerInitPromise = null;
+        const workerInstance = await createWorker('eng', undefined, {
+          workerPath: OcrService.workerPath,
+          corePath: OcrService.corePath,
+          langPath: OcrService.langPath,
+          cacheMethod: 'none',
+          gzip: false,
         });
+
+        if (progress) {
+          progress(0.4);
+        }
+
+        await workerInstance.setParameters({
+          tessedit_pageseg_mode: String(PSM.AUTO),
+          tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 ,:/-@().',
+          preserve_interword_spaces: '1',
+        });
+
+        if (progress) {
+          progress(0.6);
+        }
+
+        this.worker = workerInstance;
+        this.workerInitPromise = null;
+        return workerInstance;
+      })();
     }
 
     return this.workerInitPromise!;

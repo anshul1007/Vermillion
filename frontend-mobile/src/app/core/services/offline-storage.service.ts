@@ -1,4 +1,5 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
+import { LoggerService } from './logger.service';
 import Dexie from 'dexie';
 
 interface PhotoRecord {
@@ -23,6 +24,8 @@ export class OfflineStorageService {
   constructor() {
     this.detectPlatform();
   }
+
+  private logger = inject(LoggerService);
 
   private async detectPlatform() {
     try {
@@ -99,7 +102,7 @@ export class OfflineStorageService {
         const id = await this.photosTable!.add({ filename, data: path, metadata, remoteUrl: metadata?.remoteUrl ?? null, hash: hash ?? null, uploaded: false, createdAt });
         return { id, localRef: path };
       } catch (err) {
-        console.error('Filesystem write failed', err);
+        this.logger.error('Filesystem write failed', err);
         // fallback to Dexie blob store
       }
     }
@@ -122,7 +125,7 @@ export class OfflineStorageService {
       }
       return hex;
     } catch (e) {
-      console.warn('computeBlobHash failed', e);
+      this.logger.warn('computeBlobHash failed', e);
       return null;
     }
   }
@@ -155,7 +158,7 @@ export class OfflineStorageService {
   }
 
   // Accept either a PhotoRecord or an id and return an object suitable for image display.
-  async getPhotoData(recordOrId: PhotoRecord | number): Promise<{ dataUrl?: string; localPath?: string; blob?: Blob } | null> {
+  async getPhotoData(recordOrId: PhotoRecord | number, options: { asDataUrl?: boolean } = { asDataUrl: true }): Promise<{ dataUrl?: string; localPath?: string; blob?: Blob } | null> {
     if (!this.photosTable) await this.initDexie();
     let record: PhotoRecord | undefined | null;
     if (typeof recordOrId === 'number') {
@@ -170,18 +173,29 @@ export class OfflineStorageService {
         const result = await this.Filesystem.readFile({ path: record.data, directory: 'DATA' });
         const base64 = result.data as string;
         const dataUrl = `data:image/jpeg;base64,${base64}`;
+        if (options.asDataUrl === false) {
+          // return the stored native filesystem path (record.data) so callers can decide how to consume it
+          return { localPath: record.data as string };
+        }
         return { dataUrl, localPath: dataUrl };
       } catch (e) {
-        console.error('readFile failed', e);
+        this.logger.error('readFile failed', e);
         return null;
       }
     }
 
     if (record.data instanceof Blob) {
       try {
-        const url = URL.createObjectURL(record.data);
-        return { dataUrl: url, localPath: url, blob: record.data };
+        const blob = record.data;
+        if (options.asDataUrl === false) {
+          // return the blob for callers that prefer to create object URLs themselves
+          return { blob, localPath: undefined } as any;
+        }
+        const b64 = await this.blobToBase64(blob);
+        const dataUrl = `data:image/jpeg;base64,${b64}`;
+        return { dataUrl, localPath: dataUrl, blob };
       } catch (e) {
+        this.logger.error('getPhotoData blob conversion failed', e);
         return null;
       }
     }

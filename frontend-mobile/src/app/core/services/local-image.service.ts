@@ -2,10 +2,11 @@ import { Injectable } from '@angular/core';
 import { OfflineStorageService } from './offline-storage.service';
 import { ApiService } from './api.service';
 import { firstValueFrom } from 'rxjs';
+import { LoggerService } from './logger.service';
 
 @Injectable({ providedIn: 'root' })
 export class LocalImageService {
-  constructor(private offline: OfflineStorageService, private api: ApiService) {}
+  constructor(private offline: OfflineStorageService, private api: ApiService, private logger: LoggerService) {}
 
   // Resolve an image source to a local URL. If image exists locally return it,
   // otherwise download, save and return the saved local reference.
@@ -27,7 +28,8 @@ export class LocalImageService {
     // Try to find in offline DB by matching original URL in metadata
     const existing = await this.offline.findPhotoByRemoteUrl(src);
     if (existing) {
-      const data = await this.offline.getPhotoData(existing.id ?? existing);
+      // prefer a local path or blob without forcing a data URL conversion
+      const data = await this.offline.getPhotoData(existing.id ?? existing, { asDataUrl: false });
       return data?.localPath || data?.dataUrl || null;
     }
 
@@ -86,7 +88,7 @@ export class LocalImageService {
       if (!blob) return src;
 
       const saved = await this.offline.savePhoto(blob, filenameHint || this.suggestName(), { origin: 'remote', remoteUrl: src });
-      const data = await this.offline.getPhotoData(saved.id);
+      const data = await this.offline.getPhotoData(saved.id, { asDataUrl: false });
       return data?.localPath || data?.dataUrl || src;
     } catch (e) {
       return src;
@@ -99,5 +101,55 @@ export class LocalImageService {
 
   private suggestName() {
     return `img_${Date.now()}.jpg`;
+  }
+
+  // Return a data URL (data:<mime>;base64,...) for the given src. This will
+  // convert blob: URLs, fetch remote images or return existing data URLs.
+  async getDataUrl(src: string | null): Promise<string | null> {
+    if (!src) return null;
+    try {
+      // If already a data URL
+      if (src.startsWith('data:')) return src;
+
+      // If blob: object URL, fetch and convert
+      if (src.startsWith('blob:')) {
+        this.logger.debug('Converting blob URL to data URL', src);
+        const resp = await fetch(src);
+        if (!resp.ok) return null;
+        const blob = await resp.blob();
+        return await this.blobToDataUrl(blob);
+      }
+
+      // Try to find in offline storage first
+      const existing = await this.offline.findPhotoByRemoteUrl(src);
+      if (existing) {
+        const pd = await this.offline.getPhotoData(existing.id ?? existing);
+        if (pd?.dataUrl) return pd.dataUrl;
+        if (pd?.blob) return await this.blobToDataUrl(pd.blob);
+      }
+
+      // Fallback: fetch remote
+      try {
+        const resp = await fetch(src);
+        if (!resp.ok) return null;
+        const blob = await resp.blob();
+        return await this.blobToDataUrl(blob);
+      } catch (e) {
+        this.logger.warn('Failed to fetch remote image for data URL', src, e);
+        return null;
+      }
+    } catch (e) {
+      this.logger.warn('getDataUrl failed for', src, e);
+      return null;
+    }
+  }
+
+  private blobToDataUrl(blob: Blob): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = reject;
+      reader.onload = () => resolve(reader.result as string);
+      reader.readAsDataURL(blob);
+    });
   }
 }
