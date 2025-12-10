@@ -11,8 +11,7 @@
     "cap:sync:dev": "cross-env NODE_ENV=development npx cap sync",
     "cap:sync:prod": "cross-env NODE_ENV=production npx cap sync",
     "ionic:build": "npm run build",
-    "ionic:serve": "npm run watch",
-    "setup:ocr": "node scripts/setup-ocr-assets.mjs"
+    "ionic:serve": "npm run watch"
   },
   "prettier": {
     "printWidth": 100,
@@ -47,7 +46,6 @@
     "@zxing/library": "^0.21.3",
     "dexie": "^4.2.1",
     "rxjs": "~7.8.0",
-    "tesseract.js": "^5.1.0",
     "tslib": "^2.3.0"
   },
   "devDependencies": {

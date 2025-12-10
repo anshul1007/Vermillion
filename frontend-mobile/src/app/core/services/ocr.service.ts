@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
-
-type TesseractWorker = any;
+import { HttpClient } from '@angular/common/http';
+import { firstValueFrom } from 'rxjs';
 
 export interface AadharOcrResult {
   rawText: string;
@@ -20,23 +20,10 @@ interface ParsedAadharFields {
 
 @Injectable({ providedIn: 'root' })
 export class OcrService {
-  private static readonly baseAssetPath = ((): string => {
-    try {
-      if (typeof document !== 'undefined') {
-        const baseEl = document.querySelector('base');
-        const baseHref = baseEl ? (baseEl.getAttribute('href') || '/') : '/';
-        return (baseHref.endsWith('/') ? baseHref : baseHref + '/') + 'tesseract/';
-      }
-    } catch (e) {
-      // fallback to root
-    }
-    return '/tesseract/';
-  })();
-  private static readonly workerPath = `${OcrService.baseAssetPath}tesseract.worker.min.js`;
-  private static readonly corePath = `${OcrService.baseAssetPath}tesseract-core.wasm.js`;
-  private static readonly langPath = OcrService.baseAssetPath;
-  private worker: TesseractWorker | null = null;
-  private workerInitPromise: Promise<TesseractWorker> | null = null;
+  private readonly OCR_API_KEY = 'K87899142388957'; // Free tier OCR.space API key
+  private readonly OCR_API_URL = 'https://api.ocr.space/parse/image';
+
+  constructor(private http: HttpClient) {}
 
   async extractAadharFields(imageDataUrl: string, progress?: (value: number) => void): Promise<AadharOcrResult> {
     if (!imageDataUrl) {
@@ -44,154 +31,63 @@ export class OcrService {
     }
 
     if (progress) {
-      progress(0.05);
+      progress(0.1);
     }
 
-    const worker = await this.getWorker(progress);
+    try {
+      // Prepare form data
+      const formData = new FormData();
+      formData.append('base64Image', imageDataUrl);
+      formData.append('language', 'eng');
+      formData.append('isOverlayRequired', 'false');
+      formData.append('detectOrientation', 'true');
+      formData.append('scale', 'true');
+      formData.append('OCREngine', '2'); // Use OCR Engine 2 for better results
 
-    if (progress) {
-      progress(0.75);
+      if (progress) {
+        progress(0.3);
+      }
+
+      // Call OCR API
+      const response: any = await firstValueFrom(
+        this.http.post(this.OCR_API_URL, formData, {
+          headers: {
+            'apikey': this.OCR_API_KEY,
+          },
+        })
+      );
+
+      if (progress) {
+        progress(0.8);
+      }
+
+      if (!response || !response.ParsedResults || response.ParsedResults.length === 0) {
+        throw new Error('OCR API returned no results');
+      }
+
+      const ocrResult = response.ParsedResults[0];
+      const rawText = ocrResult.ParsedText || '';
+      const confidence = ocrResult.FileParseExitCode === 1 ? 0.85 : 0.5; // Estimate confidence
+
+      if (progress) {
+        progress(0.9);
+      }
+
+      const parsed = this.parseText(rawText);
+
+      if (progress) {
+        progress(1);
+      }
+
+      return {
+        rawText,
+        confidence,
+        ...parsed,
+      };
+    } catch (error: any) {
+      console.error('OCR API error:', error);
+      throw new Error('Failed to process image with OCR API: ' + (error.message || String(error)));
     }
-
-    const result = await worker.recognize(imageDataUrl);
-
-    if (progress) {
-      progress(1);
-    }
-
-    const parsed = this.parseText(result.data.text ?? '');
-
-    return {
-      rawText: result.data.text ?? '',
-      confidence: typeof result.data.confidence === 'number' ? result.data.confidence : null,
-      ...parsed,
-    };
-  }
-
-  private async getWorker(progress?: (value: number) => void): Promise<TesseractWorker> {
-    if (typeof window === 'undefined') {
-      throw new Error('OCR can only run in a browser environment.');
-    }
-
-    if (this.worker) {
-      return this.worker;
-    }
-
-    if (!this.workerInitPromise) {
-      this.workerInitPromise = (async () => {
-        if (progress) {
-          progress(0.1);
-        }
-
-        // Lazy-load tesseract.js so the heavy library and its assets
-        // are not part of the main bundle and are only loaded when OCR is used.
-        let tesseract: any;
-        try {
-          tesseract = await import('tesseract.js');
-        } catch (err) {
-          throw new Error('Failed to load tesseract.js: ' + (err instanceof Error ? err.message : String(err)) + '. Ensure tesseract is installed and available in production build.');
-        }
-        const { createWorker, PSM } = tesseract as any;
-
-        try {
-          const toAbsoluteUrl = (path: string) => {
-            if (/^https?:\/\//i.test(path)) {
-              return path;
-            }
-            try {
-              if (typeof location !== 'undefined') {
-                if (path.startsWith('/')) {
-                  return `${location.origin}${path}`;
-                }
-                return `${location.origin}/${path}`;
-              }
-            } catch (e) {
-              // ignore and fall back to original path
-            }
-            return path;
-          };
-
-          // Use CDN for all Tesseract assets to ensure version compatibility
-          const cdnBase = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/';
-          const workerUrl = `${cdnBase}dist/worker.min.js`;
-          const coreJsUrl = `${cdnBase}dist/tesseract-core.wasm.js`;
-          const langBaseUrl = 'https://cdn.jsdelivr.net/npm/tesseract.js-core@5.1.0/';
-          console.debug('Using CDN for all Tesseract assets', { workerUrl, coreJsUrl, langBaseUrl });
-
-          const fetchAssetMeta = async (url: string) => {
-            try {
-              const resp = await fetch(url, { method: 'GET', cache: 'no-store' });
-              if (!resp.ok) {
-                throw new Error(`HTTP ${resp.status}`);
-              }
-              const contentType = resp.headers.get('content-type') || '';
-              if (contentType.includes('text/html')) {
-                const sample = await resp.clone().text().then((text) => text.slice(0, 200)).catch(() => '');
-                throw new Error(`Unexpected content-type ${contentType}; sample: ${sample}`);
-              }
-              const contentLength = resp.headers.get('content-length');
-              return {
-                status: resp.status,
-                contentType,
-                contentLength,
-              };
-            } catch (error: any) {
-              throw new Error(`Failed to fetch OCR asset ${url}: ${error instanceof Error ? error.message : String(error)}`);
-            }
-          };
-
-          const workerMeta = await fetchAssetMeta(workerUrl);
-          const coreMeta = await fetchAssetMeta(coreJsUrl);
-          const trainedDataUrl = `${langBaseUrl}eng.traineddata`;
-          const trainedMeta = await fetchAssetMeta(trainedDataUrl);
-
-          const attemptCreateWorker = async (options: Record<string, any>, variant: 'normal' | 'blob') => {
-            // Tesseract 5.x expects logger as second param (pass undefined or empty function)
-            const instance: TesseractWorker = await createWorker('eng', 1, {
-              logger: () => {}, // Silent logger to avoid missing function errors
-              ...options,
-            });
-            progress?.(0.4);
-            await instance.setParameters({
-              tessedit_pageseg_mode: String(PSM.AUTO),
-              tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 ,:/-@().',
-              preserve_interword_spaces: '1',
-            });
-            progress?.(0.6);
-            console.debug(`Tesseract worker created (${variant})`, { workerMeta, coreMeta, trainedMeta });
-            this.worker = instance;
-            this.workerInitPromise = null;
-            return instance;
-          };
-
-          const baseOptions = {
-            workerPath: workerUrl,
-            corePath: coreJsUrl,
-            langPath: langBaseUrl,
-            cacheMethod: 'none',
-            gzip: false,
-          };
-
-          try {
-            return await attemptCreateWorker(baseOptions, 'normal');
-          } catch (firstErr: any) {
-            console.warn('createWorker normal path failed, trying blob fallback', firstErr);
-            try {
-              return await attemptCreateWorker({ ...baseOptions, workerBlobURL: true }, 'blob');
-            } catch (secondErr: any) {
-              const diag = `workerMeta=${JSON.stringify(workerMeta)} coreMeta=${JSON.stringify(coreMeta)} trainedMeta=${JSON.stringify(trainedMeta)}`;
-              throw new Error(
-                `createWorker failed. normal=${firstErr instanceof Error ? firstErr.message : String(firstErr)}; blob=${secondErr instanceof Error ? secondErr.message : String(secondErr)}; ${diag}`,
-              );
-            }
-          }
-        } catch (err) {
-          throw new Error('Failed to initialize Tesseract worker. Ensure OCR assets are present at ' + OcrService.baseAssetPath + ': ' + (err instanceof Error ? err.message : String(err)));
-        }
-      })();
-    }
-
-    return this.workerInitPromise!;
   }
 
   private parseText(text: string): ParsedAadharFields {
