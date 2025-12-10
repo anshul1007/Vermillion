@@ -94,51 +94,90 @@ export class OcrService {
         const { createWorker, PSM } = tesseract as any;
 
         try {
-          // Preflight fetch the assets so we can detect 404/HTML rewrite issues
-          const checkAsset = async (url: string) => {
+          const toAbsoluteUrl = (path: string) => {
+            if (/^https?:\/\//i.test(path)) {
+              return path;
+            }
             try {
-              const resp = await fetch(url, { method: 'GET' });
+              if (typeof location !== 'undefined') {
+                if (path.startsWith('/')) {
+                  return `${location.origin}${path}`;
+                }
+                return `${location.origin}/${path}`;
+              }
+            } catch (e) {
+              // ignore and fall back to original path
+            }
+            return path;
+          };
+
+          const workerUrl = toAbsoluteUrl(OcrService.workerPath);
+          const coreJsUrl = toAbsoluteUrl(OcrService.corePath);
+          const langBaseUrl = toAbsoluteUrl(OcrService.langPath);
+          const trainedDataUrl = `${langBaseUrl.endsWith('/') ? langBaseUrl : `${langBaseUrl}/`}eng.traineddata`;
+
+          const fetchAssetMeta = async (url: string) => {
+            try {
+              const resp = await fetch(url, { method: 'GET', cache: 'no-store' });
               if (!resp.ok) {
                 throw new Error(`HTTP ${resp.status}`);
               }
-              const ct = resp.headers.get('content-type') || '';
-              if (ct.includes('text/html')) {
-                throw new Error(`Unexpected content-type ${ct}`);
+              const contentType = resp.headers.get('content-type') || '';
+              if (contentType.includes('text/html')) {
+                const sample = await resp.clone().text().then((text) => text.slice(0, 200)).catch(() => '');
+                throw new Error(`Unexpected content-type ${contentType}; sample: ${sample}`);
               }
-            } catch (e: any) {
-              throw new Error(`Failed to fetch OCR asset ${url}: ${e instanceof Error ? e.message : String(e)}`);
+              const contentLength = resp.headers.get('content-length');
+              return {
+                status: resp.status,
+                contentType,
+                contentLength,
+              };
+            } catch (error: any) {
+              throw new Error(`Failed to fetch OCR asset ${url}: ${error instanceof Error ? error.message : String(error)}`);
             }
           };
 
-          await checkAsset(OcrService.workerPath);
-          await checkAsset(OcrService.corePath);
-          await checkAsset(OcrService.langPath + 'eng.traineddata');
+          const workerMeta = await fetchAssetMeta(workerUrl);
+          const coreMeta = await fetchAssetMeta(coreJsUrl);
+          const trainedMeta = await fetchAssetMeta(trainedDataUrl);
 
-          const workerInstance = await createWorker('eng', undefined, {
-            workerPath: OcrService.workerPath,
-            corePath: OcrService.corePath,
-            langPath: OcrService.langPath,
+          const attemptCreateWorker = async (options: Record<string, any>, variant: 'normal' | 'blob') => {
+            const instance: TesseractWorker = await createWorker('eng', undefined, options);
+            progress?.(0.4);
+            await instance.setParameters({
+              tessedit_pageseg_mode: String(PSM.AUTO),
+              tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 ,:/-@().',
+              preserve_interword_spaces: '1',
+            });
+            progress?.(0.6);
+            console.debug(`Tesseract worker created (${variant})`, { workerMeta, coreMeta, trainedMeta });
+            this.worker = instance;
+            this.workerInitPromise = null;
+            return instance;
+          };
+
+          const baseOptions = {
+            workerPath: workerUrl,
+            corePath: coreJsUrl,
+            langPath: langBaseUrl,
             cacheMethod: 'none',
             gzip: false,
-          });
+          };
 
-          if (progress) {
-            progress(0.4);
+          try {
+            return await attemptCreateWorker(baseOptions, 'normal');
+          } catch (firstErr: any) {
+            console.warn('createWorker normal path failed, trying blob fallback', firstErr);
+            try {
+              return await attemptCreateWorker({ ...baseOptions, workerBlobURL: true }, 'blob');
+            } catch (secondErr: any) {
+              const diag = `workerMeta=${JSON.stringify(workerMeta)} coreMeta=${JSON.stringify(coreMeta)} trainedMeta=${JSON.stringify(trainedMeta)}`;
+              throw new Error(
+                `createWorker failed. normal=${firstErr instanceof Error ? firstErr.message : String(firstErr)}; blob=${secondErr instanceof Error ? secondErr.message : String(secondErr)}; ${diag}`,
+              );
+            }
           }
-
-          await workerInstance.setParameters({
-            tessedit_pageseg_mode: String(PSM.AUTO),
-            tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 ,:/-@().',
-            preserve_interword_spaces: '1',
-          });
-
-          if (progress) {
-            progress(0.6);
-          }
-
-          this.worker = workerInstance;
-          this.workerInitPromise = null;
-          return workerInstance;
         } catch (err) {
           throw new Error('Failed to initialize Tesseract worker. Ensure OCR assets are present at ' + OcrService.baseAssetPath + ': ' + (err instanceof Error ? err.message : String(err)));
         }
