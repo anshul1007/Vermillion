@@ -467,7 +467,7 @@ public class UserService : IUserService
     public async Task<(bool Success, string Message, int? UserId)> CreateUserAsync(
         string username, string email, string passwordHash, string tenantDomain,
         string roleName, string employeeId, string? firstName, string? lastName,
-        string? phoneNumber, Guid? departmentId, Guid? managerId)
+        string? phoneNumber, Guid? departmentId, Guid? managerId, string? pin = null)
     {
         try
         {
@@ -499,6 +499,7 @@ public class UserService : IUserService
                 Username = username,
                 Email = email,
                 PasswordHash = passwordHash,
+                PinHash = string.IsNullOrEmpty(pin) ? null : BCrypt.Net.BCrypt.HashPassword(pin),
                 IsActive = true,
                 CreatedAt = DateTime.UtcNow
             };

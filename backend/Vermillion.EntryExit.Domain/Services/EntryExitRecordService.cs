@@ -584,8 +584,8 @@ public class EntryExitRecordService : IEntryExitRecordService
             Name = labour.Name,
             PhoneNumber = labour.PhoneNumber,
             AadharNumber = !string.IsNullOrEmpty(labour.AadharNumberEncrypted)
-                ? _encryption.Decrypt(labour.AadharNumberEncrypted)
-                : null,
+                ? _encryption.Decrypt(labour.AadharNumberEncrypted) ?? string.Empty
+                : string.Empty,
             PhotoUrl = photoUrl ?? string.Empty,
             ProjectId = labour.ProjectId,
             ProjectName = labour.Project?.Name ?? string.Empty,

@@ -19,4 +19,6 @@ public class User
     // Navigation - Users can have multiple roles across multiple tenants
     public ICollection<UserRole> UserRoles { get; set; } = new List<UserRole>();
     public ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
+    // Hashed 4-digit PIN for phone-based login (nullable - if null, phone-login falls back to last-4 match)
+    public string? PinHash { get; set; }
 }

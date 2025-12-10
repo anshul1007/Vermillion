@@ -12,7 +12,7 @@ using Vermillion.Auth.Domain.Data;
 namespace Vermillion.Auth.Domain.Migrations
 {
     [DbContext(typeof(AuthDbContext))]
-    [Migration("20251204112243_Initial_NamedObjects")]
+    [Migration("20251209170446_Initial_NamedObjects")]
     partial class Initial_NamedObjects
     {
         /// <inheritdoc />
@@ -327,6 +327,9 @@ namespace Vermillion.Auth.Domain.Migrations
 
                     b.Property<string>("PasswordHash")
                         .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PinHash")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Username")

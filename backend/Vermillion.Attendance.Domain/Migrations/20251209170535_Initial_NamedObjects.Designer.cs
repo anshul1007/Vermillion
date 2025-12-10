@@ -12,7 +12,7 @@ using Vermillion.Attendance.Domain.Data;
 namespace Vermillion.Attendance.Domain.Migrations
 {
     [DbContext(typeof(AttendanceDbContext))]
-    [Migration("20251204112252_Initial_NamedObjects")]
+    [Migration("20251209170535_Initial_NamedObjects")]
     partial class Initial_NamedObjects
     {
         /// <inheritdoc />

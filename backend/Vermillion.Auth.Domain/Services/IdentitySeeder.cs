@@ -161,6 +161,7 @@ namespace Vermillion.Auth.Domain.Services
                         Username = "guard1@vermillion.com",
                         Email = "guard1@vermillion.com",
                         PasswordHash = BCrypt.Net.BCrypt.HashPassword("Guard@123"),
+                        PinHash = BCrypt.Net.BCrypt.HashPassword("3216"), // default last-4 of seeded phone +91-9876543216
                         IsActive = true,
                     }
                 };

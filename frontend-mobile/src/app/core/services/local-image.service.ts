@@ -28,8 +28,8 @@ export class LocalImageService {
     // Try to find in offline DB by matching original URL in metadata
     const existing = await this.offline.findPhotoByRemoteUrl(src);
     if (existing) {
-      // prefer a local path or blob without forcing a data URL conversion
-      const data = await this.offline.getPhotoData(existing.id ?? existing, { asDataUrl: false });
+      // prefer a local path when available; otherwise allow data URL so <img> can render it immediately
+      const data = await this.offline.getPhotoData(existing.id ?? existing);
       return data?.localPath || data?.dataUrl || null;
     }
 
@@ -88,7 +88,7 @@ export class LocalImageService {
       if (!blob) return src;
 
       const saved = await this.offline.savePhoto(blob, filenameHint || this.suggestName(), { origin: 'remote', remoteUrl: src });
-      const data = await this.offline.getPhotoData(saved.id, { asDataUrl: false });
+      const data = await this.offline.getPhotoData(saved.id);
       return data?.localPath || data?.dataUrl || src;
     } catch (e) {
       return src;

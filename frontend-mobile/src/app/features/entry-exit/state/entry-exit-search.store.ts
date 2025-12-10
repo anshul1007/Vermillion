@@ -1,5 +1,8 @@
 import { Injectable, OnDestroy, computed, effect, inject, signal } from '@angular/core';
+import { generateClientId } from '../../../core/utils/id.util';
+import { lastValueFrom } from 'rxjs';
 import { take } from 'rxjs/operators';
+import { Network } from '@capacitor/network';
 import { Router } from '@angular/router';
 import { ApiResponse, ApiService } from '../../../core/services/api.service';
 import { LocalImageService } from '../../../core/services/local-image.service';
@@ -8,7 +11,17 @@ import { PLACEHOLDER_DATA_URL } from '../../../core/constants/image.constants';
 import { BarcodeService } from '../../../core/services/barcode.service';
 import { AuthService } from '../../../core/auth/auth.service';
 import { projectStore } from '../../../core/state/project.store';
+import { OfflineStorageService } from '../../../core/services/offline-storage.service';
+import { OfflineDbService } from '../../../core/services/offline-db.service';
 import { ContractorLabourResult, PersonSearchResult } from '../entry-exit.models';
+
+type RecordPayload = {
+  personType: 'Labour' | 'Visitor';
+  action: 'Entry' | 'Exit';
+  labourId?: number;
+  visitorId?: number;
+  clientId?: string;
+};
 
 @Injectable()
 export class EntryExitSearchStore implements OnDestroy {
@@ -17,6 +30,8 @@ export class EntryExitSearchStore implements OnDestroy {
   private readonly barcodeSvc = inject(BarcodeService);
   private readonly authService = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly offlineStorage = inject(OfflineStorageService);
+  private readonly offlineDb = inject(OfflineDbService);
 
   private readonly photoFetchPromises = new Map<string, Promise<void>>();
   private readonly localImage = inject(LocalImageService);
@@ -98,8 +113,7 @@ export class EntryExitSearchStore implements OnDestroy {
       if (this.errorMessage() === this.noProjectMessage) {
         this.errorMessage.set('');
       }
-    },
-    { allowSignalWrites: true }
+    }
   );
 
   updateSearchTerm(value: string): void {
@@ -137,39 +151,47 @@ export class EntryExitSearchStore implements OnDestroy {
     }
 
     this.loading.set(true);
+    // Try network search first, otherwise fallback to local DB
     this.api.search(term).pipe(take(1)).subscribe({
       next: (res: ApiResponse<any>) => {
         this.loading.set(false);
-        // ensure contractor mode cleared after person search completes
         this.contractorMode.set(false);
         this.contractorResults.set(null);
         const data = res?.data;
-        if (!data) {
-          this.errorMessage.set('No person found with that search term');
+        if (data && (Array.isArray(data) ? data.length > 0 : true)) {
+          if (Array.isArray(data)) {
+            if (data.length > 1) {
+              this.results.set(data);
+              this.previousResults.set(data.slice());
+              return;
+            }
+            this.selectResult(data[0]);
+            return;
+          }
+          this.selectResult(data);
           return;
         }
 
-        if (Array.isArray(data)) {
-          if (data.length === 0) {
-            this.errorMessage.set('No person found with that search term');
-            return;
-          }
-
-          if (data.length > 1) {
-            this.results.set(data);
-            this.previousResults.set(data.slice());
-            return;
-          }
-
-          this.selectResult(data[0]);
-          return;
-        }
-
-        this.selectResult(data);
+        // fallback to offline search on no results
+        this.performLocalPersonSearch(term).then((found) => {
+          this.loading.set(false);
+          if (!found) this.errorMessage.set('No person found with that search term');
+        }).catch((e) => {
+          this.loading.set(false);
+          this.logger.warn('Local search failed', e);
+          this.errorMessage.set('Search failed. Person not found.');
+        });
       },
       error: () => {
-        this.loading.set(false);
-        this.errorMessage.set('Search failed. Person not found.');
+        // network error -> try local search
+        this.performLocalPersonSearch(term).then((found) => {
+          this.loading.set(false);
+          if (!found) this.errorMessage.set('No person found with that search term');
+        }).catch((e) => {
+          this.loading.set(false);
+          this.logger.warn('Local search failed', e);
+          this.errorMessage.set('Search failed. Person not found.');
+        });
       }
     });
   }
@@ -185,40 +207,79 @@ export class EntryExitSearchStore implements OnDestroy {
     this.api.search(barcode).pipe(take(1)).subscribe({
       next: (res: ApiResponse<any>) => {
         this.loading.set(false);
-        // ensure contractor mode cleared after person search completes
         this.contractorMode.set(false);
         this.contractorResults.set(null);
         const data = res?.data;
-        if (!data) {
-          this.errorMessage.set('No person found with that barcode');
+        if (data && (Array.isArray(data) ? data.length > 0 : true)) {
+          if (Array.isArray(data)) {
+            if (data.length > 1) {
+              this.results.set(data);
+              return;
+            }
+            this.selectResult(data[0]);
+            return;
+          }
+          this.selectResult(data);
           return;
         }
 
-        if (Array.isArray(data)) {
-          if (data.length === 0) {
-            this.errorMessage.set('No person found with that barcode');
-            return;
-          }
-
-          if (data.length > 1) {
-            this.results.set(data);
-            return;
-          }
-
-          this.selectResult(data[0]);
-          return;
-        }
-
-        this.selectResult(data);
+        // fallback to barcode local search
+        this.performLocalBarcodeSearch(barcode).then((found) => {
+          this.loading.set(false);
+          if (!found) this.errorMessage.set('No person found with that barcode');
+        }).catch((e) => {
+          this.loading.set(false);
+          this.logger.warn('Local barcode search failed', e);
+          this.errorMessage.set('Search failed. Person not found.');
+        });
       },
       error: () => {
-        this.loading.set(false);
-        this.errorMessage.set('Search failed. Person not found.');
+        this.performLocalBarcodeSearch(barcode).then((found) => {
+          this.loading.set(false);
+          if (!found) this.errorMessage.set('No person found with that barcode');
+        }).catch((e) => {
+          this.loading.set(false);
+          this.logger.warn('Local barcode search failed', e);
+          this.errorMessage.set('Search failed. Person not found.');
+        });
       }
     });
   }
 
-  logEntry(): void {
+  private async performLocalPersonSearch(term: string): Promise<boolean> {
+    // search `people` table in offline DB (from OfflineStorageService or OfflineDbService)
+    try {
+      const people = await this.offlineStorage.getAllLocalPeople().catch(() => []);
+      const matches = (people || []).filter((p: any) => {
+        const name = (p.name || '').toLowerCase();
+        return name.includes(term.toLowerCase()) || (p.phoneNumber || '').includes(term);
+      });
+      if (matches.length === 0) return false;
+      if (matches.length === 1) {
+        this.selectResult(matches[0]);
+        return true;
+      }
+      this.results.set(matches.map((m: any) => ({ id: m.serverId || m.clientId || m.id, name: m.name, phoneNumber: m.phoneNumber } as any)));
+      this.previousResults.set(matches.slice());
+      return true;
+    } catch (e) {
+      throw e;
+    }
+  }
+
+  private async performLocalBarcodeSearch(barcode: string): Promise<boolean> {
+    try {
+      const people = await this.offlineStorage.getAllLocalPeople().catch(() => []);
+      const match = (people || []).find((p: any) => (p.barcode || '') === barcode || (p.barcode && String(p.barcode) === barcode));
+      if (!match) return false;
+      this.selectResult(match);
+      return true;
+    } catch (e) {
+      throw e;
+    }
+  }
+
+  async logEntry(): Promise<void> {
     const current = this.result();
     if (!current || !this.ensureProjectAssigned()) {
       return;
@@ -228,39 +289,48 @@ export class EntryExitSearchStore implements OnDestroy {
     this.errorMessage.set('');
     this.successMessage.set('');
 
-    const payload: any = {
-      personType: current.personType === 'Visitor' ? 2 : 1,
-      action: 1
-    };
+    const payload = this.buildRecordPayload(current, 'Entry');
 
-    if (current.personType === 'Labour' || !current.personType) {
-      payload.labourId = current.id;
-    } else {
-      payload.visitorId = current.id;
-    }
+    try {
+      const status = await this.getNetworkStatus();
+      const offlineOnly = !this.hasServerId(current) || !status.connected;
 
-    this.api.createRecord(payload).pipe(take(1)).subscribe({
-      next: (response: ApiResponse<any>) => {
-        this.submitting.set(false);
-        if (response.success) {
+      if (offlineOnly) {
+        await this.queueRecordAction(payload, current, 'Entry');
+        this.result.set({ ...current, hasOpenEntry: true });
+        this.successMessage.set('Entry saved offline and queued for sync');
+        return;
+      }
+
+      const response = await lastValueFrom(this.api.createRecord(payload));
+      if (response?.success) {
+        this.result.set({ ...current, hasOpenEntry: true });
+        this.successMessage.set('Entry logged successfully!');
+      } else {
+        const message = response?.message || 'Failed to log entry';
+        this.errorMessage.set(message);
+      }
+    } catch (err) {
+      const status = this.extractStatus(err);
+      if (status && status >= 400 && status < 500) {
+        const message = this.resolveErrorMessage(err) || 'Failed to log entry';
+        this.errorMessage.set(message);
+      } else {
+        try {
+          await this.queueRecordAction(payload, current, 'Entry');
           this.result.set({ ...current, hasOpenEntry: true });
-          this.successMessage.set('Entry logged successfully!');
-        } else {
-          this.errorMessage.set(response.message || 'Failed to log entry');
+          this.successMessage.set('Entry saved offline and queued for sync');
+        } catch (queueErr) {
+          this.logger.error('Entry offline queue failed', queueErr);
+          this.errorMessage.set('Failed to log entry. Please try again.');
         }
-      },
-      error: (err: unknown) => {
-        this.submitting.set(false);
-        this.logger.error('Entry log error:', err);
-        const message = typeof err === 'object' && err !== null && 'error' in (err as Record<string, unknown>)
-          ? ((err as Record<string, unknown>)['error'] as { message?: string } | undefined)?.message
-          : undefined;
-        this.errorMessage.set(message || 'Failed to log entry. Please try again.');
       }
-    });
+    } finally {
+      this.submitting.set(false);
+    }
   }
 
-  logExit(): void {
+  async logExit(): Promise<void> {
     const current = this.result();
     if (!current || !this.ensureProjectAssigned()) {
       return;
@@ -270,33 +340,45 @@ export class EntryExitSearchStore implements OnDestroy {
     this.errorMessage.set('');
     this.successMessage.set('');
 
-    const payload: any = {
-      personType: current.personType === 'Visitor' ? 2 : 1,
-      action: 2
-    };
+    const payload = this.buildRecordPayload(current, 'Exit');
 
-    if (current.personType === 'Labour' || !current.personType) {
-      payload.labourId = current.id;
-    } else {
-      payload.visitorId = current.id;
-    }
+    try {
+      const status = await this.getNetworkStatus();
+      const offlineOnly = !this.hasServerId(current) || !status.connected;
 
-    this.api.createRecord(payload).pipe(take(1)).subscribe({
-      next: (response: ApiResponse<any>) => {
-        this.submitting.set(false);
-        if (response.success) {
-          this.result.set({ ...current, hasOpenEntry: false });
-          this.successMessage.set('Exit logged successfully!');
-        } else {
-          this.errorMessage.set(response.message || 'Failed to log exit');
-        }
-      },
-      error: (err: unknown) => {
-        this.submitting.set(false);
-        this.logger.error('Exit log error:', err);
-        this.errorMessage.set('Failed to log exit. Please try again.');
+      if (offlineOnly) {
+        await this.queueRecordAction(payload, current, 'Exit');
+        this.result.set({ ...current, hasOpenEntry: false });
+        this.successMessage.set('Exit saved offline and queued for sync');
+        return;
       }
-    });
+
+      const response = await lastValueFrom(this.api.createRecord(payload));
+      if (response?.success) {
+        this.result.set({ ...current, hasOpenEntry: false });
+        this.successMessage.set('Exit logged successfully!');
+      } else {
+        const message = response?.message || 'Failed to log exit';
+        this.errorMessage.set(message);
+      }
+    } catch (err) {
+      const status = this.extractStatus(err);
+      if (status && status >= 400 && status < 500) {
+        const message = this.resolveErrorMessage(err) || 'Failed to log exit';
+        this.errorMessage.set(message);
+      } else {
+        try {
+          await this.queueRecordAction(payload, current, 'Exit');
+          this.result.set({ ...current, hasOpenEntry: false });
+          this.successMessage.set('Exit saved offline and queued for sync');
+        } catch (queueErr) {
+          this.logger.error('Exit offline queue failed', queueErr);
+          this.errorMessage.set('Failed to log exit. Please try again.');
+        }
+      }
+    } finally {
+      this.submitting.set(false);
+    }
   }
 
   backToResults(): void {
@@ -558,6 +640,182 @@ export class EntryExitSearchStore implements OnDestroy {
     });
   }
 
+  private parseNumericId(value: unknown): number | undefined {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return value;
+    }
+    if (typeof value === 'string' && /^\d+$/.test(value)) {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : undefined;
+    }
+    return undefined;
+  }
+
+  private hasServerId(person: PersonSearchResult): boolean {
+    return this.parseNumericId(person.id) !== undefined;
+  }
+
+  private async getNetworkStatus(): Promise<{ connected: boolean }> {
+    try {
+      return await Network.getStatus();
+    } catch {
+      return { connected: true };
+    }
+  }
+
+  private resolveErrorMessage(err: unknown): string | undefined {
+    if (!err || typeof err !== 'object') {
+      return undefined;
+    }
+    const httpErr = err as any;
+    if (typeof httpErr.message === 'string') {
+      return httpErr.message;
+    }
+    const nested = httpErr.error;
+    if (nested) {
+      if (typeof nested.message === 'string') {
+        return nested.message;
+      }
+      if (Array.isArray(nested.errors) && nested.errors.length > 0) {
+        return nested.errors[0];
+      }
+      if (Array.isArray(nested.Errors) && nested.Errors.length > 0) {
+        return nested.Errors[0];
+      }
+    }
+    return undefined;
+  }
+
+  private extractStatus(err: unknown): number | undefined {
+    if (!err || typeof err !== 'object') {
+      return undefined;
+    }
+    const httpErr = err as any;
+    if (typeof httpErr.status === 'number') {
+      return httpErr.status;
+    }
+    if (typeof httpErr.statusCode === 'number') {
+      return httpErr.statusCode;
+    }
+    if (httpErr.error && typeof httpErr.error.status === 'number') {
+      return httpErr.error.status;
+    }
+    return undefined;
+  }
+
+  private isGuid(value: string): boolean {
+    return /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(value);
+  }
+
+  // Use shared `generateClientId` util
+  private generateClientId(): string {
+    return generateClientId();
+  }
+
+  private ensureClientId(existing?: string): string {
+    if (existing && this.isGuid(existing)) {
+      return existing;
+    }
+    return this.generateClientId();
+  }
+
+  private buildRecordPayload(person: PersonSearchResult, action: 'Entry' | 'Exit'): RecordPayload {
+    const payload: RecordPayload = {
+      personType: (person.personType || 'Labour') as 'Labour' | 'Visitor',
+      action,
+      clientId: this.generateClientId(),
+    };
+
+    const numericId = this.parseNumericId(person.id);
+    if (numericId !== undefined) {
+      if (payload.personType === 'Visitor') {
+        payload.visitorId = numericId;
+      } else {
+        payload.labourId = numericId;
+      }
+    } else if (typeof person.id === 'string' && person.id) {
+      payload.clientId = this.ensureClientId(person.id);
+    }
+
+    return payload;
+  }
+
+  private async queueRecordAction(payload: RecordPayload, person: PersonSearchResult, action: 'Entry' | 'Exit'): Promise<void> {
+    const queuePayload: RecordPayload = { ...payload };
+    if (!queuePayload.clientId) {
+      queuePayload.clientId = this.generateClientId();
+    }
+
+    // Prefer centralized enqueue via ApiService so that enqueue rules, clientId handling
+    // and any photo-localization happen in one place. If ApiService fails, fall back
+    // to direct enqueue to avoid data loss.
+    try {
+      const resp = await lastValueFrom(this.api.createRecord(queuePayload).pipe(take(1)));
+      // If ApiService enqueued due to offline/slow network, still persist local record
+      if (resp && resp.success && resp.message === 'enqueued-offline') {
+        await this.persistOfflineRecord(queuePayload, person, action);
+        return;
+      }
+      // If API returned success (online case), no offline persistence necessary
+      if (resp && resp.success) return;
+      // Otherwise, fall through to direct enqueue
+    } catch (e) {
+      // fall through to direct enqueue below
+    }
+
+    try {
+      await this.offlineStorage.enqueueAction('createRecord', queuePayload);
+      await this.persistOfflineRecord(queuePayload, person, action);
+    } catch (err) {
+      this.logger.error('Failed to enqueue record action', err);
+      throw err;
+    }
+  }
+
+  private async persistOfflineRecord(payload: RecordPayload, person: PersonSearchResult, action: 'Entry' | 'Exit'): Promise<void> {
+    if (!payload.clientId) {
+      return;
+    }
+
+    const timestamp = new Date().toISOString();
+
+    try {
+      const guard = this.guardProfile();
+      const guardName = guard ? `${guard.firstName ?? ''} ${guard.lastName ?? ''}`.trim() : null;
+      const projectId = this.currentProjectId();
+      const projectName = this.currentProjectName();
+
+      const record = {
+        id: payload.clientId,
+        recordId: payload.clientId,
+        personType: payload.personType,
+        PersonType: payload.personType,
+        labourId: payload.labourId ?? null,
+        LabourId: payload.labourId ?? null,
+        visitorId: payload.visitorId ?? null,
+        VisitorId: payload.visitorId ?? null,
+        action,
+        Action: action,
+        timestamp,
+        Timestamp: timestamp,
+        personName: person.name,
+        PersonName: person.name,
+        contractorName: person.contractorName ?? null,
+        ContractorName: person.contractorName ?? null,
+        guardName: guardName && guardName.length > 0 ? guardName : null,
+        GuardName: guardName && guardName.length > 0 ? guardName : null,
+        projectId: projectId ?? null,
+        ProjectId: projectId ?? null,
+        projectName: projectName ?? null,
+        ProjectName: projectName ?? null,
+      };
+
+      await this.offlineDb.upsertRecord(payload.clientId, record, timestamp);
+    } catch (err) {
+      this.logger.warn('Failed to persist offline record', err);
+    }
+  }
+
   ngOnDestroy(): void {
     this.clearPhotoCache();
     try {
@@ -616,6 +874,7 @@ export class EntryExitSearchStore implements OnDestroy {
 
     let pathForBlob = trimmed;
 
+    let fetchSrc = trimmed;
     if (/^https?:\/\//i.test(trimmed)) {
       let parsed: URL | null = null;
       try {
@@ -624,20 +883,26 @@ export class EntryExitSearchStore implements OnDestroy {
         parsed = null;
       }
 
-      const currentOrigin = typeof location !== 'undefined' ? location.origin : null;
-      if (parsed && currentOrigin && parsed.origin !== currentOrigin) {
-        return trimmed;
-      }
+      const pathCandidate = parsed ? (parsed.pathname + (parsed.search || '')) : trimmed.replace(/^https?:\/\/[^/]+/i, '');
 
-      const pathCandidate = parsed ? parsed.pathname : trimmed.replace(/^https?:\/\/[^/]+/i, '');
-      if (!/\/api\/(?:entryexit\/)?photos\//i.test(pathCandidate || '')) {
-        return trimmed;
-      }
-
-      if (parsed) {
-        pathForBlob = parsed.pathname + (parsed.search || '');
-      } else {
+      // If the absolute URL points to our photos endpoint, treat it as a backend photo
+      // and use the relative path so LocalImageService will call ApiService (adds headers).
+      if (/\/api\/(?:entryexit\/)??photos\//i.test(pathCandidate || '')) {
         pathForBlob = pathCandidate;
+        // use relative path when resolving so ApiService is used instead of a cross-origin fetch
+        fetchSrc = pathForBlob;
+      } else {
+        // For other absolute URLs, only allow embedding when same-origin
+        const currentOrigin = typeof location !== 'undefined' ? location.origin : null;
+        if (parsed && currentOrigin && parsed.origin !== currentOrigin) {
+          return trimmed;
+        }
+
+        if (parsed) {
+          pathForBlob = parsed.pathname + (parsed.search || '');
+        } else {
+          pathForBlob = pathCandidate;
+        }
       }
     }
 
@@ -662,7 +927,7 @@ export class EntryExitSearchStore implements OnDestroy {
     const promise = (async () => {
       try {
         // Try to resolve via LocalImageService which will download/save when appropriate
-        const resolved = await this.localImage.resolveImage(photoUrl, blobPath);
+        const resolved = await this.localImage.resolveImage(fetchSrc, blobPath);
         if (resolved) {
           this.photoCacheMap.set(blobPath, { original: photoUrl, url: resolved });
           this.photoCacheVersion.update(v => v + 1);

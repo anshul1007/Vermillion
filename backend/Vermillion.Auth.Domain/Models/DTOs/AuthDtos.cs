@@ -1,7 +1,8 @@
 namespace Vermillion.Auth.Domain.Models.DTOs;
 
 // TenantDomain is optional now - if not provided, returns all tenants
-public record LoginRequest(string Email, string Password, string? TenantDomain = null);
+// Support either Email+Password OR Phone+Pin. TenantDomain remains optional.
+public record LoginRequest(string? Email, string? Password, string? Phone = null, string? Pin = null, string? TenantDomain = null);
 
 public record LoginResponse(string AccessToken, string RefreshToken, UserInfoDto User);
 

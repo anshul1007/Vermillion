@@ -1,13 +1,17 @@
-import { Component, inject, signal, OnInit, ChangeDetectionStrategy, computed, effect } from '@angular/core';
-import { take } from 'rxjs/operators';
+import { Component, inject, signal, OnInit, OnDestroy, ChangeDetectionStrategy, computed, effect } from '@angular/core';
+import { take, takeUntil } from 'rxjs/operators';
+import { Subject } from 'rxjs';
 import { CommonModule } from '@angular/common';
 import { IconComponent } from '../../shared/icon/icon.component';
+import { SyncService } from '../../core/services/sync.service';
 import { RouterModule } from '@angular/router';
 import { AuthService } from '../../core/auth/auth.service';
 import { projectStore } from '../../core/state/project.store';
 import { ApiService } from '../../core/services/api.service';
 import { LoggerService } from '../../core/services/logger.service';
 import { RawEntryExitRecordDto } from '../../core/models/entry-exit.model';
+import { OfflineDbService } from '../../core/services/offline-db.service';
+import { Network } from '@capacitor/network';
 
 @Component({
   selector: 'app-dashboard',
@@ -109,7 +113,12 @@ import { RawEntryExitRecordDto } from '../../core/models/entry-exit.model';
             <span class="text-label font-semibold">Reports</span>
           </a>
         </section>
-        <section class="d-flex justify-center mt-3">
+        <section class="d-grid gap-2 mt-3">
+          <button class="btn btn-primary w-full" type="button" (click)="onSync()" [disabled]="syncing">
+            <app-icon name="refresh-ccw" size="18"></app-icon>
+            <span *ngIf="!syncing">Sync</span>
+            <span *ngIf="syncing">Syncing...</span>
+          </button>
           <button class="btn btn-danger w-full" type="button" (click)="logout()">
             <app-icon name="logout" size="20"></app-icon>
             <span>Logout</span>
@@ -136,10 +145,14 @@ import { RawEntryExitRecordDto } from '../../core/models/entry-exit.model';
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class DashboardComponent implements OnInit {
+export class DashboardComponent implements OnInit, OnDestroy {
   private authService = inject(AuthService);
+  private syncService = inject(SyncService);
   private apiService = inject(ApiService);
   private logger = inject(LoggerService);
+  private offlineDb = inject(OfflineDbService);
+
+  syncing = false;
 
   logout(): void {
     // Delegate to AuthService logout — show confirmation
@@ -183,8 +196,7 @@ export class DashboardComponent implements OnInit {
         todayTotal: 0,
         activeTotal: 0,
       });
-    },
-    { allowSignalWrites: true }
+    }
   );
 
   ngOnInit(): void {
@@ -192,6 +204,18 @@ export class DashboardComponent implements OnInit {
     if (!this.guardProfile()) {
       this.loadGuardProfile();
     }
+    this.syncService.syncing.pipe(takeUntil(this.destroy$)).subscribe(v => (this.syncing = v));
+  }
+
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
+  }
+
+  private destroy$ = new Subject<void>();
+
+  onSync(): void {
+    this.syncService.syncAll().catch((err) => this.logger.error('Sync failed', err));
   }
 
   loadGuardProfile(): void {
@@ -212,75 +236,100 @@ export class DashboardComponent implements OnInit {
   }
 
   private loadTodaysStats(projectId: number): void {
-    // Get today's records to calculate statistics
-    this.apiService
-      .getTodayRecords(projectId)
-      .pipe(take(1))
-      .subscribe({
-        next: (response) => {
-          if (response.success && response.data) {
-            const records = response.data as RawEntryExitRecordDto[];
-
-            // Compute session-based totals: pair Entry->Exit so a pair counts once
-            const grouped = new Map<string, RawEntryExitRecordDto[]>();
-            records.forEach((r) => {
-              const idPart =
-                r.labourId ?? r.LabourId
-                  ? `labour:${r.labourId ?? r.LabourId}`
-                  : r.visitorId ?? r.VisitorId
-                  ? `visitor:${r.visitorId ?? r.VisitorId}`
-                  : r.personName ?? r.PersonName ?? 'unknown';
-              const key = `${r.personType ?? r.PersonType}-${idPart}`;
-              if (!grouped.has(key)) grouped.set(key, []);
-              grouped.get(key)!.push(r);
-            });
-
-            let paired = 0;
-            let pending = 0;
-
-            for (const [k, recs] of grouped) {
-              const sorted = recs
-                .slice()
-                .sort(
-                  (a, b) =>
-                    new Date(a.timestamp ?? a.Timestamp ?? a.entryTime ?? '').getTime() -
-                    new Date(b.timestamp ?? b.Timestamp ?? b.entryTime ?? '').getTime()
-                );
-              let p = 0;
-              let pairs = 0;
-              for (const r of sorted) {
-                const action =
-                  (r.action ?? r.Action) === 'Exit' || (r.action ?? r.Action) === 2
-                    ? 'Exit'
-                    : 'Entry';
-                if (action === 'Entry') p++;
-                else if (action === 'Exit') {
-                  if (p > 0) {
-                    p--;
-                    pairs++;
-                  }
-                }
-              }
-              paired += pairs;
-              pending += p;
+    // Prefer offline local cache when offline
+    Network.getStatus().then(async (status) => {
+      if (!status.connected) {
+        try {
+          const recs = await this.offlineDb.getAll('records');
+          const records = (recs || []) as any[];
+          // Filter by projectId and today's date
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          const tomorrow = new Date(today);
+          tomorrow.setDate(today.getDate() + 1);
+          const filtered = records.filter((r: any) => {
+            try {
+              const ts = new Date(r.data.timestamp ?? r.data.Timestamp ?? r.timestamp ?? r.data.entryTime ?? r.timestamp);
+              const pid = r.data.projectId ?? r.data.ProjectId ?? undefined;
+              return ts >= today && ts < tomorrow && (!projectId || pid === projectId);
+            } catch (e) {
+              return false;
             }
+          }).map((r: any) => r.data as RawEntryExitRecordDto);
+          computeStatsFromRecords(filtered);
+        } catch (e) {
+          this.logger.warn('Failed to read local records for stats', e);
+        }
+      } else {
+        // online: use API
+        this.apiService
+          .getTodayRecords(projectId)
+          .pipe(take(1))
+          .subscribe({
+            next: (response) => {
+              if (response.success && response.data) {
+                computeStatsFromRecords(response.data as RawEntryExitRecordDto[]);
+              }
+            },
+            error: (error) => {
+              this.logger.error("Error loading today's stats:", error);
+            },
+          });
+      }
+    }).catch((e) => { this.logger.warn('Network status read failed', e); });
 
-            const totalSessions = paired + pending;
-
-            // Active counts derived from open sessions later (we still fetch openSessions)
-            this.stats.set({
-              activeWorkers: 0,
-              activeVisitors: 0,
-              todayTotal: totalSessions,
-              activeTotal: 0,
-            });
-          }
-        },
-        error: (error) => {
-          this.logger.error("Error loading today's stats:", error);
-          // Keep default values on error
-        },
+    const computeStatsFromRecords = (records: RawEntryExitRecordDto[]) => {
+      const grouped = new Map<string, RawEntryExitRecordDto[]>();
+      records.forEach((r) => {
+        const idPart =
+          r.labourId ?? r.LabourId
+            ? `labour:${r.labourId ?? r.LabourId}`
+            : r.visitorId ?? r.VisitorId
+            ? `visitor:${r.visitorId ?? r.VisitorId}`
+            : r.personName ?? r.PersonName ?? 'unknown';
+        const key = `${r.personType ?? r.PersonType}-${idPart}`;
+        if (!grouped.has(key)) grouped.set(key, []);
+        grouped.get(key)!.push(r);
       });
+
+      let paired = 0;
+      let pending = 0;
+
+      for (const [k, recs] of grouped) {
+        const sorted = recs
+          .slice()
+          .sort(
+            (a, b) =>
+              new Date(a.timestamp ?? a.Timestamp ?? a.entryTime ?? '').getTime() -
+              new Date(b.timestamp ?? b.Timestamp ?? b.entryTime ?? '').getTime()
+          );
+        let p = 0;
+        let pairs = 0;
+        for (const r of sorted) {
+          const action =
+            (r.action ?? r.Action) === 'Exit' || (r.action ?? r.Action) === 2
+              ? 'Exit'
+              : 'Entry';
+          if (action === 'Entry') p++;
+          else if (action === 'Exit') {
+            if (p > 0) {
+              p--;
+              pairs++;
+            }
+          }
+        }
+        paired += pairs;
+        pending += p;
+      }
+
+      const totalSessions = paired + pending;
+      this.stats.set({
+        activeWorkers: 0,
+        activeVisitors: 0,
+        todayTotal: totalSessions,
+        activeTotal: 0,
+      });
+    };
 
     // Also load open sessions for more accurate active count
     this.apiService

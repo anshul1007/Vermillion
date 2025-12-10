@@ -99,7 +99,8 @@ namespace Vermillion.Auth.Domain.Migrations
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     LastLoginAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     ExternalProvider = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    ExternalUserId = table.Column<string>(type: "nvarchar(max)", nullable: true)
+                    ExternalUserId = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    PinHash = table.Column<string>(type: "nvarchar(max)", nullable: true)
                 },
                 constraints: table =>
                 {

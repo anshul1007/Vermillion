@@ -1,244 +1,431 @@
 import { Injectable, inject } from '@angular/core';
-import { LoggerService } from './logger.service';
-import { ApiService } from './api.service';
+import { BehaviorSubject, lastValueFrom } from 'rxjs';
 import { OfflineStorageService } from './offline-storage.service';
-
-function delay(ms: number) { return new Promise(res => setTimeout(res, ms)); }
+import { OfflineDbService } from './offline-db.service';
+import { AuthService } from '../auth/auth.service';
+import { ApiService } from './api.service';
+import { Network } from '@capacitor/network';
+import { LoggerService } from './logger.service';
 
 @Injectable({ providedIn: 'root' })
 export class SyncService {
-  private processing = false;
-  private pollInterval = 5000; // ms
+  private syncing$ = new BehaviorSubject<boolean>(false);
+  readonly syncing = this.syncing$.asObservable();
+  lastSyncAt$ = new BehaviorSubject<number | null>(null);
 
+  private offline = inject(OfflineStorageService);
+  private api = inject(ApiService);
   private logger = inject(LoggerService);
+  private auth = inject(AuthService);
+  private offlineDb = inject(OfflineDbService);
 
-  constructor(private api: ApiService, private offline: OfflineStorageService) {
-    // run on start
-    this.start();
-    // listen to online events
-    if (typeof window !== 'undefined' && 'addEventListener' in window) {
-      window.addEventListener('online', () => this.processQueue());
-    }
+  constructor() {
+    Network.addListener('networkStatusChange', (status) => {
+      if (status.connected) {
+        this.syncAll().catch((e) => this.logger.error('Auto-sync failed', e));
+      }
+    });
+    // whether the server supports /sync-batch; persisted in localStorage to avoid repeated 404s
+    const stored = localStorage.getItem('syncBatchSupported');
+    this.batchSupported = stored === null ? true : stored === 'true';
   }
 
-  start() {
-    // poll periodically
-    setInterval(() => this.processQueue(), this.pollInterval);
-  }
+  private batchSupported = true;
 
-  async processQueue() {
-    if (this.processing) return;
-    this.processing = true;
+  async syncAll(batchSize = 50): Promise<void> {
+    if (this.syncing$.value) return;
+    const status = await Network.getStatus();
+    if (!status.connected) return;
+
+    this.syncing$.next(true);
+    const start = Date.now();
     try {
-      const items = await this.offline.getQueuedActions(50);
+      await this.audit('sync:start', { startedAt: new Date().toISOString() });
 
-      // process registration actions first (registerLabour/registerVisitor)
-        // process photo uploads first, then registration actions, then others
-        const photoUploads = items.filter((i: any) => i.actionType === 'photoUpload');
-        const registrations = items.filter((i: any) => i.actionType === 'registerLabour' || i.actionType === 'registerVisitor');
-        const processedIds = new Set<number>();
+      // 1) Upload pending photos first
+      const pendingPhotos = await this.offline.getPendingPhotos();
+      for (const photo of pendingPhotos) {
+        try {
+          const base64 = await this.offline.getPhotoBase64ById(photo.id!);
+          if (!base64) continue;
+          const resp = await this.attemptWithBackoff(
+            () =>
+              this.callWithRefresh(() =>
+                lastValueFrom(this.api.uploadPhoto(base64, photo.filename))
+              ),
+            5
+          );
+          if (resp && resp.success && resp.data && resp.data.path) {
+            await this.offline.markUploaded(photo.id!);
+            await this.offline.patchPhotoLocalIdToPhotoPath(photo.id!, resp.data.path);
+            await this.audit('photo:uploaded', { photoId: photo.id, path: resp.data.path });
+          }
+        } catch (e) {
+          this.logger.error('Photo upload failed', e);
+          await this.audit('photo:upload_failed', { photoId: photo.id, error: String(e) });
+        }
+      }
 
-        for (const p of photoUploads) {
+      // 2) Process queued actions in FIFO order
+      let more = true;
+      while (more) {
+        const queued = await this.offline.getQueuedActions(batchSize);
+        if (!queued || queued.length === 0) {
+          more = false;
+          break;
+        }
+
+        for (const entry of queued) {
+          // skip audit entries in the sync_queue; audits are stored separately
+          if (entry.actionType === 'audit') {
+            // mark as done to avoid reprocessing
+            try {
+              await this.offline.updateActionStatus(entry.id, 'done');
+            } catch {}
+            continue;
+          }
+          // cap attempts to avoid infinite retry loops for permanently failing items
+          const attemptsSoFar = entry.attempts || 0;
+          if (attemptsSoFar >= 5) {
+            this.logger.warn('Dropping queued action after repeated failures', {
+              queueId: entry.id,
+              attempts: attemptsSoFar,
+            });
+            try {
+              await this.offline.updateActionStatus(entry.id, 'failed', attemptsSoFar);
+            } catch {}
+            continue;
+          }
           try {
-            await this.processPhotoUpload(p);
-            processedIds.add(p.id);
+            await this.offline.updateActionStatus(
+              entry.id,
+              'processing',
+              (entry.attempts || 0) + 1
+            );
+            const actionType = entry.actionType as string;
+            const payload = entry.payload;
+
+            // If payload contains photoLocalId, it should have been patched earlier to photoPath
+            if (actionType === 'registerLabour') {
+              const res = await this.attemptWithBackoff(
+                () =>
+                  this.callWithRefresh(() =>
+                    lastValueFrom(this.api.registerLabour(payload, { enqueueIfNeeded: false }))
+                  ),
+                5
+              );
+              if (res && res.success && res.data) {
+                // If payload had clientId, update local mapping
+                if (payload?.clientId) {
+                  await this.offline.updateLocalPersonServerId(payload.clientId, res.data.id);
+                  await this.offline.replaceClientIdInQueuedActions(payload.clientId, res.data.id);
+                }
+                await this.offline.removeQueuedAction(entry.id);
+                await this.audit('action:registerLabour:done', { queueId: entry.id, result: res });
+                continue;
+              }
+            } else if (actionType === 'registerVisitor') {
+              const res = await this.attemptWithBackoff(
+                () =>
+                  this.callWithRefresh(() =>
+                    lastValueFrom(this.api.registerVisitor(payload, { enqueueIfNeeded: false }))
+                  ),
+                5
+              );
+              if (res && res.success && res.data) {
+                if (payload?.clientId) {
+                  await this.offline.updateLocalPersonServerId(payload.clientId, res.data.id);
+                  await this.offline.replaceClientIdInQueuedActions(payload.clientId, res.data.id);
+                }
+                await this.offline.removeQueuedAction(entry.id);
+                await this.audit('action:registerVisitor:done', { queueId: entry.id, result: res });
+                continue;
+              }
+            } else if (
+              actionType === 'createRecord' ||
+              actionType === 'logEntry' ||
+              actionType === 'logExit'
+            ) {
+              // generic record creation
+              const res = await this.attemptWithBackoff(
+                () =>
+                  this.callWithRefresh(() =>
+                    lastValueFrom(this.api.createRecord(payload, { enqueueIfNeeded: false }))
+                  ),
+                5
+              );
+              if (res && res.success) {
+                await this.offline.removeQueuedAction(entry.id);
+                await this.audit('action:createRecord:done', { queueId: entry.id, result: res });
+                continue;
+              }
+            } else if (actionType === 'photoUpload') {
+              // photo uploads were already handled above — mark done
+              await this.offline.removeQueuedAction(entry.id);
+              await this.audit('action:photoUpload:skipped', { queueId: entry.id });
+              continue;
+            }
+
+            // Fallback: send via syncBatch
+            try {
+              const op = {
+                id: entry.id,
+                operationType: actionType,
+                entityType: entry.entityType || 'unknown',
+                data: this.sanitizePayloadForBatch(payload),
+                clientId: payload?.clientId || null,
+                timestamp: new Date().toISOString(),
+              };
+              // size guard: don't send extremely large payloads in batch
+              const json = JSON.stringify({ operations: [op] });
+              const sizeBytes = new TextEncoder().encode(json).length;
+              // 500KB threshold (500 * 1024)
+              if (sizeBytes > 500 * 1024) {
+                this.logger.warn('Skipping syncBatch for oversized payload', {
+                  queueId: entry.id,
+                  sizeBytes,
+                });
+                await this.audit('action:batch_skipped_oversize', { queueId: entry.id, sizeBytes });
+                await this.offline.updateActionStatus(
+                  entry.id,
+                  'failed',
+                  (entry.attempts || 0) + 1
+                );
+                continue;
+              }
+
+              let batchResp: any = null;
+              if (this.batchSupported) {
+                try {
+                  batchResp = await this.attemptWithBackoff(
+                    () =>
+                      this.callWithRefresh(() =>
+                        lastValueFrom(this.api.syncBatch({ operations: [op] }))
+                      ),
+                    3
+                  );
+                } catch (e: any) {
+                  // if server returns 404 for sync-batch, disable future batch attempts
+                  const status = e?.status || e?.statusCode || (e?.error && e.error.status);
+                  if (status === 404) {
+                    this.logger.warn('sync-batch endpoint not found; disabling batch mode');
+                    this.batchSupported = false;
+                    try {
+                      localStorage.setItem('syncBatchSupported', 'false');
+                    } catch {}
+                    await this.audit('sync:batch_not_supported', { queueId: entry.id });
+                  }
+                  throw e;
+                }
+              }
+
+              if (batchResp && batchResp.success) {
+                await this.offline.removeQueuedAction(entry.id);
+                await this.audit('action:batch:done', { queueId: entry.id, result: batchResp });
+                continue;
+              }
+            } catch (e) {
+              this.logger.error('syncBatch failed', e);
+              await this.audit('action:batch_failed', { queueId: entry.id, error: String(e) });
+            }
+
+            // If we reach here, mark as failed but leave in queue for retry
+            await this.offline.updateActionStatus(entry.id, 'failed', (entry.attempts || 0) + 1);
+            await this.audit('action:failed', { queueId: entry.id, actionType });
           } catch (e) {
-            this.logger.error('SyncService: failed photoUpload', p, e);
+            this.logger.error('Processing queued action failed', e);
+            try {
+              await this.offline.updateActionStatus(entry.id, 'failed', (entry.attempts || 0) + 1);
+            } catch {}
           }
         }
 
-        for (const reg of registrations) {
-          if (processedIds.has(reg.id)) continue;
-          try {
-            await this.processRegistration(reg);
-            processedIds.add(reg.id);
-          } catch (e) {
-            this.logger.error('SyncService: failed registration', reg, e);
-          }
-        }
+        // if we processed less than batch size then likely no more, continue loop will fetch next
+      }
 
-        // then process other actions (they may have been patched to reference server IDs)
-        const others = items.filter((i: any) => !processedIds.has(i.id) && i.actionType !== 'photoUpload' && i.actionType !== 'registerLabour' && i.actionType !== 'registerVisitor');
-        for (const it of others) {
-          try {
-            await this.processItem(it);
-          } catch (e) {
-            this.logger.error('SyncService: failed to process item', it, e);
+      // 3) Pull recent records (last 30 days) and store to local audit for offline reads
+      const to = new Date();
+      const from = new Date();
+      from.setDate(to.getDate() - 30);
+      try {
+        const projIdRaw = localStorage.getItem('projectId');
+        const projectId = projIdRaw ? Number(projIdRaw) : undefined;
+        const recResp = await this.callWithRefresh(() =>
+          lastValueFrom(
+            this.api.getRecords(
+              from.toISOString(),
+              to.toISOString(),
+              undefined,
+              undefined,
+              projectId
+            )
+          )
+        );
+        if (recResp && recResp.success && recResp.data) {
+          const items = recResp.data as any[];
+          for (const it of items) {
+            try {
+              const id =
+                it.recordId ??
+                it.id ??
+                it.recordIdString ??
+                `${it.personType}-${it.labourId ?? it.visitorId ?? it.personName}`;
+              await this.offlineDb.upsertRecord(
+                id,
+                it,
+                it.updatedAt ?? it.updated_at ?? it.timestamp ?? new Date().toISOString()
+              );
+            } catch (e) {
+              // best-effort per-record
+            }
           }
+          await this.audit('records:pulled', {
+            from: from.toISOString(),
+            to: to.toISOString(),
+            count: items.length,
+          });
         }
+      } catch (e) {
+        this.logger.warn('Failed to pull records during sync', e);
+      }
+
+      await this.audit('sync:complete', { durationMs: Date.now() - start });
+      try {
+        this.lastSyncAt$.next(Date.now());
+      } catch {}
+    } catch (e) {
+      this.logger.error('SyncAll top-level error', e);
+      await this.audit('sync:error', { error: String(e) });
     } finally {
-      this.processing = false;
+      this.syncing$.next(false);
     }
   }
 
-  private async processRegistration(item: any) {
-    const id = item.id;
-    await this.offline.updateActionStatus(id, 'processing', (item.attempts || 0) + 1);
-    const type = item.actionType;
-    const payload = item.payload || {};
+  private async audit(eventType: string, data: any) {
     try {
-      let resp: any = null;
-      if (type === 'registerLabour') {
-        // Ensure classificationId is numeric and present. If payload contains a classification name, map it.
-        await this.ensureClassificationId(payload);
-        resp = await this.api.registerLabour(payload).toPromise();
-      } else if (type === 'registerVisitor') {
-        resp = await this.api.registerVisitor(payload).toPromise();
+      // write audit logs to the offline DB directly to avoid enqueueing into sync_queue
+      if (this.offlineDb && typeof (this.offlineDb as any).add === 'function') {
+        await this.offlineDb.add('audit_logs', {
+          eventType,
+          data,
+          createdAt: new Date().toISOString(),
+        });
+      } else if ((this.offline as any)?.audit) {
+        // fallback to OfflineStorageService.audit if available
+        await (this.offline as any).audit(eventType, data);
       }
-
-      // expected: resp.data.id is server id
-      const serverId = resp?.data?.id;
-      const clientId = payload?.clientId;
-      if (clientId && serverId) {
-        // update local person record
-        await this.offline.updateLocalPersonServerId(clientId, serverId);
-
-        // structured patch: let OfflineStorageService find and replace clientId occurrences safely
-        await this.offline.replaceClientIdInQueuedActions(clientId, serverId);
-      }
-
-      await this.offline.updateActionStatus(id, 'done', (item.attempts || 0) + 1);
-      await this.offline.removeQueuedAction(id);
-    } catch (err) {
-    this.logger.error('SyncService: registration failed', err);
-      const attempts = (item.attempts || 0) + 1;
-      if (attempts >= 5) {
-        await this.offline.updateActionStatus(id, 'failed', attempts);
-      } else {
-        await this.offline.updateActionStatus(id, 'pending', attempts);
-        const backoff = Math.min(30000, 500 * Math.pow(2, attempts));
-        await delay(backoff);
-      }
+    } catch (e) {
+      // best-effort
+      this.logger.warn('audit write failed', e);
     }
   }
 
-  private async processPhotoUpload(item: any) {
-    const id = item.id;
-    await this.offline.updateActionStatus(id, 'processing', (item.attempts || 0) + 1);
-    try {
-      const payload = item.payload || {};
-      const photoLocalId = payload.photoLocalId;
-      if (!photoLocalId) throw new Error('photoLocalId missing');
+  // Sanitize a queued payload before embedding in a sync batch:
+  // - remove any fields that contain base64 image data (data:...base64,)
+  // - replace large strings with small placeholders
+  // This helps avoid network/Chrome/WebView resource errors when sending batches.
+  private sanitizePayloadForBatch(payload: any): any {
+    const maxStringSize = 50 * 1024; // 50KB – keep small strings only
 
-      // get base64 data for the photo
-      const base64 = await this.offline.getPhotoBase64ById(photoLocalId);
-      if (!base64) throw new Error('photo data not found');
-
-      // upload via API
-      const res: any = await this.api.uploadPhoto(base64, payload.filename || `photo_${photoLocalId}.jpg`).toPromise();
-      const serverPath = res?.data?.path;
-      if (!serverPath) throw new Error('upload did not return path');
-
-      // mark photo as uploaded and store remoteUrl in photos table
-      try {
-        // update photo record metadata (best-effort)
-        if ((this.offline as any).photosTable) {
-          const photosTable = (this.offline as any).photosTable as any;
-          await photosTable.update(photoLocalId, { uploaded: true, remoteUrl: serverPath });
+    const sanitize = (obj: any): any => {
+      if (obj == null) return obj;
+      if (typeof obj === 'string') {
+        if (obj.startsWith('data:') && obj.includes('base64')) {
+          return '[base64_removed]';
         }
-      } catch (e) {
-        // ignore
+        if (obj.length > maxStringSize) return obj.slice(0, 200) + `...[truncated:${obj.length}]`;
+        return obj;
       }
-
-      // structured patch: replace `photoLocalId` fields with `photoPath` in queued payloads
-      await this.offline.patchPhotoLocalIdToPhotoPath(photoLocalId, serverPath);
-
-      await this.offline.updateActionStatus(id, 'done', (item.attempts || 0) + 1);
-      await this.offline.removeQueuedAction(id);
-    } catch (err) {
-    this.logger.error('SyncService: photoUpload failed', err);
-      const attempts = (item.attempts || 0) + 1;
-      if (attempts >= 5) {
-        await this.offline.updateActionStatus(id, 'failed', attempts);
-      } else {
-        await this.offline.updateActionStatus(id, 'pending', attempts);
-        const backoff = Math.min(30000, 500 * Math.pow(2, attempts));
-        await delay(backoff);
-      }
-    }
-  }
-
-  private async processItem(item: any) {
-    const id = item.id;
-    // mark processing
-    await this.offline.updateActionStatus(id, 'processing', (item.attempts || 0) + 1);
-
-    const type = item.actionType;
-    const payload = item.payload || {};
-
-    try {
-      if (type === 'createRecord') {
-        await this.api.createRecord(payload).toPromise();
-      } else if (type === 'registerLabour') {
-        await this.ensureClassificationId(payload);
-        await this.api.registerLabour(payload).toPromise();
-      } else if (type === 'registerVisitor') {
-        await this.api.registerVisitor(payload).toPromise();
-      } else if (type === 'bulkCheckIn') {
-        const { ids, action } = payload;
-        await this.api.bulkCheckIn(ids, action).toPromise();
-      } else {
-        this.logger.warn('SyncService: unknown action type', type);
-      }
-
-      // on success
-      await this.offline.updateActionStatus(id, 'done', (item.attempts || 0) + 1);
-      await this.offline.removeQueuedAction(id);
-    } catch (err) {
-    this.logger.error('SyncService: action failed', err);
-      const attempts = (item.attempts || 0) + 1;
-      if (attempts >= 5) {
-        await this.offline.updateActionStatus(id, 'failed', attempts);
-      } else {
-        // backoff before next attempt
-        await this.offline.updateActionStatus(id, 'pending', attempts);
-        const backoff = Math.min(30000, 500 * Math.pow(2, attempts));
-        await delay(backoff);
-      }
-    }
-  }
-
-  // Ensure payload has numeric classificationId. If payload contains 'classification' name, map it to id.
-  private async ensureClassificationId(payload: any): Promise<void> {
-    if (!payload) return;
-    // If classificationId exists but is a string, coerce
-    if (payload.classificationId && typeof payload.classificationId === 'string') {
-      const n = Number(payload.classificationId);
-      if (!isNaN(n)) payload.classificationId = n;
-    }
-
-    // If classificationId missing but a classification name is present, try to map via API
-    if ((!payload.classificationId || payload.classificationId === 0) && payload.classification && typeof payload.classification === 'string') {
-      try {
-        const resp: any = await this.api.getLabourClassifications().toPromise();
-        const list = resp?.data || [];
-        const name = payload.classification.trim().toLowerCase();
-        const found = list.find((kv: any) => (kv.value || '').toLowerCase() === name || String(kv.key) === payload.classification);
-        if (found) {
-          payload.classificationId = Number(found.key ?? found[0]);
-        }
-      } catch (e) {
-        this.logger.warn('SyncService: failed to map classification name to id', e);
-      }
-    }
-
-    // If still missing classificationId, attempt to create the classification automatically
-    if ((!payload.classificationId || payload.classificationId === 0) && payload.classification && typeof payload.classification === 'string') {
-      try {
-        const nameToCreate = payload.classification.trim();
-        if (nameToCreate) {
-          const createResp: any = await this.api.createAdminClassification(nameToCreate).toPromise();
-          // Expect created entity id in createResp.data.id
-          const newId = createResp?.data?.id || (createResp?.data && typeof createResp.data === 'number' ? createResp.data : null);
-          if (newId) {
-            payload.classificationId = Number(newId);
-          } else if (createResp?.data && typeof createResp.data === 'object' && createResp.data.id) {
-            payload.classificationId = Number(createResp.data.id);
+      if (typeof obj === 'number' || typeof obj === 'boolean') return obj;
+      if (Array.isArray(obj)) return obj.map(sanitize);
+      if (typeof obj === 'object') {
+        const out: any = {};
+        for (const k of Object.keys(obj)) {
+          // common photo fields we want to avoid embedding
+          if (
+            k.toLowerCase().includes('phot') ||
+            k.toLowerCase().includes('image') ||
+            k.toLowerCase().includes('base64')
+          ) {
+            // if it's a reference like photoPath/photoLocalId keep it, else strip
+            const v = obj[k];
+            if (typeof v === 'string' && (v.startsWith('data:') || v.length > 10000)) {
+              out[k] = '[removed]';
+              continue;
+            }
           }
+          out[k] = sanitize(obj[k]);
         }
-      } catch (e) {
-        this.logger.warn('SyncService: failed to create missing classification via API', e);
+        return out;
+      }
+      return obj;
+    };
+
+    try {
+      return sanitize(payload);
+    } catch (e) {
+      this.logger.warn('sanitizePayloadForBatch failed', e);
+      return { _sanitized: true };
+    }
+  }
+
+  // Helper: execute an API call and on 401 attempt silent refresh and retry once
+  private async callWithRefresh<T>(fn: () => Promise<T>): Promise<T> {
+    try {
+      return await fn();
+    } catch (err: any) {
+      // inspect for 401-like (HttpErrorResponse) shapes
+      const status = err?.status || err?.statusCode || (err?.error && err.error.status);
+      if (status === 401) {
+        try {
+          const refresh = this.auth.getRefreshToken?.();
+          if (!refresh) throw new Error('no-refresh-token');
+          const refreshResp: any = await lastValueFrom(this.api.refreshToken(refresh));
+          if (refreshResp && refreshResp.data && refreshResp.data.accessToken) {
+            // save tokens
+            this.auth.saveNewTokens(refreshResp.data.accessToken, refreshResp.data.refreshToken);
+            // retry once
+            return await fn();
+          } else {
+            // if refresh didn't return tokens, force logout flow: user will need to login later
+            this.logger.warn('Refresh did not return tokens');
+            throw err;
+          }
+        } catch (refreshErr) {
+          this.logger.warn('Silent refresh failed during sync', refreshErr);
+          // leave queued items for next login/sync; rethrow original error
+          throw err;
+        }
+      }
+      throw err;
+    }
+  }
+
+  // Helper: attempt a function with jittered exponential backoff
+  private async attemptWithBackoff<T>(
+    fn: () => Promise<T>,
+    maxAttempts = 5,
+    baseMs = 1000
+  ): Promise<T> {
+    let attempt = 0;
+    let lastErr: any = null;
+    while (attempt < maxAttempts) {
+      try {
+        return await fn();
+      } catch (err) {
+        lastErr = err;
+        attempt++;
+        if (attempt >= maxAttempts) break;
+        // exponential backoff with jitter
+        const backoff = baseMs * Math.pow(2, attempt - 1);
+        const jitter = Math.floor(Math.random() * Math.min(300, backoff));
+        const delayMs = backoff + jitter;
+        try {
+          await new Promise((res) => setTimeout(res, delayMs));
+        } catch {}
       }
     }
+    throw lastErr;
   }
 }
+// End of SyncService - duplicate implementation removed

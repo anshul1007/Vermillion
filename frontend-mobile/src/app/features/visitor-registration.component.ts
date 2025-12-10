@@ -1,5 +1,6 @@
 import { Component, inject, signal, OnInit, effect } from '@angular/core';
 import { take } from 'rxjs/operators';
+import { firstValueFrom } from 'rxjs';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -11,6 +12,7 @@ import { LoggerService } from '../core/services/logger.service';
 import { OfflineStorageService } from '../core/services/offline-storage.service';
 import { NotificationService } from '../core/services/notification.service';
 import { projectStore } from '../core/state/project.store';
+import { generateClientId } from '../core/utils/id.util';
 
 @Component({
   selector: 'app-visitor-registration',
@@ -156,8 +158,7 @@ export class VisitorRegistrationComponent implements OnInit {
       if (pname !== this.currentProjectName()) {
         this.currentProjectName.set(pname || '');
       }
-    },
-    { allowSignalWrites: true }
+    }
   );
 
   ngOnInit(): void {
@@ -282,102 +283,41 @@ export class VisitorRegistrationComponent implements OnInit {
       phoneNumber: this.phoneNumber.trim(),
       companyName: this.companyName.trim() || undefined,
       purpose: this.purpose.trim(),
-      photoBase64: photoDataUrl,
+      // prefer photoPath when we've resolved a server/local path; otherwise send base64
+      photoBase64: photoDataUrl && photoDataUrl.startsWith('data:') ? photoDataUrl : undefined,
+      photoPath: photoDataUrl && !photoDataUrl.startsWith('data:') ? photoDataUrl : undefined,
       projectId,
     };
 
     // registering visitor
 
-    const handlers = {
-      next: (res: any) => {
-        this.submitting.set(false);
-
-        if (res?.success) {
-          this.notifier.showSuccess('Visitor registered successfully!');
-          setTimeout(() => this.router.navigate(['/entry-exit']), 800);
-        } else {
-          this.notifier.showError(res?.message || 'Failed to register visitor');
-        }
-      },
-      error: async (err: any) => {
-        this.logger.warn('Register visitor API error:', err);
-        this.submitting.set(false);
-
-        const status = err && typeof err.status === 'number' ? err.status : undefined;
-
-        // Only fall back to offline queue for network failures (status 0 or undefined).
-        // For server errors (4xx/5xx) we return and rely on the interceptor to show messages.
-        if (status === 0 || typeof status === 'undefined') {
-          try {
-            const clientId = `c_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
-            let photoLocal: any = null;
-            if (this.photo()) {
-              try {
-                const dataUrl = await this.localImage.getDataUrl(this.photo());
-                if (dataUrl) {
-                  photoLocal = (await this.offline.savePhotoFromDataUrl(
-                    dataUrl,
-                    `visitor_${Date.now()}.jpg`,
-                    { clientId }
-                  )) as { id: number; localRef: string };
-                }
-              } catch (e) {
-                this.logger.warn('Failed to save visitor photo locally', e);
-              }
-            }
-
-            await this.offline.saveLocalPerson({
-              clientId,
-              name: this.name,
-              phoneNumber: this.phoneNumber,
-              photoLocalRef: photoLocal?.localRef,
-            });
-
-            if (photoLocal && photoLocal.id) {
-              await this.offline.enqueueAction('photoUpload', {
-                photoLocalId: photoLocal.id,
-                clientId,
-              });
-            }
-
-            const payload = {
-              clientId,
-              name: this.name.trim(),
-              phoneNumber: this.phoneNumber.trim(),
-              companyName: this.companyName.trim() || undefined,
-              purpose: this.purpose.trim(),
-              photoLocalId: photoLocal?.id || null,
-              projectId,
-            };
-            await this.offline.enqueueAction('registerVisitor', payload);
-
-            this.notifier.showSuccess('Visitor saved offline and queued for sync');
-            setTimeout(() => {
-              this.resetForm();
-              this.router.navigate(['/entry-exit']);
-            }, 800);
-            return;
-          } catch (qErr) {
-            const errorMsg =
-              err?.error?.message ||
-              err?.error?.Message ||
-              err?.message ||
-              'Failed to register visitor. Please try again.';
-            this.notifier.showError(errorMsg);
-            this.logger.warn('Failed to enqueue offline visitor registration', qErr);
-            return;
-          }
-        }
-
-        // For server-side errors (4xx/5xx) do nothing here — interceptor already displays the message.
-        return;
-      },
-    };
-
     this.api
       .registerVisitor(visitorData)
       .pipe(take(1))
-      .subscribe(handlers as any);
+      .subscribe({
+        next: async (res: any) => {
+          this.submitting.set(false);
+          if (res?.success) {
+            if (res.message === 'enqueued-offline') {
+              this.notifier.showSuccess('Visitor saved offline and queued for sync');
+              setTimeout(() => {
+                this.resetForm();
+                this.navigateToLogEntry();
+              }, 800);
+              return;
+            }
+            this.notifier.showSuccess('Visitor registered successfully!');
+            this.navigateToLogEntry(800);
+          } else {
+            this.notifier.showError(res?.message || 'Failed to register visitor');
+          }
+        },
+        error: (err: any) => {
+          this.submitting.set(false);
+          this.logger.error('Register visitor API error:', err);
+          this.notifier.showError('Failed to register visitor. Please try again.');
+        },
+      });
   }
 
   resetForm(): void {
@@ -437,23 +377,25 @@ export class VisitorRegistrationComponent implements OnInit {
             if (visitorId) {
               try {
                 const rec = { personType: 'Visitor' as const, visitorId, action: 'Entry' as const };
-                const recRes = await this.api.createRecord(rec).pipe(take(1)).toPromise();
+                const recRes = await firstValueFrom(this.api.createRecord(rec).pipe(take(1)));
                 if (recRes && recRes.success) {
                   this.notifier.showSuccess('Registered and entry logged successfully');
-                  // remain on page so user can review or register another
+                  this.navigateToLogEntry(800);
                   return;
                 } else {
                   this.notifier.showError(recRes?.message || 'Registered but failed to log entry');
+                  this.navigateToLogEntry(800);
                   return;
                 }
                 } catch (err) {
                 this.logger.warn('Failed to log entry after registration', err);
                 this.notifier.showError('Registered but failed to log entry');
+                this.navigateToLogEntry(800);
                 return;
               }
             }
             this.notifier.showSuccess('Visitor registered successfully');
-            // remain on page
+            this.navigateToLogEntry(800);
           } else {
             this.notifier.showError(res?.message || 'Failed to register visitor');
           }
@@ -462,7 +404,7 @@ export class VisitorRegistrationComponent implements OnInit {
           this.submitting.set(false);
           this.logger.error('Register visitor API error:', err);
           try {
-            const clientId = `c_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+            const clientId = generateClientId();
             let photoLocal: any = null;
             if (this.photo()) {
               try {
@@ -487,6 +429,7 @@ export class VisitorRegistrationComponent implements OnInit {
             });
 
             if (photoLocal && photoLocal.id) {
+              // enqueue photoUpload with same clientId so downstream sync can correlate
               await this.offline.enqueueAction('photoUpload', {
                 photoLocalId: photoLocal.id,
                 clientId,
@@ -502,26 +445,49 @@ export class VisitorRegistrationComponent implements OnInit {
               photoLocalId: photoLocal?.id || null,
               projectId,
             };
-            await this.offline.enqueueAction('registerVisitor', payload);
-            // enqueue createRecord action to log entry after registration
-            await this.offline.enqueueAction('createRecord', {
-              clientId,
-              personType: 'Visitor',
-              action: 'Entry',
-            });
+            // Delegate to ApiService which will persist/enqueue if offline
+            try {
+              const res = await firstValueFrom(
+                this.api.registerVisitor({
+                  clientId,
+                  name: this.name.trim(),
+                  phoneNumber: this.phoneNumber.trim(),
+                  companyName: this.companyName.trim() || undefined,
+                  purpose: this.purpose.trim(),
+                  photoBase64: photoLocal ? undefined : photoDataUrl,
+                  photoLocalId: photoLocal?.id || null,
+                  projectId,
+                } as any)
+              );
+              // if enqueued, also enqueue createRecord
+              if (res?.success && res.message === 'enqueued-offline') {
+                await firstValueFrom(this.api.createRecord({ clientId, personType: 'Visitor', action: 'Entry' } as any));
+              }
 
-            this.notifier.showSuccess(
-              'Visitor saved offline and queued for sync (entry will be logged)'
-            );
-            setTimeout(() => {
-              this.resetForm();
-              this.router.navigate(['/entry-exit']);
-            }, 800);
+              this.notifier.showSuccess('Visitor saved offline and queued for sync (entry will be logged)');
+              setTimeout(() => {
+                this.resetForm();
+                this.navigateToLogEntry();
+              }, 800);
+            } catch (e) {
+              this.logger.error('Failed to enqueue visitor via ApiService fallback', e);
+              this.notifier.showError('Failed to queue visitor for offline sync');
+            }
           } catch (qErr) {
             this.logger.error('Failed to enqueue offline visitor registration', qErr);
             this.notifier.showError('Failed to queue visitor for offline sync');
           }
         },
       });
+  }
+
+  private navigateToLogEntry(delayMs = 0): void {
+    if (delayMs > 0) {
+      setTimeout(() => {
+        void this.router.navigate(['/entry-exit']);
+      }, delayMs);
+    } else {
+      void this.router.navigate(['/entry-exit']);
+    }
   }
 }

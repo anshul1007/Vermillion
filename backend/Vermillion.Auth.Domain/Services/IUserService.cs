@@ -90,7 +90,7 @@ public interface IUserService
     Task<(bool Success, string Message, int? UserId)> CreateUserAsync(
         string username, string email, string passwordHash, string tenantDomain,
         string roleName, string employeeId, string? firstName, string? lastName,
-        string? phoneNumber, Guid? departmentId, Guid? managerId);
+        string? phoneNumber, Guid? departmentId, Guid? managerId, string? pin = null);
 
     /// <summary>
     /// Gets employees by manager ID (for team management)

@@ -221,22 +221,23 @@ public class AuthAdminController : ControllerBase
 	public async Task<IActionResult> GetEmployeeByUserId(int userId)
 	{
 		var employee = await _context.Employees
-			.Include(e => e.Department)
-			.Include(e => e.Manager)
-			.Where(e => e.UserId == userId)
-			.Select(e => new
-			{
-				e.Id,
-				e.UserId,
-				e.EmployeeId,
-				e.FirstName,
-				e.LastName,
-				e.DepartmentId,
-				Department = e.Department,
-				e.ManagerId,
-				Manager = e.Manager
-			})
-			.FirstOrDefaultAsync();
+		.Include(e => e.Department)
+		.Include(e => e.Manager)
+		.Where(e => e.UserId == userId)
+		.Select(e => new
+		{
+			e.Id,
+			e.UserId,
+			e.EmployeeId,
+			e.FirstName,
+			e.LastName,
+			e.PhoneNumber,
+			e.DepartmentId,
+            e.Department,
+			e.ManagerId,
+            e.Manager
+		})
+		.FirstOrDefaultAsync();
 
 		if (employee == null)
 		{
@@ -250,6 +251,7 @@ public class AuthAdminController : ControllerBase
 			EmployeeId = employee.EmployeeId,
 			FirstName = employee.FirstName,
 			LastName = employee.LastName,
+			PhoneNumber = employee.PhoneNumber,
 			DepartmentId = employee.DepartmentId,
 			Department = employee.Department != null ? new UserDepartmentInfoDto { Id = employee.Department.Id, Name = employee.Department.Name } : null,
 			ManagerId = employee.ManagerId,
@@ -763,7 +765,7 @@ public class AuthAdminController : ControllerBase
 		catch (Exception ex)
 		{
 			_logger.LogError(ex, "Error creating role");
-				return this.ServerError($"Error creating role: {ex.Message}");
+			return this.ServerError($"Error creating role: {ex.Message}");
 		}
 	}
 

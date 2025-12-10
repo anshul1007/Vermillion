@@ -1,5 +1,6 @@
 import { Component, inject, signal, OnInit, effect } from '@angular/core';
 import { take } from 'rxjs/operators';
+import { firstValueFrom } from 'rxjs';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -11,6 +12,7 @@ import { AuthService } from '../core/auth/auth.service';
 import { projectStore } from '../core/state/project.store';
 import { LocalImageService } from '../core/services/local-image.service';
 import { OfflineStorageService } from '../core/services/offline-storage.service';
+import { generateClientId } from '../core/utils/id.util';
 import { OcrService, AadharOcrResult } from '../core/services/ocr.service';
 import { BarcodeButtonComponent } from '../shared/components/barcode-button.component';
 
@@ -294,9 +296,8 @@ export class LabourRegistrationComponent implements OnInit {
       this.contractors.set([]);
       this.lastLoadedProjectId = null;
       this.loading.set(false);
-    },
-    { allowSignalWrites: true }
-  );
+    }
+    );
 
   onScanned(code: string) {
     this.barcode = code;
@@ -604,18 +605,28 @@ export class LabourRegistrationComponent implements OnInit {
   }
 
   private buildLabourPayload(photoForUpload: string | undefined, projectId: number) {
-    return {
+    const payload: any = {
       name: this.name,
       phoneNumber: this.phone,
       aadharNumber: this.aadharNumber || undefined,
       panNumber: this.panNumber || undefined,
       address: this.address,
-      photoBase64: photoForUpload || '',
       projectId,
       contractorId: this.contractorId,
       classificationId: this.classification ? Number(this.classification) : undefined,
       barcode: this.barcode || `LAB-${Date.now()}`,
     };
+
+    if (photoForUpload) {
+      if (photoForUpload.startsWith('data:')) {
+        payload.photoBase64 = photoForUpload;
+      } else {
+        // assume it's a server path or resolvable path
+        payload.photoPath = photoForUpload;
+      }
+    }
+
+    return payload;
   }
 
   private async queueOfflineRegistration(
@@ -623,66 +634,44 @@ export class LabourRegistrationComponent implements OnInit {
     photoForUpload?: string,
     includeEntry = false
   ) {
-    const clientId = `c_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
-    let photoLocal: any = null;
-    if (this.photo()) {
-      try {
-        let photoToSave = photoForUpload || this.photo();
-        try {
-          const dataUrl = await this.localImage.getDataUrl(photoToSave);
-          if (dataUrl) photoToSave = dataUrl;
-        } catch (e) {
-          // ignore conversion error and continue with original
-        }
-        photoLocal = (await this.offline.savePhotoFromDataUrl(
-          photoToSave as string,
-          `labour_${Date.now()}.jpg`,
-          { clientId }
-        )) as { id: number; localRef: string };
-      } catch (e) {
-        this.logger.warn('Failed to save photo locally', e);
-      }
-    }
-
-    await this.offline.saveLocalPerson({
-      clientId,
-      name: this.name,
-      phoneNumber: this.phone,
-      panNumber: this.panNumber || undefined,
-      address: this.address || undefined,
-      photoLocalRef: photoLocal?.localRef,
-    });
-
-    if (photoLocal && photoLocal.id) {
-      await this.offline.enqueueAction('photoUpload', { photoLocalId: photoLocal.id, clientId });
-    }
-
-    const regPayload = {
-      clientId,
+    // Delegate enqueue behavior to ApiService.registerLabour which will save photo locally and enqueue when needed.
+    const payload = {
       name: this.name,
       phoneNumber: this.phone,
       aadharNumber: this.aadharNumber || undefined,
       panNumber: this.panNumber || undefined,
       address: this.address || undefined,
-      photoLocalId: photoLocal?.id || null,
+      photoBase64: photoForUpload || (this.photo() as any) || '',
       projectId,
       contractorId: this.contractorId,
       classificationId: this.classification ? Number(this.classification) : undefined,
       barcode: this.barcode || `LAB-${Date.now()}`,
     };
 
-    await this.offline.enqueueAction('registerLabour', regPayload);
-
-    if (includeEntry) {
-      await this.offline.enqueueAction('createRecord', {
-        clientId,
-        personType: 'Labour',
-        action: 'Entry',
-      });
+    // Call ApiService which will enqueue if offline or slow.
+    try {
+      const res = await firstValueFrom(this.api.registerLabour(payload));
+      if (res?.success && res.message === 'enqueued-offline') {
+        // If includeEntry is requested, enqueue createRecord using ApiService to avoid duplicates
+        if (includeEntry) {
+          await firstValueFrom(this.api.createRecord({ clientId: (payload as any).clientId, personType: 'Labour', action: 'Entry' } as any));
+        }
+      }
+    } catch (e) {
+      // If ApiService call fails here, fall back to direct enqueue as last resort
+      this.logger.warn('ApiService.registerLabour failed during offline queueing, falling back to direct enqueue', e);
+      // try to reuse clientId if assigned by ApiService attempt; otherwise generate one
+      const clientId = (payload as any).clientId || generateClientId();
+      await this.offline.enqueueAction('registerLabour', { ...payload, clientId });
+      if (includeEntry) {
+        await this.offline.enqueueAction('createRecord', { clientId, personType: 'Labour', action: 'Entry' });
+      }
     }
   }
 
   // ----- End helpers -----
+
+  
 
   async submit(): Promise<void> {
     const profile = this.guardProfile();
@@ -718,31 +707,15 @@ export class LabourRegistrationComponent implements OnInit {
             this.submitting.set(false);
             if (response.success) {
               this.notifier.showSuccess('Labour registered successfully!');
-              setTimeout(() => this.router.navigate(['/entry-exit']), 2000);
+              this.navigateToLogEntry(2000);
             } else {
               this.notifier.showError(response.message || 'Failed to register labour');
             }
           },
-          error: async (err) => {
-            const status = err && typeof err.status === 'number' ? err.status : undefined;
-            if (typeof status === 'number' && status >= 400 && status < 600) {
-              const errorMsg =
-                err?.error?.message || err?.message || `Registration failed (${status})`;
-              this.submitting.set(false);
-              this.notifier.showError(errorMsg);
-              return;
-            }
-
-            try {
-              await this.queueOfflineRegistration(projectId, undefined, false);
-              this.submitting.set(false);
-              this.notifier.showSuccess('Labour saved offline and queued for sync');
-              setTimeout(() => this.router.navigate(['/entry-exit']), 800);
-            } catch (queueErr) {
-              this.submitting.set(false);
-              this.notifier.showError('Failed to queue registration for offline sync');
-              this.logger.error('Failed to enqueue offline registration', queueErr);
-            }
+          error: (err) => {
+            this.submitting.set(false);
+            this.logger.error('Register labour API error', err);
+            this.notifier.showError('Failed to register labour. Please try again.');
           },
         });
     } catch (e) {
@@ -789,49 +762,35 @@ export class LabourRegistrationComponent implements OnInit {
               if (labourId) {
                 try {
                   const rec = { personType: 'Labour' as const, labourId, action: 'Entry' as const };
-                  const recRes = await this.api.createRecord(rec).pipe(take(1)).toPromise();
+                  const recRes = await firstValueFrom(this.api.createRecord(rec).pipe(take(1)));
                   if (recRes && recRes.success) {
                     this.notifier.showSuccess('Registered and entry logged successfully');
+                    this.navigateToLogEntry(800);
                     return;
                   } else {
                     this.notifier.showError(
                       recRes?.message || 'Registered but failed to log entry'
                     );
+                    this.navigateToLogEntry(800);
                     return;
                   }
                 } catch (err) {
                   this.logger.warn('Failed to log entry after registration', err);
                   this.notifier.showError('Registered but failed to log entry');
+                  this.navigateToLogEntry(800);
                   return;
                 }
               }
               this.notifier.showSuccess('Labour registered successfully');
+              this.navigateToLogEntry(800);
             } else {
               this.notifier.showError(response.message || 'Failed to register labour');
             }
           },
-          error: async (err) => {
-            const status = err && typeof err.status === 'number' ? err.status : undefined;
-            if (typeof status === 'number' && status >= 400 && status < 600) {
-              const errorMsg =
-                err?.error?.message || err?.message || `Registration failed (${status})`;
-              this.submitting.set(false);
-              this.notifier.showError(errorMsg);
-              return;
-            }
-
-            try {
-              await this.queueOfflineRegistration(projectId, undefined, true);
-              this.notifier.showSuccess(
-                'Labour saved offline and queued for sync (entry will be logged)'
-              );
-              setTimeout(() => this.resetForm(), 800);
-              } catch (queueErr) {
-              this.notifier.showError('Failed to queue registration for offline sync');
-              this.logger.error('Failed to enqueue offline registration', queueErr);
-            } finally {
-              this.submitting.set(false);
-            }
+          error: (err) => {
+            this.submitting.set(false);
+            this.logger.error('Register labour API error', err);
+            this.notifier.showError('Failed to register labour. Please try again.');
           },
         });
     } catch (e) {
@@ -850,5 +809,15 @@ export class LabourRegistrationComponent implements OnInit {
     this.classification = '';
     this.contractorId = 0;
     this.photo.set('');
+  }
+
+  private navigateToLogEntry(delayMs = 0): void {
+    if (delayMs > 0) {
+      setTimeout(() => {
+        void this.router.navigate(['/entry-exit']);
+      }, delayMs);
+    } else {
+      void this.router.navigate(['/entry-exit']);
+    }
   }
 }

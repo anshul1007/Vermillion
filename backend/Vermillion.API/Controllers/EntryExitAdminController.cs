@@ -76,6 +76,14 @@ public class EntryExitAdminController : ControllerBase
             // Hash the password (you should use proper password hashing in production)
             var passwordHash = BCrypt.Net.BCrypt.HashPassword(createDto.Password);
 
+            // Determine default PIN = last 4 digits of phone (if provided)
+            string? defaultPin = null;
+            if (!string.IsNullOrEmpty(createDto.PhoneNumber))
+            {
+                var phoneDigits = new string(createDto.PhoneNumber.Where(char.IsDigit).ToArray());
+                defaultPin = phoneDigits.Length >= 4 ? phoneDigits[^4..] : phoneDigits;
+            }
+
             var (success, message, userId) = await _userService.CreateUserAsync(
                 username: createDto.Email,
                 email: createDto.Email,
@@ -87,7 +95,8 @@ public class EntryExitAdminController : ControllerBase
                 lastName: createDto.LastName,
                 phoneNumber: createDto.PhoneNumber,
                 departmentId: null,
-                managerId: null
+                managerId: null,
+                pin: defaultPin
             );
 
             if (!success)
@@ -103,6 +112,8 @@ public class EntryExitAdminController : ControllerBase
             return this.ServerError("Error creating guard");
         }
     }
+
+    
 
     [HttpPut("guards/{authUserId:int}")]
     [Authorize(Roles = "SystemAdmin,Admin")]

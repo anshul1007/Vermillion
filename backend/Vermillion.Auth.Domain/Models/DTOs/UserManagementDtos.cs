@@ -66,6 +66,7 @@ public class UserEmployeeDto
     public string EmployeeId { get; set; } = string.Empty;
     public string? FirstName { get; set; }
     public string? LastName { get; set; }
+    public string? PhoneNumber { get; set; }
     public Guid? DepartmentId { get; set; }
     public UserDepartmentInfoDto? Department { get; set; }
     public Guid? ManagerId { get; set; }

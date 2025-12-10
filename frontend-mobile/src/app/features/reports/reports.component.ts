@@ -4,6 +4,8 @@ import { IconComponent } from '../../shared/icon/icon.component';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../core/services/api.service';
 import { LoggerService } from '../../core/services/logger.service';
+import { OfflineDbService } from '../../core/services/offline-db.service';
+import { Network } from '@capacitor/network';
 import { projectStore } from '../../core/state/project.store';
 import { take } from 'rxjs/operators';
 import { RawEntryExitRecordDto } from '../../core/models/entry-exit.model';
@@ -221,6 +223,7 @@ export class ReportsComponent implements OnInit {
   private apiService = inject(ApiService);
   private logger = inject(LoggerService);
   private authService = inject(AuthService);
+  private offlineDb = inject(OfflineDbService);
 
   guardProfile = this.authService.guardProfile;
 
@@ -265,8 +268,7 @@ export class ReportsComponent implements OnInit {
           this.statistics.set(null);
         }
       }
-    },
-    { allowSignalWrites: true }
+    }
   );
 
   ngOnInit() {
@@ -310,72 +312,148 @@ export class ReportsComponent implements OnInit {
     }
 
     this.loading.set(true);
+    Network.getStatus().then(async (status) => {
+      if (!status.connected) {
+        // offline: read from local records cache
+        try {
+          const all = await this.offlineDb.getAll('records');
+          const items = (all || []).map((r: any) => r.data as RawEntryExitRecordDto);
+          // filter by date range and project
+          const from = new Date(this.fromDate + 'T00:00:00');
+          const to = new Date(this.toDate + 'T23:59:59');
+          const filtered = items.filter((r: any) => {
+            try {
+              const ts = new Date(r.timestamp ?? r.Timestamp ?? r.entryTime ?? r.recordedAt ?? r.createdAt);
+              const pidv = r.projectId ?? r.ProjectId ?? null;
+              if (pidv && pidv !== pid) return false;
+              return ts >= from && ts <= to;
+            } catch (e) {
+              return false;
+            }
+          });
+          const normalized = filtered.map((r: RawEntryExitRecordDto) => {
+            const actionRaw = r.action ?? r.Action;
+            const action: 'Entry' | 'Exit' =
+              typeof actionRaw === 'number'
+                ? actionRaw === 1
+                  ? 'Entry'
+                  : 'Exit'
+                : String(actionRaw || '') === 'Exit'
+                ? 'Exit'
+                : 'Entry';
 
-    this.apiService
-      .getRecords(this.fromDate, this.toDate, undefined, undefined, pid)
-      .pipe(take(1))
-      .subscribe({
-        next: (response) => {
+            const typeRaw = r.personType ?? r.PersonType;
+            const personType: 'Labour' | 'Visitor' =
+              typeof typeRaw === 'number'
+                ? typeRaw === 1
+                  ? 'Labour'
+                  : 'Visitor'
+                : String(typeRaw || '') === 'Visitor'
+                ? 'Visitor'
+                : 'Labour';
+
+            const personName = r.personName ?? r.PersonName ?? r.name ?? '';
+            const timestamp = r.timestamp ?? r.Timestamp ?? r.entryTime ?? '';
+            const gate = r.gate ?? r.Gate ?? null;
+            const guardName = r.guardName ?? r.GuardName ?? r.recordedBy ?? null;
+            const projectName = r.projectName ?? r.ProjectName ?? null;
+            const contractorName = r.contractorName ?? r.ContractorName ?? null;
+
+            const labourId = r.labourId ?? r.LabourId ?? r.labourRegistrationId ?? null;
+            const visitorId = r.visitorId ?? r.VisitorId ?? null;
+
+            return {
+              id: r.id,
+              personType,
+              personName,
+              action,
+              timestamp,
+              gate,
+              guardName,
+              projectName,
+              contractorName,
+              labourId,
+              visitorId,
+            } as EntryExitRecord;
+          });
+
           this.loading.set(false);
-
-          if (response.success && response.data) {
-            // Normalize records to handle different JSON shapes (enum as number/string, PascalCase properties)
-            const normalized = (response.data as RawEntryExitRecordDto[]).map((r) => {
-              const actionRaw = r.action ?? r.Action;
-              const action: 'Entry' | 'Exit' =
-                typeof actionRaw === 'number'
-                  ? actionRaw === 1
-                    ? 'Entry'
-                    : 'Exit'
-                  : String(actionRaw || '') === 'Exit'
-                  ? 'Exit'
-                  : 'Entry';
-
-              const typeRaw = r.personType ?? r.PersonType;
-              const personType: 'Labour' | 'Visitor' =
-                typeof typeRaw === 'number'
-                  ? typeRaw === 1
-                    ? 'Labour'
-                    : 'Visitor'
-                  : String(typeRaw || '') === 'Visitor'
-                  ? 'Visitor'
-                  : 'Labour';
-
-              const personName = r.personName ?? r.PersonName ?? r.name ?? '';
-              const timestamp = r.timestamp ?? r.Timestamp ?? r.entryTime ?? '';
-              const gate = r.gate ?? r.Gate ?? null;
-              const guardName = r.guardName ?? r.GuardName ?? r.recordedBy ?? null;
-              const projectName = r.projectName ?? r.ProjectName ?? null;
-              const contractorName = r.contractorName ?? r.ContractorName ?? null;
-
-              const labourId = r.labourId ?? r.LabourId ?? r.labourRegistrationId ?? null;
-              const visitorId = r.visitorId ?? r.VisitorId ?? null;
-
-              return {
-                id: r.id,
-                personType,
-                personName,
-                action,
-                timestamp,
-                gate,
-                guardName,
-                projectName,
-                contractorName,
-                labourId,
-                visitorId,
-              } as EntryExitRecord;
-            });
-
-            this.records.set(normalized);
-            this.buildSessions(normalized);
-            this.calculateStatistics(normalized);
-          }
-        },
-        error: (error) => {
+          this.records.set(normalized);
+          this.buildSessions(normalized);
+          this.calculateStatistics(normalized);
+        } catch (e) {
           this.loading.set(false);
-          this.logger.error('Error loading records:', error);
-        },
-      });
+          this.logger.error('Failed to load local records:', e);
+        }
+      } else {
+        // online: use API
+        this.apiService
+          .getRecords(this.fromDate, this.toDate, undefined, undefined, pid)
+          .pipe(take(1))
+          .subscribe({
+            next: (response) => {
+              this.loading.set(false);
+
+              if (response.success && response.data) {
+                // Normalize records to handle different JSON shapes (enum as number/string, PascalCase properties)
+                const normalized = (response.data as RawEntryExitRecordDto[]).map((r) => {
+                  const actionRaw = r.action ?? r.Action;
+                  const action: 'Entry' | 'Exit' =
+                    typeof actionRaw === 'number'
+                      ? actionRaw === 1
+                        ? 'Entry'
+                        : 'Exit'
+                      : String(actionRaw || '') === 'Exit'
+                      ? 'Exit'
+                      : 'Entry';
+
+                  const typeRaw = r.personType ?? r.PersonType;
+                  const personType: 'Labour' | 'Visitor' =
+                    typeof typeRaw === 'number'
+                      ? typeRaw === 1
+                        ? 'Labour'
+                        : 'Visitor'
+                      : String(typeRaw || '') === 'Visitor'
+                      ? 'Visitor'
+                      : 'Labour';
+
+                  const personName = r.personName ?? r.PersonName ?? r.name ?? '';
+                  const timestamp = r.timestamp ?? r.Timestamp ?? r.entryTime ?? '';
+                  const gate = r.gate ?? r.Gate ?? null;
+                  const guardName = r.guardName ?? r.GuardName ?? r.recordedBy ?? null;
+                  const projectName = r.projectName ?? r.ProjectName ?? null;
+                  const contractorName = r.contractorName ?? r.ContractorName ?? null;
+
+                  const labourId = r.labourId ?? r.LabourId ?? r.labourRegistrationId ?? null;
+                  const visitorId = r.visitorId ?? r.VisitorId ?? null;
+
+                  return {
+                    id: r.id,
+                    personType,
+                    personName,
+                    action,
+                    timestamp,
+                    gate,
+                    guardName,
+                    projectName,
+                    contractorName,
+                    labourId,
+                    visitorId,
+                  } as EntryExitRecord;
+                });
+
+                this.records.set(normalized);
+                this.buildSessions(normalized);
+                this.calculateStatistics(normalized);
+              }
+            },
+            error: (error) => {
+              this.loading.set(false);
+              this.logger.error('Error loading records:', error);
+            },
+          });
+      }
+    }).catch((e) => { this.loading.set(false); this.logger.error('Network check failed', e); });
   }
 
   private buildSessions(records: EntryExitRecord[]) {

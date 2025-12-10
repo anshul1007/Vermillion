@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Vermillion.Auth.Domain.Data;
 using Vermillion.Auth.Domain.Models.DTOs;
 using Vermillion.Auth.Domain.Models.Entities;
@@ -9,27 +10,99 @@ public class AuthService : IAuthService
 {
     private readonly AuthDbContext _context;
     private readonly IJwtService _jwtService;
+    private readonly ILogger<AuthService> _logger;
 
-    public AuthService(AuthDbContext context, IJwtService jwtService)
+    public AuthService(AuthDbContext context, IJwtService jwtService, ILogger<AuthService> logger)
     {
         _context = context;
         _jwtService = jwtService;
+        _logger = logger;
     }
 
     public async Task<(bool Success, LoginResponse? Response, string? Error)> LoginAsync(LoginRequest request)
     {
-        // Find user by email (globally unique)
-        var user = await _context.Users
-            .Include(u => u.UserRoles)
-                .ThenInclude(ur => ur.Role)
-                    .ThenInclude(r => r.RolePermissions)
-                        .ThenInclude(rp => rp.Permission)
-            .Include(u => u.UserRoles)
-                .ThenInclude(ur => ur.Tenant)
-            .FirstOrDefaultAsync(u => u.Email == request.Email && u.IsActive);
+        // If phone+pin provided, attempt phone login first
+        User? user = null;
+        if (!string.IsNullOrEmpty(request.Phone))
+        {
+            // Normalize digits
+            var digits = new string(request.Phone.Where(char.IsDigit).ToArray());
+            // Try to find an employee whose phone number contains the provided phone digits
+            var employee = await _context.Employees
+                .Include(e => e.User)
+                .FirstOrDefaultAsync(e => e.PhoneNumber != null && EF.Functions.Like(e.PhoneNumber, $"%{digits}%"));
 
-        if (user == null || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
-            return (false, null, "Invalid email or password");
+            if (employee != null)
+            {
+                // Determine stored last-4 digits
+                var storedDigits = new string((employee.PhoneNumber ?? string.Empty).Where(char.IsDigit).ToArray());
+                var expected = storedDigits.Length >= 4 ? storedDigits[^4..] : storedDigits;
+
+                // If the user has a PinHash stored, verify the provided PIN against it.
+                // Otherwise, fall back to comparing the provided PIN (or default last-4) to the phone's last-4 digits.
+                // Re-load the User with related navigation properties so roles/tenants are available later.
+                var fullUser = await _context.Users
+                    .Include(u => u.UserRoles)
+                        .ThenInclude(ur => ur.Role)
+                            .ThenInclude(r => r.RolePermissions)
+                                .ThenInclude(rp => rp.Permission)
+                    .Include(u => u.UserRoles)
+                        .ThenInclude(ur => ur.Tenant)
+                    .FirstOrDefaultAsync(u => u.Id == employee.UserId && u.IsActive);
+
+                if (fullUser == null)
+                {
+                    _logger.LogWarning("Phone login: employee {EmployeeId} has no active user record", employee.Id);
+                    return (false, null, "Invalid phone or PIN");
+                }
+
+                // Prefer verifying against stored PinHash when available
+                if (!string.IsNullOrEmpty(fullUser.PinHash))
+                {
+                    if (string.IsNullOrEmpty(request.Pin) || !BCrypt.Net.BCrypt.Verify(request.Pin, fullUser.PinHash))
+                        return (false, null, "Invalid phone or PIN");
+                }
+                else
+                {
+                    // No stored hash — compare to the phone's last-4 digits
+                    var provided = string.IsNullOrEmpty(request.Pin) ? expected : request.Pin;
+                    if (expected != provided)
+                        return (false, null, "Invalid phone or PIN");
+                }
+
+                _logger.LogInformation("Phone login: found user {UserId} with {RoleCount} roles", fullUser.Id, fullUser.UserRoles?.Count ?? 0);
+                if (fullUser.UserRoles != null)
+                {
+                    foreach (var ur in fullUser.UserRoles)
+                    {
+                        _logger.LogDebug("UserRole: UserId={UserId} RoleId={RoleId} TenantId={TenantId} IsActive={IsActive}", fullUser.Id, ur.RoleId, ur.TenantId, ur.IsActive);
+                    }
+                }
+
+                user = fullUser;
+            }
+            else
+            {
+                return (false, null, "Invalid phone or PIN");
+            }
+        }
+
+        // Fallback to email/password if phone login not used
+        if (user == null)
+        {
+            // Find user by email (globally unique)
+            user = await _context.Users
+                .Include(u => u.UserRoles)
+                    .ThenInclude(ur => ur.Role)
+                        .ThenInclude(r => r.RolePermissions)
+                            .ThenInclude(rp => rp.Permission)
+                .Include(u => u.UserRoles)
+                    .ThenInclude(ur => ur.Tenant)
+                .FirstOrDefaultAsync(u => u.Email == request.Email && u.IsActive);
+
+            if (user == null || string.IsNullOrEmpty(request.Password) || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
+                return (false, null, "Invalid email or password");
+        }
 
         // Get all active tenant roles with permissions
         var userTenants = user.UserRoles

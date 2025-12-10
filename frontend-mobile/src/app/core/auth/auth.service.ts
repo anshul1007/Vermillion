@@ -8,8 +8,10 @@ import { projectStore } from '../state/project.store';
 import { NotificationService } from '../services/notification.service';
 
 export interface LoginRequest {
-  email: string;
-  password: string;
+  email?: string;
+  password?: string;
+  phone?: string;
+  pin?: string;
 }
 
 export interface ApiResponse<T> {
@@ -58,6 +60,8 @@ export class AuthService {
   
   private readonly TOKEN_KEY = 'auth_token';
   private readonly USER_KEY = 'current_user';
+  private readonly ACCESS_TOKEN_KEY = 'accessToken';
+  private readonly REFRESH_TOKEN_KEY = 'refreshToken';
   
   currentUser = signal<LoginResponse | null>(null);
   guardProfile = signal<GuardProfile | null>(null);
@@ -68,9 +72,14 @@ export class AuthService {
   }
 
   login(credentials: LoginRequest): Observable<LoginResponse> {
+    // Support two backend contracts: existing email/password login and phone/pin login
+    const payload: any = { ...credentials, tenantDomain: 'entryexit' };
+    // If phone+pin provided, prefer the /auth/login/phone endpoint if available
+    const url = credentials.phone ? `${environment.authApiUrl}/auth/login/phone` : `${environment.authApiUrl}/auth/login`;
+
     return this.http.post<ApiResponse<LoginResponse>>(
-      `${environment.authApiUrl}/auth/login`,
-      { ...credentials, tenantDomain: 'entryexit' }
+      url,
+      payload
     ).pipe(
       map(apiResponse => {
         if (!apiResponse.success || !apiResponse.data) {
@@ -173,7 +182,12 @@ export class AuthService {
   }
 
   private saveAuthState(response: LoginResponse): void {
+    // maintain legacy token storage and new keys
     localStorage.setItem(this.TOKEN_KEY, response.accessToken);
+    localStorage.setItem(this.ACCESS_TOKEN_KEY, response.accessToken);
+    if ((response as any).refreshToken) {
+      localStorage.setItem(this.REFRESH_TOKEN_KEY, (response as any).refreshToken);
+    }
     localStorage.setItem(this.USER_KEY, JSON.stringify(response));
   }
 
@@ -199,6 +213,8 @@ export class AuthService {
 
   private clearAuthState(): void {
     localStorage.removeItem(this.TOKEN_KEY);
+    localStorage.removeItem(this.ACCESS_TOKEN_KEY);
+    localStorage.removeItem(this.REFRESH_TOKEN_KEY);
     localStorage.removeItem(this.USER_KEY);
     localStorage.removeItem('guard_profile');
     // also clear persisted project selection
@@ -207,5 +223,15 @@ export class AuthService {
     } catch (e) {
       // ignore
     }
+  }
+
+  getRefreshToken(): string | null {
+    return localStorage.getItem(this.REFRESH_TOKEN_KEY);
+  }
+
+  saveNewTokens(accessToken: string, refreshToken?: string) {
+    localStorage.setItem(this.ACCESS_TOKEN_KEY, accessToken);
+    localStorage.setItem(this.TOKEN_KEY, accessToken);
+    if (refreshToken) localStorage.setItem(this.REFRESH_TOKEN_KEY, refreshToken);
   }
 }

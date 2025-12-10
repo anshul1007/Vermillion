@@ -21,28 +21,28 @@ import { LoggerService } from '../../core/services/logger.service';
 
               <form (ngSubmit)="login()">
                 <div class="mb-2">
-                  <label for="email">Email</label>
+                  <label for="phone">Phone</label>
                   <input
-                    id="email"
-                    type="email"
-                    [(ngModel)]="email"
-                    name="email"
-                    placeholder="Enter your email"
+                    id="phone"
+                    type="tel"
+                    [(ngModel)]="phone"
+                    name="phone"
+                    placeholder="Enter your phone number"
                     required
-                    autocomplete="email"
+                    autocomplete="tel"
                   />
                 </div>
 
                 <div class="mb-2">
-                  <label for="password">Password</label>
+                  <label for="pin">PIN</label>
                   <input
-                    id="password"
+                    id="pin"
                     type="password"
-                    [(ngModel)]="password"
-                    name="password"
-                    placeholder="Enter your password"
-                    required
-                    autocomplete="current-password"
+                    [(ngModel)]="pin"
+                    name="pin"
+                    placeholder="Enter 4-digit PIN"
+                    maxlength="6"
+                    autocomplete="one-time-code"
                   />
                 </div>
 
@@ -64,7 +64,7 @@ import { LoggerService } from '../../core/services/logger.service';
         </div>
       </div>
     </div>
-  `
+  `,
 })
 export class LoginComponent {
   private authService = inject(AuthService);
@@ -79,43 +79,51 @@ export class LoginComponent {
     }
   }
 
-  email = '';
-  password = '';
+  phone = '';
+  pin = ''; // optional: defaults to last 4 digits of phone if left empty
   loading = signal(false);
   errorMessage = signal('');
 
   login(): void {
-    if (!this.email || !this.password) {
-      this.errorMessage.set('Please enter email and password');
+    if (!this.phone) {
+      this.errorMessage.set('Please enter phone number');
       return;
     }
+
+    // Default PIN to last 4 digits of phone if user left it blank
+    const effectivePin =
+      this.pin && this.pin.trim().length > 0
+        ? this.pin.trim()
+        : this.phone.replace(/\D/g, '').slice(-4);
 
     this.loading.set(true);
     this.errorMessage.set('');
 
-    this.authService.login({
-      email: this.email,
-      password: this.password
-    }).pipe(take(1)).subscribe({
-    
-      next: (response) => {
-        this.loading.set(false);
+    this.authService
+      .login({
+        phone: this.phone,
+        pin: effectivePin,
+      } as any)
+      .pipe(take(1))
+      .subscribe({
+        next: (response) => {
+          this.loading.set(false);
 
-        // Check if user has Guard role in any tenant
-        const hasGuardRole = response.user.tenants.some(t => t.roleName === 'Guard');
+          // Check if user has Guard role in any tenant
+          const hasGuardRole = response.user.tenants.some((t) => t.roleName === 'Guard');
 
-        if (hasGuardRole) {
-          this.router.navigate(['/dashboard']);
-        } else {
-          this.errorMessage.set('Access denied. Guard role required.');
-          this.authService.logout();
-        }
-      },
-      error: (error) => {
-        this.loading.set(false);
-        this.errorMessage.set(error.error?.message || 'Invalid email or password');
-        this.logger.error('Login error:', error);
-      }
-    });
+          if (hasGuardRole) {
+            this.router.navigate(['/dashboard']);
+          } else {
+            this.errorMessage.set('Access denied. Guard role required.');
+            this.authService.logout();
+          }
+        },
+        error: (error) => {
+          this.loading.set(false);
+          this.errorMessage.set(error.error?.message || 'Invalid email or password');
+          this.logger.error('Login error:', error);
+        },
+      });
   }
 }

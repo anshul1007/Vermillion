@@ -43,6 +43,25 @@ public class AuthController : ControllerBase
         return Ok(ApiResponse<LoginResponse>.SuccessResponse(response, "Login successful"));
     }
 
+    [HttpPost("login/phone")]
+    [AllowAnonymous]
+    public async Task<IActionResult> LoginByPhone([FromBody] LoginRequest request)
+    {
+        // Accepts the same LoginRequest DTO but intended for phone+pin flows
+        var (success, response, error) = await _authService.LoginAsync(request);
+
+        if (!success)
+            return Unauthorized(ApiResponse<string>.ErrorResponse(error ?? "Invalid phone or pin"));
+
+        if (response == null)
+        {
+            _logger.LogError("Phone login succeeded but response was null. Phone={Phone}", request.Phone ?? "(none)");
+            return this.ServerError("Login succeeded but response was null");
+        }
+
+        return Ok(ApiResponse<LoginResponse>.SuccessResponse(response, "Login successful"));
+    }
+
     [HttpPost("refresh")]
     [AllowAnonymous]
     public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenRequest request)

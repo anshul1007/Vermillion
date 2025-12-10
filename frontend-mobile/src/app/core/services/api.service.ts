@@ -1,9 +1,13 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
-import { Observable } from 'rxjs';
-import { catchError } from 'rxjs/operators';
+import { Observable, throwError, timer, defer, firstValueFrom } from 'rxjs';
+import { catchError, retryWhen, mergeMap } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
 import { LoggerService } from './logger.service';
+import { OfflineStorageService } from './offline-storage.service';
+import { NetworkQualityService } from './network-quality.service';
+import { Network } from '@capacitor/network';
+import { generateClientId } from '../utils/id.util';
 
 export interface ApiResponse<T> {
   success: boolean;
@@ -22,12 +26,14 @@ export interface CreateLabourRegistrationDto {
   name: string;
   phoneNumber: string;
   aadharNumber?: string;
-  photoBase64: string;  // Sent as base64, backend converts to blob URL
+  // optional inline base64 photo (prefer using `photoPath` when available)
   projectId: number;
   contractorId: number;
   classificationId?: number;
   barcode: string;
   labourId?: number;
+  photoPath?: string; // server-side stored photo path when uploaded separately
+  photoBase64?: string;
 }
 
 export interface LabourRegistrationDto {
@@ -53,8 +59,9 @@ export interface CreateVisitorRegistrationDto {
   phoneNumber: string;
   companyName?: string;
   purpose: string;
-  photoBase64: string;  // Sent as base64, backend converts to blob URL
+  photoBase64?: string;  // Sent as base64, backend converts to blob URL
   projectId: number;
+  photoPath?: string; // server-side stored photo path when uploaded separately
 }
 
 export interface VisitorRegistrationDto {
@@ -126,8 +133,41 @@ export class ApiService {
   private entryExitApiUrl = environment.apiUrl;
 
   private logger = inject(LoggerService);
+  private offline = inject(OfflineStorageService);
+  private networkQuality = inject(NetworkQualityService);
 
   constructor(private http: HttpClient) { }
+
+  // Use shared generateClientId() util from ../utils/id.util
+
+  private async shouldEnqueue(): Promise<boolean> {
+    try {
+      const status = await Network.getStatus();
+      // enqueue if offline or network is slow
+      return !status.connected || this.networkQuality.isSlow();
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // Generic helper: perform an observable with retries and exponential backoff
+  private requestWithRetry<T>(obs: Observable<T>, retries = 3, baseDelay = 500): Observable<T> {
+    return obs.pipe(
+      retryWhen(errors => errors.pipe(
+        mergeMap((err, i) => {
+          const attempt = i + 1;
+          if (attempt > retries) return throwError(() => err);
+          const delay = baseDelay * Math.pow(2, i); // exponential backoff
+          this.logger.debug('[ApiService] retry attempt', attempt, 'delay', delay);
+          return timer(delay);
+        })
+      )),
+      catchError(err => {
+        this.logger.error('[ApiService] request failed', err);
+        return throwError(() => err);
+      })
+    );
+  }
 
   private getHeaders(): HttpHeaders {
     const token = localStorage.getItem('accessToken');
@@ -153,9 +193,51 @@ export class ApiService {
   }
 
   // Labour endpoints
-  registerLabour(data: CreateLabourRegistrationDto): Observable<ApiResponse<LabourRegistrationDto>> {
-    return this.http.post<ApiResponse<LabourRegistrationDto>>(`${this.entryExitApiUrl}/labour/register`, data, {
-      headers: this.getHeaders()
+  registerLabour(data: CreateLabourRegistrationDto, options: { enqueueIfNeeded?: boolean } = { enqueueIfNeeded: true }): Observable<ApiResponse<LabourRegistrationDto>> {
+    return defer(async () => {
+      const enqueueIfNeeded = options?.enqueueIfNeeded !== false;
+      // enqueue-first: persist locally when offline/slow and avoid immediate network call
+      if (enqueueIfNeeded && await this.shouldEnqueue()) {
+        try {
+          const payload: any = { ...data };
+          if (!payload.clientId) payload.clientId = generateClientId();
+          if (payload.photoBase64) {
+            try {
+              const saved = await this.offline.savePhotoFromDataUrl(payload.photoBase64, `labour_${Date.now()}.jpg`);
+              payload.photoLocalId = saved.id;
+              delete payload.photoBase64;
+            } catch (e) {
+              this.logger.error('[ApiService] savePhotoFromDataUrl failed while enqueueing labour', e);
+            }
+          }
+          await this.offline.enqueueAction('registerLabour', payload);
+          this.logger.debug('[ApiService] registerLabour enqueued due to offline/slow network');
+          return { success: true, message: 'enqueued-offline' } as ApiResponse<LabourRegistrationDto>;
+        } catch (e) {
+          this.logger.error('[ApiService] failed to enqueue registerLabour', e);
+          // fallthrough to network attempt
+        }
+      }
+
+      // If we have an inline photo and we're online, upload photo first to reduce payload size
+      try {
+        if (data && (data as any).photoBase64) {
+          try {
+            const uploadResp = await firstValueFrom(this.uploadPhoto((data as any).photoBase64, `labour_${Date.now()}.jpg`));
+            if (uploadResp && uploadResp.success && uploadResp.data && uploadResp.data.path) {
+              (data as any).photoPath = uploadResp.data.path;
+              delete (data as any).photoBase64;
+            }
+          } catch (e) {
+            this.logger.warn('[ApiService] labour photo upload failed, sending inline base64 as fallback', e);
+          }
+        }
+      } catch {}
+
+      const req = this.http.post<ApiResponse<LabourRegistrationDto>>(`${this.entryExitApiUrl}/labour/register`, data, {
+        headers: this.getHeaders()
+      });
+      return await firstValueFrom(this.requestWithRetry(req, 2, 300));
     });
   }
 
@@ -166,9 +248,49 @@ export class ApiService {
   }
 
   // Visitor endpoints
-  registerVisitor(data: CreateVisitorRegistrationDto): Observable<ApiResponse<VisitorRegistrationDto>> {
-    return this.http.post<ApiResponse<VisitorRegistrationDto>>(`${this.entryExitApiUrl}/visitor/register`, data, {
-      headers: this.getHeaders()
+  registerVisitor(data: CreateVisitorRegistrationDto, options: { enqueueIfNeeded?: boolean } = { enqueueIfNeeded: true }): Observable<ApiResponse<VisitorRegistrationDto>> {
+    return defer(async () => {
+      const enqueueIfNeeded = options?.enqueueIfNeeded !== false;
+      if (enqueueIfNeeded && await this.shouldEnqueue()) {
+        try {
+          const payload: any = { ...data };
+          if (!payload.clientId) payload.clientId = generateClientId();
+          if (payload.photoBase64) {
+            try {
+              const saved = await this.offline.savePhotoFromDataUrl(payload.photoBase64, `visitor_${Date.now()}.jpg`);
+              payload.photoLocalId = saved.id;
+              delete payload.photoBase64;
+            } catch (e) {
+              this.logger.error('[ApiService] savePhotoFromDataUrl failed while enqueueing visitor', e);
+            }
+          }
+          await this.offline.enqueueAction('registerVisitor', payload);
+          this.logger.debug('[ApiService] registerVisitor enqueued due to offline/slow network');
+          return { success: true, message: 'enqueued-offline' } as ApiResponse<VisitorRegistrationDto>;
+        } catch (e) {
+          this.logger.error('[ApiService] failed to enqueue registerVisitor', e);
+        }
+      }
+
+      // If we have an inline photo and we're online, upload photo first to reduce payload size
+      try {
+        if (data && (data as any).photoBase64) {
+          try {
+            const uploadResp = await firstValueFrom(this.uploadPhoto((data as any).photoBase64, `visitor_${Date.now()}.jpg`));
+            if (uploadResp && uploadResp.success && uploadResp.data && uploadResp.data.path) {
+              (data as any).photoPath = uploadResp.data.path;
+              delete (data as any).photoBase64;
+            }
+          } catch (e) {
+            this.logger.warn('[ApiService] visitor photo upload failed, sending inline base64 as fallback', e);
+          }
+        }
+      } catch {}
+
+      const req = this.http.post<ApiResponse<VisitorRegistrationDto>>(`${this.entryExitApiUrl}/visitor/register`, data, {
+        headers: this.getHeaders()
+      });
+      return await firstValueFrom(this.requestWithRetry(req, 2, 300));
     });
   }
 
@@ -179,9 +301,47 @@ export class ApiService {
   }
 
   // Entry/Exit records
-  createRecord(data: CreateRecordDto): Observable<ApiResponse<any>> {
-    return this.http.post<ApiResponse<any>>(`${this.entryExitApiUrl}/records`, data, {
-      headers: this.getHeaders()
+  createRecord(data: CreateRecordDto, options: { enqueueIfNeeded?: boolean } = { enqueueIfNeeded: true }): Observable<ApiResponse<any>> {
+    return defer(async () => {
+      const enqueueIfNeeded = options?.enqueueIfNeeded !== false;
+      if (enqueueIfNeeded && await this.shouldEnqueue()) {
+        try {
+          const payload: any = { ...data };
+          if (!payload.clientId) payload.clientId = generateClientId();
+          // If caller passed a data URL as photoPath, persist it locally and reference by photoLocalId
+          if (payload.photoPath && typeof payload.photoPath === 'string' && payload.photoPath.startsWith('data:')) {
+            try {
+              const saved = await this.offline.savePhotoFromDataUrl(payload.photoPath, `record_${Date.now()}.jpg`);
+              payload.photoLocalId = saved.id;
+              delete payload.photoPath;
+            } catch (e) {
+              this.logger.error('[ApiService] savePhotoFromDataUrl failed while enqueueing record', e);
+            }
+          }
+          await this.offline.enqueueAction('createRecord', payload);
+          this.logger.debug('[ApiService] createRecord enqueued due to offline/slow network');
+          return { success: true, message: 'enqueued-offline' } as ApiResponse<any>;
+        } catch (e) {
+          this.logger.error('[ApiService] failed to enqueue createRecord', e);
+        }
+      }
+
+      // If caller passed a data URL as photoPath (inline base64), try uploading first when online
+      try {
+        if (data && (data as any).photoPath && typeof (data as any).photoPath === 'string' && (data as any).photoPath.startsWith('data:')) {
+          try {
+            const uploadResp = await firstValueFrom(this.uploadPhoto((data as any).photoPath, `record_${Date.now()}.jpg`));
+            if (uploadResp && uploadResp.success && uploadResp.data && uploadResp.data.path) {
+              (data as any).photoPath = uploadResp.data.path;
+            }
+          } catch (e) {
+            this.logger.warn('[ApiService] record photo upload failed, sending inline data as fallback', e);
+          }
+        }
+      } catch {}
+
+      const req = this.http.post<ApiResponse<any>>(`${this.entryExitApiUrl}/records`, data, { headers: this.getHeaders() });
+      return await firstValueFrom(this.requestWithRetry(req, 2, 300));
     });
   }
 
@@ -190,16 +350,14 @@ export class ApiService {
     if (projectId) {
       url += `?projectId=${projectId}`;
     }
-    return this.http.get<ApiResponse<any>>(url, {
-      headers: this.getHeaders()
-    });
+    const req = this.http.get<ApiResponse<any>>(url, { headers: this.getHeaders() });
+    return this.requestWithRetry(req, 2, 300);
   }
 
   // Sync endpoint
   syncBatch(data: SyncBatchDto): Observable<ApiResponse<any>> {
-    return this.http.post<ApiResponse<any>>(`${this.entryExitApiUrl}/sync/batch`, data, {
-      headers: this.getHeaders()
-    });
+    const req = this.http.post<ApiResponse<any>>(`${this.entryExitApiUrl}/sync-batch`, data, { headers: this.getHeaders() });
+    return this.requestWithRetry(req, 3, 500);
   }
 
   // Admin endpoints
@@ -316,10 +474,14 @@ export class ApiService {
     const fallback = `${alternateBase}/photos/${safePath}`;
 
     this.logger.debug('[ApiService] fetching photo blob, primary:', primary, 'fallback:', fallback);
-    return this.http.get(primary, { headers, responseType: 'blob' as 'blob' }).pipe(
+    const primaryReq = this.http.get(primary, { headers, responseType: 'blob' as 'blob' });
+    const fallbackReq = this.http.get(fallback, { headers, responseType: 'blob' as 'blob' });
+
+    // Try primary with a couple of retries; on failure, try fallback once.
+    return this.requestWithRetry(primaryReq, 2, 300).pipe(
       catchError((err) => {
         this.logger.debug('[ApiService] primary photo fetch failed, trying fallback', err);
-        return this.http.get(fallback, { headers, responseType: 'blob' as 'blob' });
+        return this.requestWithRetry(fallbackReq, 1, 300);
       })
     );
   }

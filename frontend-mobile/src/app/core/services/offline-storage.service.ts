@@ -20,6 +20,10 @@ export class OfflineStorageService {
   private isNative = false;
   private Filesystem: any = null;
   private Capacitor: any = null;
+  // maximum allowed photo size (bytes) before attempting compression
+  private readonly MAX_PHOTO_SIZE_BYTES = 1_500_000; // ~1.5 MB
+  // maximum width/height to scale down large images (preserve aspect)
+  private readonly MAX_PHOTO_DIMENSION = 1600;
 
   constructor() {
     this.detectPlatform();
@@ -48,12 +52,13 @@ export class OfflineStorageService {
 
   private async initDexie(): Promise<void> {
     if (this.dexieDb) return;
-    this.dexieDb = new Dexie('VermillionOfflineDB');
+    // Use unified DB name to avoid duplicates across services
+    this.dexieDb = new Dexie('vermillion_offline_db');
 
-    // single version 1 declaring photos, actionQueue and people (initial fresh schema)
+    // single version 1 declaring photos, sync_queue and people (initial fresh schema)
     this.dexieDb.version(1).stores({
       photos: '++id,filename,uploaded,createdAt,remoteUrl,hash',
-      actionQueue: '++id,createdAt,status',
+      sync_queue: '++id,createdAt,status',
       people: '++id,clientId,serverId,name'
     });
 
@@ -75,6 +80,19 @@ export class OfflineStorageService {
    */
   async savePhoto(file: Blob, filename: string, metadata: any = {}): Promise<{ id: number; localRef: string }> {
     const createdAt = Date.now();
+
+    // If photo is large, attempt compression to keep DB and upload sizes reasonable.
+    try {
+      if (file.type && file.type.startsWith('image/') && file.size > this.MAX_PHOTO_SIZE_BYTES) {
+        const compressed = await this.compressImageBlob(file, this.MAX_PHOTO_SIZE_BYTES, this.MAX_PHOTO_DIMENSION);
+        if (compressed) {
+          this.logger.info('Compressed photo from', file.size, 'to', compressed.size, 'bytes');
+          file = compressed;
+        }
+      }
+    } catch (e) {
+      this.logger.warn('Photo compression failed, continuing with original blob', e);
+    }
 
     // compute blob hash for deduplication
     const hash = await this.computeBlobHash(file);
@@ -111,6 +129,99 @@ export class OfflineStorageService {
     if (!this.photosTable) await this.initDexie();
     const id = await this.photosTable!.add({ filename, data: file, metadata, remoteUrl: metadata?.remoteUrl ?? null, hash: hash ?? null, uploaded: false, createdAt });
     return { id, localRef: `dexie:${id}` };
+  }
+
+  // Attempt to compress an image Blob using canvas. Returns a new Blob or the original if compression not possible.
+  private async compressImageBlob(original: Blob, maxBytes: number, maxDimension: number): Promise<Blob | null> {
+    try {
+      // only handle image types
+      if (!original.type || !original.type.startsWith('image/')) return original;
+
+      // create an imageBitmap if available (faster and avoids DOM Image issues)
+      let imgBitmap: ImageBitmap | null = null;
+      try {
+        if ((window as any).createImageBitmap) {
+          imgBitmap = await (window as any).createImageBitmap(original);
+        }
+      } catch (e) {
+        imgBitmap = null;
+      }
+
+      // fallback to HTMLImageElement
+      let width = 0;
+      let height = 0;
+      if (imgBitmap) {
+        width = imgBitmap.width;
+        height = imgBitmap.height;
+      } else {
+        // create object URL and load Image
+        const url = URL.createObjectURL(original);
+        const img = new Image();
+        await new Promise<void>((resolve, reject) => {
+          img.onload = () => resolve();
+          img.onerror = (err) => reject(err);
+          img.src = url;
+        });
+        width = (img as any).naturalWidth || img.width;
+        height = (img as any).naturalHeight || img.height;
+        URL.revokeObjectURL(url);
+        // draw via image element later using canvas drawImage with the image element
+        imgBitmap = null;
+      }
+
+      // calculate scale to fit within maxDimension
+      const maxDim = Math.max(width, height);
+      let scale = 1;
+      if (maxDim > maxDimension) scale = maxDimension / maxDim;
+
+      const targetW = Math.max(1, Math.round(width * scale));
+      const targetH = Math.max(1, Math.round(height * scale));
+
+      // draw to canvas
+      const canvas = document.createElement('canvas');
+      canvas.width = targetW;
+      canvas.height = targetH;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return original;
+
+      if (imgBitmap) {
+        ctx.drawImage(imgBitmap, 0, 0, targetW, targetH);
+      } else {
+        // reload into Image to draw
+        const url2 = URL.createObjectURL(original);
+        const img2 = await new Promise<HTMLImageElement>((resolve, reject) => {
+          const imgEl = new Image();
+          imgEl.onload = () => resolve(imgEl);
+          imgEl.onerror = (e) => reject(e);
+          imgEl.src = url2;
+        });
+        ctx.drawImage(img2, 0, 0, targetW, targetH);
+        URL.revokeObjectURL(url2);
+      }
+
+      // iterative quality reduction until under maxBytes or quality floor
+      const tryQuality = async (quality: number): Promise<Blob | null> => {
+        return await new Promise<Blob | null>((resolve) => {
+          canvas.toBlob((blob) => {
+            resolve(blob);
+          }, 'image/jpeg', quality);
+        });
+      };
+
+      const qualities = [0.92, 0.85, 0.75, 0.6, 0.5];
+      for (const q of qualities) {
+        const b = await tryQuality(q);
+        if (!b) continue;
+        if (b.size <= maxBytes) return b;
+      }
+
+      // last attempt: return the last produced blob even if larger
+      const last = await tryQuality(0.5);
+      return last || original;
+    } catch (e) {
+      this.logger.warn('compressImageBlob failed', e);
+      return null;
+    }
   }
 
   private async computeBlobHash(blob: Blob): Promise<string | null> {
@@ -272,19 +383,19 @@ export class OfflineStorageService {
   async enqueueAction(actionType: string, payload: any): Promise<number> {
     if (!this.dexieDb) await this.initDexie();
     const createdAt = Date.now();
-    const rec = await (this.dexieDb as Dexie).table('actionQueue').add({ actionType, payload, status: 'pending', attempts: 0, createdAt });
+    const rec = await (this.dexieDb as Dexie).table('sync_queue').add({ actionType, payload, status: 'pending', attempts: 0, createdAt });
     return rec as number;
   }
 
   async getQueuedActions(limit = 20): Promise<any[]> {
     if (!this.dexieDb) await this.initDexie();
-    const table = (this.dexieDb as Dexie).table('actionQueue');
+    const table = (this.dexieDb as Dexie).table('sync_queue');
     return (await table.where('status').equals('pending').limit(limit).toArray()) as any[];
   }
 
   async updateActionStatus(id: number, status: 'pending' | 'processing' | 'done' | 'failed', attempts?: number): Promise<void> {
     if (!this.dexieDb) await this.initDexie();
-    const table = (this.dexieDb as Dexie).table('actionQueue');
+    const table = (this.dexieDb as Dexie).table('sync_queue');
     const update: any = { status };
     if (typeof attempts === 'number') update.attempts = attempts;
     await table.update(id, update);
@@ -292,7 +403,7 @@ export class OfflineStorageService {
 
   async removeQueuedAction(id: number): Promise<void> {
     if (!this.dexieDb) await this.initDexie();
-    const table = (this.dexieDb as Dexie).table('actionQueue');
+    const table = (this.dexieDb as Dexie).table('sync_queue');
     await table.delete(id);
   }
 
@@ -324,17 +435,27 @@ export class OfflineStorageService {
     }
   }
 
+  async getAllLocalPeople(): Promise<any[]> {
+    if (!this.dexieDb) await this.initDexie();
+    try {
+      const people = (this.dexieDb as any).table('people');
+      return await people.toArray();
+    } catch (e) {
+      return [];
+    }
+  }
+
   // Find queued actions whose payload references a clientId (simple deep search)
   async findQueuedActionsReferencingClientId(clientId: string): Promise<any[]> {
     if (!this.dexieDb) await this.initDexie();
-    const q = (this.dexieDb as Dexie).table('actionQueue');
+    const q = (this.dexieDb as Dexie).table('sync_queue');
     const all = await q.toArray();
     return all.filter((entry: any) => this.deepContainsClientId(entry.payload, clientId));
   }
 
   async patchQueuedActionPayload(actionId: number, newPayload: any): Promise<void> {
     if (!this.dexieDb) await this.initDexie();
-    const q = (this.dexieDb as Dexie).table('actionQueue');
+    const q = (this.dexieDb as Dexie).table('sync_queue');
     await q.update(actionId, { payload: newPayload });
   }
 
@@ -382,7 +503,7 @@ export class OfflineStorageService {
   // Finds queued actions that reference clientId and updates their payloads to use serverId instead.
   async replaceClientIdInQueuedActions(clientId: string, serverId: string | number): Promise<void> {
     if (!this.dexieDb) await this.initDexie();
-    const q = (this.dexieDb as Dexie).table('actionQueue');
+    const q = (this.dexieDb as Dexie).table('sync_queue');
     const all = await q.toArray();
     for (const entry of all) {
       if (this.deepContainsClientId(entry.payload, clientId)) {
@@ -395,7 +516,7 @@ export class OfflineStorageService {
   // Replace occurrences of a numeric local photo id in queued payloads with a server-side photo path.
   async replacePhotoLocalIdWithServerPath(photoLocalId: number, serverPath: string): Promise<void> {
     if (!this.dexieDb) await this.initDexie();
-    const q = (this.dexieDb as Dexie).table('actionQueue');
+    const q = (this.dexieDb as Dexie).table('sync_queue');
     const all = await q.toArray();
     for (const entry of all) {
       let changed = false;
@@ -416,7 +537,7 @@ export class OfflineStorageService {
   // Replace payload fields named `photoLocalId` with `photoPath` (structured replacement).
   async patchPhotoLocalIdToPhotoPath(photoLocalId: number, serverPath: string): Promise<void> {
     if (!this.dexieDb) await this.initDexie();
-    const q = (this.dexieDb as Dexie).table('actionQueue');
+    const q = (this.dexieDb as Dexie).table('sync_queue');
     const all = await q.toArray();
     for (const entry of all) {
       let changed = false;
