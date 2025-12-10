@@ -94,6 +94,26 @@ export class OcrService {
         const { createWorker, PSM } = tesseract as any;
 
         try {
+          // Preflight fetch the assets so we can detect 404/HTML rewrite issues
+          const checkAsset = async (url: string) => {
+            try {
+              const resp = await fetch(url, { method: 'GET' });
+              if (!resp.ok) {
+                throw new Error(`HTTP ${resp.status}`);
+              }
+              const ct = resp.headers.get('content-type') || '';
+              if (ct.includes('text/html')) {
+                throw new Error(`Unexpected content-type ${ct}`);
+              }
+            } catch (e: any) {
+              throw new Error(`Failed to fetch OCR asset ${url}: ${e instanceof Error ? e.message : String(e)}`);
+            }
+          };
+
+          await checkAsset(OcrService.workerPath);
+          await checkAsset(OcrService.corePath);
+          await checkAsset(OcrService.langPath + 'eng.traineddata');
+
           const workerInstance = await createWorker('eng', undefined, {
             workerPath: OcrService.workerPath,
             corePath: OcrService.corePath,
