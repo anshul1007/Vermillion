@@ -27,7 +27,17 @@ import { PersonSearchResult } from '../../entry-exit.models';
           [class.labour-card--selected]="isSelected"
           [class.labour-card--disabled]="disabled"
         >
-          <div class="labour-card__photo-section">
+          <div
+            class="labour-card__photo-section"
+            role="button"
+            [attr.tabindex]="canPreview() ? 0 : -1"
+            [attr.aria-disabled]="canPreview() ? null : true"
+            [attr.aria-label]="person.name ? 'View photo for ' + person.name : 'View photo'"
+            (click)="onPhotoTrigger($event)"
+            (dblclick)="onPhotoTrigger($event)"
+            (keydown.enter)="onPhotoTrigger($event)"
+            (keydown.space)="onPhotoTrigger($event)"
+          >
             <ng-container *ngIf="effectiveImage(); else iconTpl">
               <div class="labour-card__avatar">
                 <img [src]="effectiveImage()" [alt]="'Photo of ' + person.name" appResolvePhoto />
@@ -155,11 +165,26 @@ export class EntryExitPersonCardComponent {
   @Output() logEntry = new EventEmitter<void>();
   @Output() logExit = new EventEmitter<void>();
   @Output() cancel = new EventEmitter<void>();
+  @Output() viewPhoto = new EventEmitter<void>();
 
   ngOnChanges(changes: SimpleChanges) {
     if (changes['imageSrc'] || changes['person']) {
       this.resolveEffectiveImage();
     }
+  }
+
+  canPreview(): boolean {
+    const src = (this.imageSrc ?? this.person?.photoUrl ?? '').trim();
+    return src.length > 0;
+  }
+
+  onPhotoTrigger(event: Event) {
+    if (!this.canPreview()) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    this.viewPhoto.emit();
   }
 
   private async resolveEffectiveImage() {

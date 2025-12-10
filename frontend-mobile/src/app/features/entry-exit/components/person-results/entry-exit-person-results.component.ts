@@ -31,6 +31,7 @@ import { EntryExitSearchStore } from '../../state/entry-exit-search.store';
           (click)="onSelect(r, $event)"
           (keydown.enter)="onSelect(r, $event)"
           (keydown.space)="onSelect(r, $event)"
+          (viewPhoto)="onViewPhoto(r)"
         ></app-entry-exit-person-card>
       </div>
     </ng-container>
@@ -40,11 +41,16 @@ import { EntryExitSearchStore } from '../../state/entry-exit-search.store';
 export class EntryExitPersonResultsComponent {
   @Input() results: PersonSearchResult[] | null = null;
   @Output() select = new EventEmitter<PersonSearchResult>();
+  @Output() viewPhoto = new EventEmitter<PersonSearchResult>();
   readonly store = inject(EntryExitSearchStore);
 
   onSelect(person: PersonSearchResult, event?: Event) {
     event?.preventDefault();
     this.select.emit(person);
+  }
+
+  onViewPhoto(person: PersonSearchResult) {
+    this.viewPhoto.emit(person);
   }
 
   trackById(_index: number, item: PersonSearchResult) {

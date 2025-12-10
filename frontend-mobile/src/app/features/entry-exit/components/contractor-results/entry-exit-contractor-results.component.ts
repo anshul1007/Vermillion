@@ -60,6 +60,7 @@ import { ContractorLabourResult, PersonSearchResult, PersonType } from '../../en
               [showActions]="false"
               [noCard]="true"
               [disabled]="disabled"
+              (viewPhoto)="viewPhoto.emit(createPersonFromLabour(r))"
             ></app-entry-exit-person-card>
           </label>
       </div>
@@ -114,6 +115,7 @@ export class EntryExitContractorResultsComponent {
   @Output() selectAll = new EventEmitter<void>();
   @Output() clear = new EventEmitter<void>();
   @Output() bulkAction = new EventEmitter<'entry' | 'exit'>();
+  @Output() viewPhoto = new EventEmitter<PersonSearchResult>();
 
   trackById(_index: number, item: ContractorLabourResult) {
     return item.id;

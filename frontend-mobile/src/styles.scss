@@ -409,6 +409,82 @@ b {
   margin-top: $space-3 !important;
 }
 
+/* Entry/Exit photo interactions */
+.labour-card__photo-section[role='button'] {
+  cursor: zoom-in;
+}
+
+.labour-card__photo-section[role='button'][aria-disabled='true'] {
+  cursor: default;
+}
+
+.labour-card__photo-section[role='button']:focus {
+  outline: 2px solid var(--color-primary, #2563eb);
+  outline-offset: 2px;
+}
+
+.photo-preview-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  z-index: 1050;
+}
+
+.photo-preview-content {
+  position: relative;
+  background: #ffffff;
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+  max-width: 90vw;
+  max-height: 90vh;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.35);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.photo-preview-content img {
+  max-width: 100%;
+  max-height: 80vh;
+  border-radius: 0.5rem;
+  object-fit: contain;
+}
+
+.photo-preview-close {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  background: transparent;
+  border: none;
+  padding: 0.25rem;
+  cursor: pointer;
+  color: inherit;
+}
+
+.photo-preview-close:focus {
+  outline: 2px solid var(--color-primary, #2563eb);
+  outline-offset: 2px;
+}
+
+.photo-preview-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  color: #475569;
+  text-align: center;
+}
+
+.photo-preview-placeholder p {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
 /* Gap utilities for flex/grid */
 .gap-1 {
   gap: $space-1 !important;

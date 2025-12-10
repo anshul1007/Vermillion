@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, HostListener, computed, inject, signal } from '@angular/core';
 import { EntryExitSearchBarComponent } from './components/search-bar/entry-exit-search-bar.component';
 import { EntryExitPersonCardComponent } from './components/person-card/entry-exit-person-card.component';
 import { EntryExitPersonResultsComponent } from './components/person-results/entry-exit-person-results.component';
@@ -8,6 +8,9 @@ import { EntryExitPhotoModalComponent } from './components/photo-modal/entry-exi
 import { EntryExitSearchStore } from './state/entry-exit-search.store';
 import { projectStore } from '../../core/state/project.store';
 import { AuthService } from '../../core/auth/auth.service';
+import { ResolvePhotoDirective } from '../../core/directives/resolve-photo.directive';
+import { IconComponent } from '../../shared/icon/icon.component';
+import { PersonSearchResult } from './entry-exit.models';
 
 @Component({
   selector: 'app-entry-exit-component',
@@ -19,6 +22,8 @@ import { AuthService } from '../../core/auth/auth.service';
     EntryExitPersonResultsComponent,
     EntryExitContractorResultsComponent,
     EntryExitPhotoModalComponent,
+    ResolvePhotoDirective,
+    IconComponent,
   ],
   template: `
     <div class="page">
@@ -65,6 +70,7 @@ import { AuthService } from '../../core/auth/auth.service';
                 (logEntry)="store.logEntry()"
                 (logExit)="store.logExit()"
                 (cancel)="store.backToResults()"
+                (viewPhoto)="openPhoto(store.result())"
               />
             </div>
           </ng-container>
@@ -95,6 +101,7 @@ import { AuthService } from '../../core/auth/auth.service';
                 (selectAll)="store.selectAllLabour()"
                 (clear)="store.clearSelection()"
                 (bulkAction)="store.showPhotoVerificationModal($event)"
+                (viewPhoto)="openPhoto($event)"
               ></app-entry-exit-contractor-results>
             </div>
 
@@ -111,6 +118,7 @@ import { AuthService } from '../../core/auth/auth.service';
             <app-entry-exit-person-results
               [results]="store.decoratedResults()"
               (select)="store.selectResult($event)"
+              (viewPhoto)="openPhoto($event)"
             ></app-entry-exit-person-results>
           </div>
 
@@ -141,6 +149,39 @@ import { AuthService } from '../../core/auth/auth.service';
         </section>
       </ng-template>
     </div>
+
+    <div
+      class="photo-preview-overlay"
+      *ngIf="previewVisible()"
+      (click)="closePhoto()"
+    >
+      <div
+        class="photo-preview-content"
+        role="dialog"
+        aria-modal="true"
+        [attr.aria-label]="previewTitle()"
+        (click)="$event.stopPropagation()"
+      >
+        <button
+          class="photo-preview-close"
+          type="button"
+          (click)="closePhoto()"
+          aria-label="Close image preview"
+        >
+          <app-icon name="close" size="20"></app-icon>
+        </button>
+
+        <ng-container *ngIf="previewImage(); else noPreviewPhoto">
+          <img [src]="previewImage()" [alt]="previewTitle()" appResolvePhoto />
+        </ng-container>
+        <ng-template #noPreviewPhoto>
+          <div class="photo-preview-placeholder">
+            <app-icon name="user" size="48"></app-icon>
+            <p>No photo available</p>
+          </div>
+        </ng-template>
+      </div>
+    </div>
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
   providers: [EntryExitSearchStore],
@@ -151,7 +192,52 @@ export class EntryExitComponent {
 
   guardProfile = this.authService.guardProfile;
 
+  private previewPerson = signal<PersonSearchResult | null>(null);
+  previewVisible = signal(false);
+  previewImage = computed(() => {
+    const person = this.previewPerson();
+    if (!person) {
+      return null;
+    }
+    const resolved = this.store.resolvePersonImage(person) ?? person.photoUrl ?? null;
+    return resolved;
+  });
+  previewTitle = computed(() => {
+    const person = this.previewPerson();
+    if (!person) {
+      return 'Person photo';
+    }
+    const name = person.name?.trim();
+    return name && name.length > 0 ? `Photo of ${name}` : 'Person photo';
+  });
+
   currentProjectName = signal<string>(
     projectStore.projectName() ?? this.guardProfile()?.projectName ?? ''
   );
+
+  openPhoto(person: PersonSearchResult | null): void {
+    if (!person) {
+      return;
+    }
+    this.previewPerson.set(person);
+    this.previewVisible.set(true);
+    // Kick off resolution so enlarged view updates once the photo is fetched.
+    this.store.resolvePersonImage(person);
+  }
+
+  closePhoto(): void {
+    this.previewVisible.set(false);
+    this.previewPerson.set(null);
+  }
+
+  @HostListener('document:keydown', ['$event'])
+  onDocumentKeydown(event: KeyboardEvent): void {
+    if (!this.previewVisible()) {
+      return;
+    }
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      this.closePhoto();
+    }
+  }
 }
