@@ -116,13 +116,11 @@ export class OcrService {
           const langBaseUrl = toAbsoluteUrl(OcrService.langPath);
           const trainedDataUrl = `${langBaseUrl.endsWith('/') ? langBaseUrl : `${langBaseUrl}/`}eng.traineddata`;
 
-          // Azure Static Web Apps doesn't enable SharedArrayBuffer (requires COOP/COEP headers)
-          // Force non-SIMD core to avoid worker init failures
-          if (typeof SharedArrayBuffer === 'undefined') {
-            console.debug('SharedArrayBuffer unavailable, forcing non-SIMD tesseract-core.wasm.js');
-            const base = coreJsUrl.substring(0, coreJsUrl.lastIndexOf('/') + 1);
-            coreJsUrl = `${base}tesseract-core.wasm.js`;
-          }
+          // ALWAYS force non-SIMD core because Azure Static Web Apps doesn't set COOP/COEP headers
+          // Without SharedArrayBuffer, SIMD variants fail with "n is not a function"
+          const base = coreJsUrl.substring(0, coreJsUrl.lastIndexOf('/') + 1);
+          coreJsUrl = `${base}tesseract-core.wasm.js`;
+          console.debug('Forcing non-SIMD tesseract-core.wasm.js for compatibility', { originalCore: OcrService.corePath, forcedCore: coreJsUrl });
 
           const fetchAssetMeta = async (url: string) => {
             try {
