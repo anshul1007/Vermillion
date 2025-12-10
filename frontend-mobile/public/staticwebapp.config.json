@@ -1,7 +1,12 @@
 {
   "navigationFallback": {
     "rewrite": "/index.html",
-    "exclude": ["/images/*.{png,jpg,gif,ico}", "/css/*", "/*.{css,js,json}"]
+    "exclude": [
+      "/images/*.{png,jpg,gif,ico}",
+      "/css/*",
+      "/*.{css,js,json}",
+      "/tesseract/*"
+    ]
   },
   "routes": [
     {
@@ -20,8 +25,10 @@
   },
   "mimeTypes": {
     ".json": "application/json",
-    ".js": "text/javascript",
+    ".js": "application/javascript",
     ".css": "text/css",
-    ".html": "text/html"
+    ".html": "text/html",
+    ".wasm": "application/wasm",
+    ".traineddata": "application/octet-stream"
   }
 }
