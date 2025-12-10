@@ -94,8 +94,36 @@ async function main() {
   };
 
   const workerCopied = await copyWithCandidates(workerSourceCandidates, 'tesseract.worker.min.js');
-  const coreJsCopied = await copyWithCandidates(coreJsCandidates, 'tesseract-core.wasm.js');
-  const coreWasmCopied = await copyWithCandidates(coreWasmCandidates, 'tesseract-core.wasm');
+
+  let coreDir = null;
+  for (const candidate of [
+    path.join(nodeModulesDir, 'tesseract.js-core'),
+    path.join(nodeModulesDir, '@tesseract.js', 'core')
+  ]) {
+    if (await fileExists(candidate)) {
+      coreDir = candidate;
+      break;
+    }
+  }
+
+  let coreFilesCopied = false;
+  if (coreDir) {
+    const entries = await fs.readdir(coreDir);
+    for (const entry of entries) {
+      if (!/^tesseract-core.*\.(wasm(\.js)?|js)$/.test(entry)) {
+        continue;
+      }
+      const source = path.join(coreDir, entry);
+      const destination = path.join(publicOcrDir, entry);
+      await ensureDir(path.dirname(destination));
+      await fs.copyFile(source, destination);
+      results.push(`${entry} <- ${source}`);
+      coreFilesCopied = true;
+    }
+  }
+
+  const coreJsCopied = coreFilesCopied || await copyWithCandidates(coreJsCandidates, 'tesseract-core.wasm.js');
+  const coreWasmCopied = coreFilesCopied || await copyWithCandidates(coreWasmCandidates, 'tesseract-core.wasm');
   let languageCopied = await copyWithCandidates(languageCandidates, 'eng.traineddata');
   if (!languageCopied) {
     try {
