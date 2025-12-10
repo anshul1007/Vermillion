@@ -111,16 +111,15 @@ export class OcrService {
             return path;
           };
 
-          const workerUrl = toAbsoluteUrl(OcrService.workerPath);
-          let coreJsUrl = toAbsoluteUrl(OcrService.corePath);
+          // Use CDN-hosted worker to avoid bundling/compatibility issues in Azure Static Web Apps
+          const workerUrl = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/worker.min.js';
           const langBaseUrl = toAbsoluteUrl(OcrService.langPath);
           const trainedDataUrl = `${langBaseUrl.endsWith('/') ? langBaseUrl : `${langBaseUrl}/`}eng.traineddata`;
 
-          // ALWAYS force non-SIMD core because Azure Static Web Apps doesn't set COOP/COEP headers
-          // Without SharedArrayBuffer, SIMD variants fail with "n is not a function"
-          const base = coreJsUrl.substring(0, coreJsUrl.lastIndexOf('/') + 1);
-          coreJsUrl = `${base}tesseract-core.wasm.js`;
-          console.debug('Forcing non-SIMD tesseract-core.wasm.js for compatibility', { originalCore: OcrService.corePath, forcedCore: coreJsUrl });
+          // Force non-SIMD core (Azure SWA doesn't enable SharedArrayBuffer)
+          const base = langBaseUrl.endsWith('/') ? langBaseUrl : `${langBaseUrl}/`;
+          const coreJsUrl = `${base}tesseract-core.wasm.js`;
+          console.debug('Using CDN worker and non-SIMD core', { workerUrl, coreJsUrl, langBaseUrl });
 
           const fetchAssetMeta = async (url: string) => {
             try {
