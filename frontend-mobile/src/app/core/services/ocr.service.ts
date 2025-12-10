@@ -20,7 +20,18 @@ interface ParsedAadharFields {
 
 @Injectable({ providedIn: 'root' })
 export class OcrService {
-  private static readonly baseAssetPath = '/tesseract/';
+  private static readonly baseAssetPath = ((): string => {
+    try {
+      if (typeof document !== 'undefined') {
+        const baseEl = document.querySelector('base');
+        const baseHref = baseEl ? (baseEl.getAttribute('href') || '/') : '/';
+        return (baseHref.endsWith('/') ? baseHref : baseHref + '/') + 'tesseract/';
+      }
+    } catch (e) {
+      // fallback to root
+    }
+    return '/tesseract/';
+  })();
   private static readonly workerPath = `${OcrService.baseAssetPath}tesseract.worker.min.js`;
   private static readonly corePath = `${OcrService.baseAssetPath}tesseract-core.wasm.js`;
   private static readonly langPath = OcrService.baseAssetPath;
@@ -74,34 +85,43 @@ export class OcrService {
 
         // Lazy-load tesseract.js so the heavy library and its assets
         // are not part of the main bundle and are only loaded when OCR is used.
-        const tesseract = await import('tesseract.js');
+        let tesseract: any;
+        try {
+          tesseract = await import('tesseract.js');
+        } catch (err) {
+          throw new Error('Failed to load tesseract.js. Ensure tesseract is installed and available in production build.');
+        }
         const { createWorker, PSM } = tesseract as any;
 
-        const workerInstance = await createWorker('eng', undefined, {
-          workerPath: OcrService.workerPath,
-          corePath: OcrService.corePath,
-          langPath: OcrService.langPath,
-          cacheMethod: 'none',
-          gzip: false,
-        });
+        try {
+          const workerInstance = await createWorker('eng', undefined, {
+            workerPath: OcrService.workerPath,
+            corePath: OcrService.corePath,
+            langPath: OcrService.langPath,
+            cacheMethod: 'none',
+            gzip: false,
+          });
 
-        if (progress) {
-          progress(0.4);
+          if (progress) {
+            progress(0.4);
+          }
+
+          await workerInstance.setParameters({
+            tessedit_pageseg_mode: String(PSM.AUTO),
+            tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 ,:/-@().',
+            preserve_interword_spaces: '1',
+          });
+
+          if (progress) {
+            progress(0.6);
+          }
+
+          this.worker = workerInstance;
+          this.workerInitPromise = null;
+          return workerInstance;
+        } catch (err) {
+          throw new Error('Failed to initialize Tesseract worker. Ensure OCR assets are present at ' + OcrService.baseAssetPath);
         }
-
-        await workerInstance.setParameters({
-          tessedit_pageseg_mode: String(PSM.AUTO),
-          tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 ,:/-@().',
-          preserve_interword_spaces: '1',
-        });
-
-        if (progress) {
-          progress(0.6);
-        }
-
-        this.worker = workerInstance;
-        this.workerInitPromise = null;
-        return workerInstance;
       })();
     }
 

@@ -150,7 +150,8 @@ jobs:
       if: steps.changes.outputs.mobile_changed == 'true'
       run: |
         if [ -d "frontend-mobile" ]; then
-          echo "frontend-mobile directory found, building mobile app..."
+          echo "frontend-mobile directory found, preparing OCR assets and building mobile app..."
+          (cd frontend-mobile && npm run setup:ocr || true)
           (cd frontend-mobile && npm run build -- --configuration production)
         else
           echo "frontend-mobile directory not present, skipping mobile build."
