@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { firstValueFrom } from 'rxjs';
+
+type TesseractWorker = any;
 
 export interface AadharOcrResult {
   rawText: string;
@@ -20,10 +20,8 @@ interface ParsedAadharFields {
 
 @Injectable({ providedIn: 'root' })
 export class OcrService {
-  private readonly OCR_API_KEY = 'K87899142388957'; // Free tier OCR.space API key
-  private readonly OCR_API_URL = 'https://api.ocr.space/parse/image';
-
-  constructor(private http: HttpClient) {}
+  private worker: TesseractWorker | null = null;
+  private workerInitPromise: Promise<TesseractWorker> | null = null;
 
   async extractAadharFields(imageDataUrl: string, progress?: (value: number) => void): Promise<AadharOcrResult> {
     if (!imageDataUrl) {
@@ -31,63 +29,97 @@ export class OcrService {
     }
 
     if (progress) {
-      progress(0.1);
+      progress(0.05);
     }
 
-    try {
-      // Prepare form data
-      const formData = new FormData();
-      formData.append('base64Image', imageDataUrl);
-      formData.append('language', 'eng');
-      formData.append('isOverlayRequired', 'false');
-      formData.append('detectOrientation', 'true');
-      formData.append('scale', 'true');
-      formData.append('OCREngine', '2'); // Use OCR Engine 2 for better results
+    const worker = await this.getWorker(progress);
 
-      if (progress) {
-        progress(0.3);
-      }
-
-      // Call OCR API
-      const response: any = await firstValueFrom(
-        this.http.post(this.OCR_API_URL, formData, {
-          headers: {
-            'apikey': this.OCR_API_KEY,
-          },
-        })
-      );
-
-      if (progress) {
-        progress(0.8);
-      }
-
-      if (!response || !response.ParsedResults || response.ParsedResults.length === 0) {
-        throw new Error('OCR API returned no results');
-      }
-
-      const ocrResult = response.ParsedResults[0];
-      const rawText = ocrResult.ParsedText || '';
-      const confidence = ocrResult.FileParseExitCode === 1 ? 0.85 : 0.5; // Estimate confidence
-
-      if (progress) {
-        progress(0.9);
-      }
-
-      const parsed = this.parseText(rawText);
-
-      if (progress) {
-        progress(1);
-      }
-
-      return {
-        rawText,
-        confidence,
-        ...parsed,
-      };
-    } catch (error: any) {
-      console.error('OCR API error:', error);
-      throw new Error('Failed to process image with OCR API: ' + (error.message || String(error)));
+    if (progress) {
+      progress(0.75);
     }
+
+    const result = await worker.recognize(imageDataUrl);
+
+    if (progress) {
+      progress(1);
+    }
+
+    const parsed = this.parseText(result.data.text ?? '');
+
+    return {
+      rawText: result.data.text ?? '',
+      confidence: typeof result.data.confidence === 'number' ? result.data.confidence : null,
+      ...parsed,
+    };
+  }
+
+  private async getWorker(progress?: (value: number) => void): Promise<TesseractWorker> {
+    if (typeof window === 'undefined') {
+      throw new Error('OCR can only run in a browser environment.');
+    }
+
+    if (this.worker) {
+      return this.worker;
+    }
+
+    if (!this.workerInitPromise) {
+      this.workerInitPromise = (async () => {
+        if (progress) {
+          progress(0.1);
+        }
+
+        // Dynamically import tesseract.js
+        const tesseract = await import('tesseract.js');
+        const { createWorker, PSM } = tesseract;
+
+        if (progress) {
+          progress(0.2);
+        }
+
+        // Use local assets bundled with the app (offline-first)
+        const baseHref = document.querySelector('base')?.getAttribute('href') || '/';
+        const assetBase = baseHref.endsWith('/') ? baseHref : `${baseHref}/`;
+        
+        const workerPath = `${assetBase}tesseract/tesseract.worker.min.js`;
+        const corePath = `${assetBase}tesseract/tesseract-core.wasm.js`;
+        const langPath = `${assetBase}tesseract/`;
+
+        console.debug('Initializing offline OCR with local assets', { workerPath, corePath, langPath });
+
+        if (progress) {
+          progress(0.3);
+        }
+
+        const worker = await createWorker('eng', 1, {
+          workerPath,
+          corePath,
+          langPath,
+          cacheMethod: 'none',
+          gzip: false,
+        });
+
+        if (progress) {
+          progress(0.5);
+        }
+
+        await worker.setParameters({
+          tessedit_pageseg_mode: String(PSM.AUTO),
+          tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 ,:/-@().',
+          preserve_interword_spaces: '1',
+        });
+
+        if (progress) {
+          progress(0.6);
+        }
+
+        console.debug('Offline OCR worker initialized successfully');
+        this.worker = worker;
+        this.workerInitPromise = null;
+        return worker;
+      })();
+    }
+
+    return this.workerInitPromise;
   }
 
   private parseText(text: string): ParsedAadharFields {

@@ -11,7 +11,8 @@
     "cap:sync:dev": "cross-env NODE_ENV=development npx cap sync",
     "cap:sync:prod": "cross-env NODE_ENV=production npx cap sync",
     "ionic:build": "npm run build",
-    "ionic:serve": "npm run watch"
+    "ionic:serve": "npm run watch",
+    "setup:ocr": "node scripts/setup-ocr-assets.mjs"
   },
   "prettier": {
     "printWidth": 100,
@@ -34,6 +35,7 @@
     "@angular/platform-browser": "^20.3.0",
     "@angular/router": "^20.3.0",
     "@capacitor-community/sqlite": "^7.0.2",
+    "@capacitor-mlkit/barcode-scanning": "^7.4.0",
     "@capacitor/android": "^7.4.4",
     "@capacitor/camera": "^7.0.2",
     "@capacitor/cli": "^7.4.4",
@@ -46,6 +48,7 @@
     "@zxing/library": "^0.21.3",
     "dexie": "^4.2.1",
     "rxjs": "~7.8.0",
+    "tesseract.js": "^5.1.1",
     "tslib": "^2.3.0"
   },
   "devDependencies": {
