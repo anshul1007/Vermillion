@@ -151,7 +151,10 @@ jobs:
       run: |
         if [ -d "frontend-mobile" ]; then
           echo "frontend-mobile directory found, preparing OCR assets and building mobile app..."
-          (cd frontend-mobile && npm run setup:ocr || true)
+          (cd frontend-mobile && npm run setup:ocr)
+          if [ $? -ne 0 ]; then
+            echo "::warning::npm run setup:ocr failed in frontend-mobile. Check logs above for details."
+          fi
           (cd frontend-mobile && npm run build -- --configuration production)
         else
           echo "frontend-mobile directory not present, skipping mobile build."

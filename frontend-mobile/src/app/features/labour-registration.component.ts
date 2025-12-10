@@ -340,9 +340,16 @@ export class LabourRegistrationComponent implements OnInit {
         this.ocrProgress.set(progress);
       });
       this.applyOcrResult(result);
-    } catch (err) {
-      this.notifier.showError('Unable to read the Aadhar card. Please retake the photo.');
-      this.ocrMessage.set('Ensure the card is well lit and fills the frame.');
+    } catch (err: any) {
+      console.error('OCR extract error', err);
+      const msg = err?.message || String(err || 'Unknown error');
+      if (msg.includes('Failed to load tesseract') || msg.includes('Failed to initialize Tesseract') || msg.includes('OCR assets')) {
+        this.notifier.showError('OCR initialization error: ' + msg);
+        this.ocrMessage.set('OCR initialization error: ' + msg);
+      } else {
+        this.notifier.showError('Unable to read the Aadhar card. Please retake the photo.');
+        this.ocrMessage.set(msg && msg.length > 0 ? msg : 'Ensure the card is well lit and fills the frame.');
+      }
     } finally {
       this.ocrInProgress.set(false);
       setTimeout(() => this.ocrProgress.set(0), 1500);

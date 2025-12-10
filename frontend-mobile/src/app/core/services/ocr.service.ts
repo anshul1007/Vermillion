@@ -89,7 +89,7 @@ export class OcrService {
         try {
           tesseract = await import('tesseract.js');
         } catch (err) {
-          throw new Error('Failed to load tesseract.js. Ensure tesseract is installed and available in production build.');
+          throw new Error('Failed to load tesseract.js: ' + (err instanceof Error ? err.message : String(err)) + '. Ensure tesseract is installed and available in production build.');
         }
         const { createWorker, PSM } = tesseract as any;
 
@@ -120,7 +120,7 @@ export class OcrService {
           this.workerInitPromise = null;
           return workerInstance;
         } catch (err) {
-          throw new Error('Failed to initialize Tesseract worker. Ensure OCR assets are present at ' + OcrService.baseAssetPath);
+          throw new Error('Failed to initialize Tesseract worker. Ensure OCR assets are present at ' + OcrService.baseAssetPath + ': ' + (err instanceof Error ? err.message : String(err)));
         }
       })();
     }
