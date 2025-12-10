@@ -111,15 +111,12 @@ export class OcrService {
             return path;
           };
 
-          // Use CDN-hosted worker to avoid bundling/compatibility issues in Azure Static Web Apps
-          const workerUrl = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/worker.min.js';
-          const langBaseUrl = toAbsoluteUrl(OcrService.langPath);
-          const trainedDataUrl = `${langBaseUrl.endsWith('/') ? langBaseUrl : `${langBaseUrl}/`}eng.traineddata`;
-
-          // Force non-SIMD core (Azure SWA doesn't enable SharedArrayBuffer)
-          const base = langBaseUrl.endsWith('/') ? langBaseUrl : `${langBaseUrl}/`;
-          const coreJsUrl = `${base}tesseract-core.wasm.js`;
-          console.debug('Using CDN worker and non-SIMD core', { workerUrl, coreJsUrl, langBaseUrl });
+          // Use CDN for all Tesseract assets to ensure version compatibility
+          const cdnBase = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/';
+          const workerUrl = `${cdnBase}dist/worker.min.js`;
+          const coreJsUrl = `${cdnBase}dist/tesseract-core.wasm.js`;
+          const langBaseUrl = 'https://cdn.jsdelivr.net/npm/tesseract.js-core@5.1.0/';
+          console.debug('Using CDN for all Tesseract assets', { workerUrl, coreJsUrl, langBaseUrl });
 
           const fetchAssetMeta = async (url: string) => {
             try {
@@ -145,6 +142,7 @@ export class OcrService {
 
           const workerMeta = await fetchAssetMeta(workerUrl);
           const coreMeta = await fetchAssetMeta(coreJsUrl);
+          const trainedDataUrl = `${langBaseUrl}eng.traineddata`;
           const trainedMeta = await fetchAssetMeta(trainedDataUrl);
 
           const attemptCreateWorker = async (options: Record<string, any>, variant: 'normal' | 'blob') => {
