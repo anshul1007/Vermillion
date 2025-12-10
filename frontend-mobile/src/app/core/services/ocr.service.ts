@@ -148,7 +148,11 @@ export class OcrService {
           const trainedMeta = await fetchAssetMeta(trainedDataUrl);
 
           const attemptCreateWorker = async (options: Record<string, any>, variant: 'normal' | 'blob') => {
-            const instance: TesseractWorker = await createWorker('eng', undefined, options);
+            // Tesseract 5.x expects logger as second param (pass undefined or empty function)
+            const instance: TesseractWorker = await createWorker('eng', 1, {
+              logger: () => {}, // Silent logger to avoid missing function errors
+              ...options,
+            });
             progress?.(0.4);
             await instance.setParameters({
               tessedit_pageseg_mode: String(PSM.AUTO),
