@@ -165,6 +165,13 @@ export class OcrService {
             gzip: false,
           };
 
+          // Azure Static Web Apps doesn't enable SharedArrayBuffer by default (requires COOP/COEP headers)
+          // Force non-SIMD core to avoid "n is not a function" errors in SIMD worker init
+          if (typeof SharedArrayBuffer === 'undefined') {
+            console.debug('SharedArrayBuffer unavailable, forcing non-SIMD tesseract-core');
+            baseOptions.corePath = coreJsUrl.replace(/tesseract-core(-simd)?(-lstm)?\.wasm\.js$/, 'tesseract-core.wasm.js');
+          }
+
           try {
             return await attemptCreateWorker(baseOptions, 'normal');
           } catch (firstErr: any) {
